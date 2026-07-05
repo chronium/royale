@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />
+    <ProjectReference Include="..\Royale.Box3D\Royale.Box3D.csproj" />
+  </ItemGroup>
+
+</Project>

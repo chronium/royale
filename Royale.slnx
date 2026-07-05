@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Royale.Box3D.Bindings/Royale.Box3D.Bindings.csproj" />
+    <Project Path="src/Royale.Box3D/Royale.Box3D.csproj" />
+    <Project Path="src/Royale.Client/Royale.Client.csproj" />
+    <Project Path="src/Royale.Content/Royale.Content.csproj" />
+    <Project Path="src/Royale.Protocol/Royale.Protocol.csproj" />
+    <Project Path="src/Royale.Server/Royale.Server.csproj" />
+    <Project Path="src/Royale.Simulation/Royale.Simulation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Royale.Box3D.Tests/Royale.Box3D.Tests.csproj" />
+    <Project Path="tests/Royale.Protocol.Tests/Royale.Protocol.Tests.csproj" />
+    <Project Path="tests/Royale.Server.Tests/Royale.Server.Tests.csproj" />
+    <Project Path="tests/Royale.Simulation.Tests/Royale.Simulation.Tests.csproj" />
+  </Folder>
+</Solution>

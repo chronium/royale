@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Royale.Simulation\Royale.Simulation.csproj" />
+    <ProjectReference Include="..\Royale.Protocol\Royale.Protocol.csproj" />
+    <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />
+    <ProjectReference Include="..\Royale.Box3D\Royale.Box3D.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+</Project>

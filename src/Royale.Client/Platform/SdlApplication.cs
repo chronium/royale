@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using SDL;
 using static SDL.SDL3;
 
@@ -6,14 +5,21 @@ namespace Royale.Client.Platform;
 
 public sealed unsafe class SdlApplication : IDisposable
 {
+    private readonly record struct FrameTime(double DeltaSeconds);
+
+    private readonly record struct FixedTickTime(double DeltaSeconds, ulong Tick);
+
+    private const double FixedDeltaSeconds = 1.0 / 60.0;
+    private const int MaxFixedTicksPerFrame = 4;
     private const int TitleUpdateIntervalMilliseconds = 500;
 
     private readonly InputState input = new();
-    private readonly Stopwatch uptime = new();
+    private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
     private bool initialized;
     private bool running;
     private int framesSinceTitleUpdate;
-    private long lastTitleUpdateMilliseconds;
+    private double secondsSinceTitleUpdate;
+    private int lastFixedTicksThisFrame;
     private SdlGpuDevice? gpuDevice;
 
     public SdlWindow? Window { get; private set; }
@@ -25,17 +31,46 @@ public sealed unsafe class SdlApplication : IDisposable
         Initialize();
 
         running = true;
-        uptime.Restart();
-        lastTitleUpdateMilliseconds = 0;
+        framesSinceTitleUpdate = 0;
+        secondsSinceTitleUpdate = 0;
+
+        ulong performanceFrequency = SDL_GetPerformanceFrequency();
+
+        if (performanceFrequency == 0)
+            throw new InvalidOperationException("SDL performance counter frequency is zero.");
+
+        ulong previousCounter = SDL_GetPerformanceCounter();
 
         while (running)
         {
+            ulong currentCounter = SDL_GetPerformanceCounter();
+            double frameDeltaSeconds = (currentCounter - previousCounter) / (double)performanceFrequency;
+            previousCounter = currentCounter;
+            var frameTime = new FrameTime(frameDeltaSeconds);
+
             input.BeginFrame();
             PollEvents();
-            gpuDevice?.PresentClearFrame();
-            UpdateWindowTitle();
+
+            lastFixedTicksThisFrame = fixedTime.AddFrameTime(frameDeltaSeconds);
+            ulong firstFixedTick = fixedTime.TotalFixedTicks - (ulong)lastFixedTicksThisFrame + 1;
+
+            for (int tick = 0; tick < lastFixedTicksThisFrame; tick++)
+                FixedUpdate(new FixedTickTime(FixedDeltaSeconds, firstFixedTick + (ulong)tick));
+
+            Render(frameTime);
+            UpdateWindowTitle(frameTime);
+
             SDL_Delay(1);
         }
+    }
+
+    private static void FixedUpdate(FixedTickTime time)
+    {
+    }
+
+    private void Render(FrameTime time)
+    {
+        gpuDevice?.PresentClearFrame();
     }
 
     private void Initialize()
@@ -121,21 +156,20 @@ public sealed unsafe class SdlApplication : IDisposable
         }
     }
 
-    private void UpdateWindowTitle()
+    private void UpdateWindowTitle(FrameTime frameTime)
     {
         framesSinceTitleUpdate++;
+        secondsSinceTitleUpdate += frameTime.DeltaSeconds;
 
-        long now = uptime.ElapsedMilliseconds;
-        long elapsed = now - lastTitleUpdateMilliseconds;
-
-        if (elapsed < TitleUpdateIntervalMilliseconds || Window is null)
+        if (secondsSinceTitleUpdate * 1000.0 < TitleUpdateIntervalMilliseconds || Window is null)
             return;
 
-        double fps = framesSinceTitleUpdate * 1000.0 / elapsed;
-        Window.SetTitle($"Royale - {fps:0} FPS - mouse {(Window.RelativeMouseMode.Enabled ? "captured" : "free")}");
+        double fps = framesSinceTitleUpdate / secondsSinceTitleUpdate;
+        Window.SetTitle(
+            $"Royale - {fps:0} FPS - fixed {lastFixedTicksThisFrame} ticks/frame - tick {fixedTime.TotalFixedTicks} - mouse {(Window.RelativeMouseMode.Enabled ? "captured" : "free")}");
 
         framesSinceTitleUpdate = 0;
-        lastTitleUpdateMilliseconds = now;
+        secondsSinceTitleUpdate = 0;
     }
 
     public void Dispose()

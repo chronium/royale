@@ -1,22 +1,22 @@
 ---
 title: Third-Party Dependencies
 createdAt: 2026-07-05T07:54:48.9395240Z
-modifiedAt: 2026-07-05T07:54:48.9395240Z
+modifiedAt: 2026-07-05T08:22:19.8878780Z
 ---
 
 ## Overview
 
-Third-party source dependencies should be reproducible without using Git submodules in the main repository.
+Third-party source dependencies are reproducible without using Git submodules in the main repository.
 
-The main repository should contain:
+The main repository contains:
 
 * Scripts that fetch third-party source at pinned commits
-* Patch files needed to adapt those dependencies for this project
+* Patch directories for project-specific dependency changes
 * Documentation describing why each dependency exists and how it is updated
 
-The main repository should not contain cloned third-party repositories, generated native build artifacts, or submodule metadata.
+The main repository must not contain cloned third-party repositories, generated native build artifacts, or submodule metadata.
 
-This keeps the main repo simpler to clone and avoids submodule state becoming part of normal development flow.
+This keeps the main repo simple to clone and avoids submodule state becoming part of normal development flow.
 
 ## Policy
 
@@ -24,8 +24,8 @@ Third-party vendored source must follow these rules:
 
 1. Do not add third-party projects as Git submodules.
 2. Do not commit cloned third-party repositories into the main repo.
-3. Clone third-party repositories under `thirdparty/` using project-owned shell scripts.
-4. Pin every third-party dependency to an explicit commit SHA.
+3. Clone third-party repositories under `thirdparty/repos/` using project-owned shell scripts.
+4. Pin every third-party dependency to an explicit full commit SHA.
 5. Fetch pinned commits shallowly where possible.
 6. Keep project-specific modifications as patch files under `thirdparty/patches/`.
 7. Apply patches after cloning or fetching the pinned source.
@@ -35,7 +35,7 @@ Third-party vendored source must follow these rules:
 
 ## Directory Layout
 
-The intended layout is:
+The committed layout is:
 
 ```text
 thirdparty/
@@ -44,29 +44,32 @@ thirdparty/
   versions.env
   fetch-all.sh
   fetch-sdl3-cs.sh
-  repos/
-    SDL3-CS/              # ignored clone, created by scripts
+  fetch-box3d.sh
+  fetch-imgui-net.sh
+  repos/                 # ignored clones, created by scripts
+  build/                 # ignored generated native build output
+  artifacts/             # ignored generated binaries or packages
   patches/
     SDL3-CS/
-      0001-example.patch
-  build/
-    ...                   # ignored generated native build output
-  artifacts/
-    ...                   # ignored packaged output
+      README.md
+    box3d/
+      README.md
+    ImGui.Net/
+      README.md
 ```
 
-The exact script names may change, but the separation should remain clear:
+The separation is intentional:
 
 * `thirdparty/repos/` contains ignored cloned repositories.
-* `thirdparty/patches/` contains committed project patches.
+* `thirdparty/patches/` contains committed project patches and placeholder README files.
 * `thirdparty/build/` contains ignored temporary build output.
 * `thirdparty/artifacts/` contains ignored generated binaries or packages.
 
 ## Ignore Rules
 
-`thirdparty/.gitignore` should ignore cloned repositories and generated artifacts while allowing scripts, docs, version pins, and patches to be committed.
+`thirdparty/.gitignore` ignores cloned repositories and generated artifacts while allowing scripts, docs, version pins, and patches to be committed.
 
-A starting point:
+The ignored paths include:
 
 ```gitignore
 /repos/
@@ -74,70 +77,57 @@ A starting point:
 /artifacts/
 /**/*.tmp
 /**/*.log
-.DS_Store
+/.DS_Store
+**/.DS_Store
+Thumbs.db
+*.swp
+*.swo
 ```
 
 If a future dependency requires committed generated files, document why before changing these rules.
 
 ## Version Pins
 
-Pinned revisions should live in a small committed file such as `thirdparty/versions.env`.
+Pinned revisions live in `thirdparty/versions.env`.
 
-Example:
+Current pins:
 
-```sh
-SDL3_CS_REPO="https://github.com/flibitijibibo/SDL3-CS.git"
-SDL3_CS_COMMIT="<commit-sha>"
-```
+| Dependency | Repository | Commit | Purpose |
+| --- | --- | --- | --- |
+| SDL3-CS | `https://github.com/ppy/SDL3-CS` | `a0a5276a874c0c48db705696ab7e2adc8b5db0a1` | C# bindings and native availability for SDL3. |
+| box3d | `https://github.com/erincatto/box3d` | `540ea387b0c02bf714fbfdcc8fb88c039c35fe6f` | Physics library source for future project-specific native builds and bindings. |
+| ImGui.Net | `https://github.com/EvergineTeam/ImGui.Net` | `1f97beecfc9b83e1549e9782757cf85b1777cb9d` | C# ImGui bindings for client development UI. |
 
 Use full commit SHAs, not branch names, tags, or floating references.
 
-Tags may be mentioned in comments for human context, but scripts should fetch and check out the exact commit.
+Native SDL3 is not pinned separately at this stage. Until platform packaging tasks prove a different requirement, SDL3 native availability is expected to come through the selected SDL3-CS source.
 
-## Fetch Script Pattern
+## Fetch Scripts
 
-A fetch script should be deterministic and safe to rerun.
-
-For a pinned commit, prefer `git fetch --depth 1 origin <commit>` over a normal clone of a branch.
-
-Example pattern for `thirdparty/fetch-sdl3-cs.sh`:
+Fetch all dependencies with:
 
 ```sh
-#!/usr/bin/env sh
-set -eu
-
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-. "$SCRIPT_DIR/versions.env"
-
-DEST="$SCRIPT_DIR/repos/SDL3-CS"
-
-if [ ! -d "$DEST/.git" ]; then
-    mkdir -p "$DEST"
-    git -C "$DEST" init
-    git -C "$DEST" remote add origin "$SDL3_CS_REPO"
-fi
-
-git -C "$DEST" fetch --depth 1 origin "$SDL3_CS_COMMIT"
-git -C "$DEST" checkout --detach FETCH_HEAD
-
-git -C "$DEST" reset --hard FETCH_HEAD
-git -C "$DEST" clean -xfd
-
-PATCH_DIR="$SCRIPT_DIR/patches/SDL3-CS"
-if [ -d "$PATCH_DIR" ]; then
-    for patch in "$PATCH_DIR"/*.patch; do
-        [ -e "$patch" ] || continue
-        git -C "$DEST" apply --3way "$patch"
-    done
-fi
+sh thirdparty/fetch-all.sh
 ```
 
-The script may be adjusted for portability, but it should preserve these properties:
+Fetch individual dependencies with:
 
-* It checks out the pinned commit exactly.
-* It can be rerun without manual cleanup.
-* It applies committed patches after restoring the dependency source.
-* It fails clearly if the pinned commit or patch cannot be applied.
+```sh
+sh thirdparty/fetch-sdl3-cs.sh
+sh thirdparty/fetch-box3d.sh
+sh thirdparty/fetch-imgui-net.sh
+```
+
+Each fetch script is deterministic and safe to rerun:
+
+1. Initialize the ignored repository under `thirdparty/repos/<dependency>` if needed.
+2. Set the `origin` remote to the URL in `versions.env`.
+3. Fetch the pinned commit with `git fetch --depth 1 origin <commit>`.
+4. Check out detached `FETCH_HEAD`.
+5. Reset hard to `FETCH_HEAD` and clean ignored/untracked files inside the dependency clone.
+6. Apply any `*.patch` files from the matching patch directory with `git apply --3way`.
+
+The scripts should fail clearly if the pinned commit cannot be fetched or a patch cannot be applied.
 
 ## Patch Policy
 
@@ -151,7 +141,7 @@ thirdparty/patches/SDL3-CS/
   0002-adjust-generated-bindings-for-net10.patch
 ```
 
-Patches should be generated from the dependency repository after making the required change:
+Generate patches from the dependency repository after making the required change:
 
 ```sh
 git -C thirdparty/repos/SDL3-CS diff --binary > thirdparty/patches/SDL3-CS/0001-description.patch
@@ -161,25 +151,7 @@ Keep patches focused. If a patch contains unrelated changes, split it before com
 
 When updating a dependency commit, re-apply the patch series and refresh patches only when needed.
 
-## First Dependency: SDL3-CS
-
-The first third-party source dependency is:
-
-```text
-Name: SDL3-CS
-Repository: https://github.com/flibitijibibo/SDL3-CS
-Purpose: C# bindings for SDL3 and related SDL APIs
-Location: thirdparty/repos/SDL3-CS
-Patches: thirdparty/patches/SDL3-CS
-```
-
-SDL3-CS should be fetched by script at a pinned commit.
-
-Do not add it as a submodule.
-
-Do not commit the cloned `SDL3-CS` working tree.
-
-If local changes are needed for this project, capture them as ordered patch files under `thirdparty/patches/SDL3-CS/` and document the reason for each patch.
+No project-specific patches are currently required for SDL3-CS, box3d, or ImGui.Net.
 
 ## Updating a Third-Party Dependency
 
@@ -216,7 +188,7 @@ Agents working on third-party dependencies must:
 * Ask before adding a dependency, changing a pin, or introducing a patch whose purpose is not obvious.
 * Keep the wiki updated with dependency layout and update procedure changes.
 * Keep patches minimal and reviewable.
-* Verify patch application from a clean fetch.
+* Verify patch application from a clean fetch when network access is available.
 * Move the PM task to `done` only after the scripts, patches, docs, and validation are complete.
 
 ## Rationale

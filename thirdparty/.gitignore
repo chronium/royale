@@ -1,0 +1,10 @@
+/repos/
+/build/
+/artifacts/
+/**/*.tmp
+/**/*.log
+/.DS_Store
+**/.DS_Store
+Thumbs.db
+*.swp
+*.swo

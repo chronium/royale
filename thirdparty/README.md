@@ -1,0 +1,78 @@
+# Third-Party Dependencies
+
+This directory contains the committed dependency-management files for native and binding source dependencies. It does not contain cloned third-party repositories or generated build outputs.
+
+## Policy
+
+- Do not add Git submodules for third-party source.
+- Do not commit cloned repositories, build directories, native artifacts, logs, or temporary files.
+- Keep dependency revisions pinned to full commit SHAs in `versions.env`.
+- Keep project-specific third-party changes as ordered patch files under `patches/<dependency>/`.
+- Ask before changing a dependency pin, adding a dependency, or introducing a non-obvious patch.
+
+## Pinned Dependencies
+
+| Dependency | Repository | Commit | Purpose |
+| --- | --- | --- | --- |
+| SDL3-CS | `https://github.com/ppy/SDL3-CS` | `a0a5276a874c0c48db705696ab7e2adc8b5db0a1` | C# bindings and native availability for SDL3. |
+| box3d | `https://github.com/erincatto/box3d` | `540ea387b0c02bf714fbfdcc8fb88c039c35fe6f` | Physics library source for future project-specific native builds and bindings. |
+| ImGui.Net | `https://github.com/EvergineTeam/ImGui.Net` | `1f97beecfc9b83e1549e9782757cf85b1777cb9d` | C# ImGui bindings for client development UI. |
+
+Native SDL3 is not pinned separately yet. Until platform packaging tasks prove a different requirement, SDL3 native availability is expected to come through the selected SDL3-CS source.
+
+## Layout
+
+```text
+thirdparty/
+  versions.env
+  fetch-all.sh
+  fetch-sdl3-cs.sh
+  fetch-box3d.sh
+  fetch-imgui-net.sh
+  repos/                 # ignored clones created by fetch scripts
+  build/                 # ignored native build output
+  artifacts/             # ignored generated packages or binaries
+  patches/
+    SDL3-CS/
+    box3d/
+    ImGui.Net/
+```
+
+## Fetching Source
+
+Fetch every dependency:
+
+```sh
+sh thirdparty/fetch-all.sh
+```
+
+Fetch one dependency:
+
+```sh
+sh thirdparty/fetch-sdl3-cs.sh
+sh thirdparty/fetch-box3d.sh
+sh thirdparty/fetch-imgui-net.sh
+```
+
+Each script initializes or reuses an ignored repository under `thirdparty/repos/<dependency>`, fetches the pinned commit with depth 1, checks out detached `FETCH_HEAD`, resets and cleans the working tree, then applies any `*.patch` files from the matching patch directory.
+
+## Patches
+
+Patch directories are committed even when empty so the dependency-specific patch locations are stable.
+
+Generate focused patches from the fetched dependency working tree:
+
+```sh
+git -C thirdparty/repos/SDL3-CS diff --binary > thirdparty/patches/SDL3-CS/0001-description.patch
+```
+
+Use ordered filenames such as `0001-description.patch`. After changing a patch or pin, rerun the relevant fetch script to verify a clean checkout plus patch application succeeds.
+
+## Updating a Dependency
+
+1. Ask before changing the pinned revision.
+2. Update the full commit SHA in `versions.env`.
+3. Run the dependency fetch script.
+4. Re-apply and refresh patches only when necessary.
+5. Build and test the affected project areas.
+6. Commit only scripts, docs, pin changes, and patch files.

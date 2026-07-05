@@ -26,6 +26,15 @@ Current PM states are:
 
 Do not silently work around the board. The board is the source of execution state for agents.
 
+### Choosing the Next Task
+
+Use `get_next_task` when available instead of guessing from raw task lists.
+
+- For implementation work, call `get_next_task` with `readyOnly: true` so blocked tasks are not selected accidentally.
+- For planning, sequencing, or diagnosing why a track has no available work, the default `get_next_task` behavior is useful because it may return the best blocked task with its dependency blockers.
+- Always inspect the returned task's `dependenciesReady`, `waitingOnDependencies`, priority, milestone, and reason before acting.
+- If `readyOnly: true` returns no task for a filtered track, do not bypass dependencies; either choose a ready task from another track or plan the dependency that unblocks the requested track.
+
 ## PM Storage Protection
 
 The `.pm/` directory is PM storage, not a normal hand-edited project area.

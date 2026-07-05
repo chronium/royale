@@ -1,0 +1,150 @@
+---
+title: Physics and Combat
+createdAt: 2026-07-05T16:11:12.3492260Z
+modifiedAt: 2026-07-05T16:11:12.3492260Z
+---
+
+## Physics Architecture
+
+Box3D is used on both client and server.
+
+The server physics world is authoritative.
+
+The client may also maintain a physics world for:
+
+* Local movement prediction
+* Camera interaction
+* Collision visualization
+* Static map queries
+* Non-authoritative presentation effects
+
+The initial implementation should avoid networked dynamic rigid bodies.
+
+The first synchronized gameplay objects should be:
+
+* Players
+* Static map collision
+* Weapon pickups
+* Safe-zone state
+
+This keeps state ownership and replication straightforward.
+
+## Player Controller
+
+The player is represented as a kinematic capsule rather than a freely simulated dynamic rigid body.
+
+Movement is controlled explicitly using shape casts, overlap tests, and position correction.
+
+The controller is responsible for:
+
+* Horizontal movement
+* Gravity
+* Jumping
+* Ground detection
+* Slope handling
+* Wall sliding
+* Step handling
+* Ceiling collision
+* Penetration recovery
+
+A conceptual update may be:
+
+1. Read desired movement input.
+2. Apply acceleration or target velocity.
+3. Apply gravity.
+4. Test ground state.
+5. Attempt horizontal capsule movement.
+6. Slide along blocking geometry.
+7. Attempt step movement where appropriate.
+8. Apply vertical movement.
+9. Resolve remaining penetration.
+10. Update grounded state and velocity.
+
+The same controller logic should be used by the server and client prediction.
+
+## Combat Flow
+
+The first weapon is a server-authoritative hitscan rifle.
+
+The client:
+
+1. Detects fire input.
+2. Predicts local visual feedback.
+3. Sends the fire input as part of the current command.
+
+The server:
+
+1. Checks whether the player is alive.
+2. Checks whether the weapon is equipped.
+3. Checks fire cadence.
+4. Checks ammunition.
+5. Computes the authoritative shot direction.
+6. Performs the raycast.
+7. Applies damage to the closest valid hit.
+8. Updates ammunition and cooldown.
+9. Emits an authoritative combat event.
+
+The client may immediately show:
+
+* Muzzle flash
+* Recoil
+* Temporary tracer
+* Firing animation
+
+The client must wait for authoritative confirmation before treating another player as damaged or dead.
+
+## Match State Machine
+
+The battle-royale lifecycle is controlled by a server-side state machine.
+
+```text
+WaitingForPlayers
+    ↓
+Countdown
+    ↓
+Playing
+    ↓
+Finished
+    ↓
+Resetting
+    ↓
+WaitingForPlayers
+```
+
+## WaitingForPlayers
+
+* Accept players
+* Spawn or prepare them in a non-active state
+* Wait for the minimum player count
+* Allow a development force-start command
+
+## Countdown
+
+* Lock the participant list if required
+* Select spawn points
+* Reset player state
+* Begin a short countdown
+
+## Playing
+
+* Enable movement and combat
+* Update the safe zone
+* Apply zone damage
+* Track living players
+* Detect the winner
+
+## Finished
+
+* Stop combat
+* Announce the winner
+* Allow spectating
+* Wait briefly before reset
+
+## Resetting
+
+* Destroy match-scoped entities
+* Clear temporary state
+* Reset the physics world or restore map state
+* Prepare the next match
+
+Match transitions should be driven by server ticks rather than wall-clock timers wherever practical.

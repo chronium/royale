@@ -1,0 +1,32 @@
+name: Cross-platform battle royale MVP
+idWidth: 3
+idPrefix: TASK
+nextIdServiceUrl: https://pm-next-id.chronium.workers.dev
+taskStates:
+  todo: Not started
+  doing: In progress
+  done: Done
+tracks:
+  BUILD: Build and repository infrastructure
+  PLATFORM: Application platform layer
+  RENDER: Rendering
+  UI: ImGui tooling
+  PHYS: Box3D integration
+  GAME: Offline world and movement
+  COMBAT: Offline combat
+  SERVER: Authoritative simulation
+  NET: Networking
+  BR: Battle-royale match loop
+  LOOT: Minimal loot loop
+  PORT: Packaging and platform delivery
+milestones:
+  M0: Cross-platform technical skeleton
+  M1: Gray-box physics sandbox
+  M2: Offline playable character
+  M3: Offline combat prototype
+  M4: Authoritative local multiplayer architecture
+  M5: Networked cross-platform duel
+  M6: Complete battle-royale match
+  M7: Minimal PUBG-like loot loop
+  M8: Distributable cross-platform MVP
+  M9: Optional Windows support

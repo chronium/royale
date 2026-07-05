@@ -23,6 +23,8 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3ShapeId>(8);
         AssertSize<B3JointId>(8);
         AssertSize<B3ContactId>(12);
+        AssertSize<B3Capacity>(20);
+        AssertSize<B3WorldDef>(144);
         AssertSize<B3Version>(12);
         AssertSize<B3Filter>(24);
         AssertSize<B3QueryFilter>(32);
@@ -74,6 +76,38 @@ public sealed class Box3DNativeLayoutTests
         AssertOffset<B3ContactId>(nameof(B3ContactId.World0), 4);
         AssertOffset<B3ContactId>(nameof(B3ContactId.Padding), 6);
         AssertOffset<B3ContactId>(nameof(B3ContactId.Generation), 8);
+    }
+
+    [Fact]
+    public void WorldDefinitionOffsetsMatchPinnedBox3DLayout()
+    {
+        AssertOffset<B3Capacity>(nameof(B3Capacity.StaticShapeCount), 0);
+        AssertOffset<B3Capacity>(nameof(B3Capacity.DynamicShapeCount), 4);
+        AssertOffset<B3Capacity>(nameof(B3Capacity.StaticBodyCount), 8);
+        AssertOffset<B3Capacity>(nameof(B3Capacity.DynamicBodyCount), 12);
+        AssertOffset<B3Capacity>(nameof(B3Capacity.ContactCount), 16);
+
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.Gravity), 0);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.RestitutionThreshold), 12);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.HitEventThreshold), 16);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.ContactHertz), 20);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.ContactDampingRatio), 24);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.ContactSpeed), 28);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.MaximumLinearSpeed), 32);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.FrictionCallback), 40);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.RestitutionCallback), 48);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.EnableSleep), 56);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.EnableContinuous), 57);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.WorkerCount), 60);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.EnqueueTask), 64);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.FinishTask), 72);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.UserTaskContext), 80);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.UserData), 88);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.CreateDebugShape), 96);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.DestroyDebugShape), 104);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.UserDebugShapeContext), 112);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.Capacity), 120);
+        AssertOffset<B3WorldDef>(nameof(B3WorldDef.InternalValue), 140);
     }
 
     [Fact]

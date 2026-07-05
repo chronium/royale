@@ -115,6 +115,44 @@ public struct B3ContactId
     public uint Generation;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct B3Capacity
+{
+    public int StaticShapeCount;
+    public int DynamicShapeCount;
+    public int StaticBodyCount;
+    public int DynamicBodyCount;
+    public int ContactCount;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3WorldDef
+{
+    public B3Vec3 Gravity;
+    public float RestitutionThreshold;
+    public float HitEventThreshold;
+    public float ContactHertz;
+    public float ContactDampingRatio;
+    public float ContactSpeed;
+    public float MaximumLinearSpeed;
+    public nint FrictionCallback;
+    public nint RestitutionCallback;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableSleep;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableContinuous;
+    public uint WorkerCount;
+    public nint EnqueueTask;
+    public nint FinishTask;
+    public nint UserTaskContext;
+    public nint UserData;
+    public nint CreateDebugShape;
+    public nint DestroyDebugShape;
+    public nint UserDebugShapeContext;
+    public B3Capacity Capacity;
+    public int InternalValue;
+}
+
 public enum B3BodyType
 {
     StaticBody = 0,

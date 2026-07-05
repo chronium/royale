@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-05T17:28:58.7018800Z
+modifiedAt: 2026-07-05T17:55:16.3763060Z
 ---
 
 ## Fetch Scripts
@@ -93,6 +93,8 @@ The expected library output is:
 ```text
 thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.dylib
 ```
+
+Box3D native lifecycle tests on macOS ARM64 copy this artifact into the `Royale.Box3D.Tests` output as `libbox3d.dylib`. Build the artifact before running the solution tests on a fresh checkout or after cleaning ignored build outputs.
 
 Linux and Windows Box3D shared-library builds are intentionally deferred until dedicated platform tasks define and validate those workflows.
 

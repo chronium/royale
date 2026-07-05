@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-05T16:11:12.3492260Z
+modifiedAt: 2026-07-05T17:54:49.0938680Z
 ---
 
 ## Physics Architecture
@@ -31,7 +31,9 @@ This keeps state ownership and replication straightforward.
 
 ## Box3D Binding Scope
 
-The initial Box3D binding surface is limited to foundational native value types:
+The current Box3D binding surface includes foundational native value types and the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world.
+
+Foundational bindings include:
 
 * Math values
 * Opaque IDs
@@ -40,7 +42,17 @@ The initial Box3D binding surface is limited to foundational native value types:
 * Diagnostics structs
 * Query and cast result structs
 
-This surface intentionally does not bind world, body, shape, or joint lifecycle APIs yet. Those calls should be added by the task that introduces the corresponding gameplay or simulation behavior.
+World lifecycle bindings include:
+
+* `b3DefaultWorldDef`
+* `b3CreateWorld`
+* `b3DestroyWorld`
+* `b3GetWorldCount`
+* `b3GetMaxWorldCount`
+* `b3World_IsValid`
+* `b3World_Step`
+
+This remains a low-level P/Invoke surface. Managed world ownership wrappers, runtime native-library resolution, body and shape lifecycle APIs, queries, debug draw, and gameplay-specific physics systems are deferred to their owning tasks.
 
 The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
 

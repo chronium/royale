@@ -21,4 +21,8 @@
     <ProjectReference Include="..\..\src\Royale.Box3D.Bindings\Royale.Box3D.Bindings.csproj" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')))">
+    <Content Include="..\..\thirdparty\artifacts\box3d\osx-arm64\lib\libbox3d.0.1.0.dylib" Link="libbox3d.dylib" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

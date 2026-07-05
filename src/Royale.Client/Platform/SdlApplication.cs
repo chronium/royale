@@ -73,8 +73,12 @@ public sealed unsafe class SdlApplication : IDisposable
             for (int tick = 0; tick < lastFixedTicksThisFrame; tick++)
                 FixedUpdate(new FixedTickTime(FixedDeltaSeconds, firstFixedTick + (ulong)tick));
 
+            imguiBackend?.BuildDebugOverlay(new ImGuiDebugOverlayState(
+                frameTime.DeltaSeconds,
+                lastFixedTicksThisFrame,
+                fixedTime.TotalFixedTicks,
+                Window?.RelativeMouseMode.Enabled == true));
             Render(frameTime);
-            imguiBackend?.EndFrame();
             UpdateWindowTitle(frameTime);
 
             SDL_Delay(1);
@@ -92,7 +96,7 @@ public sealed unsafe class SdlApplication : IDisposable
             ? options.ScreenshotPath
             : null;
 
-        gpuDevice?.PresentFrame(time.DeltaSeconds, screenshotPath);
+        gpuDevice?.PresentFrame(time.DeltaSeconds, imguiBackend, screenshotPath);
 
         if (screenshotPath is not null)
             running = false;

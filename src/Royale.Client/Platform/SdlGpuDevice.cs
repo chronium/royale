@@ -78,7 +78,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         return SDL_GetGPUSwapchainTextureFormat(device, window.Handle);
     }
 
-    public void PresentFrame(double deltaSeconds, string? screenshotPath = null)
+    internal void PresentFrame(double deltaSeconds, ImGuiBackend? imguiBackend = null, string? screenshotPath = null)
     {
         ThrowIfDisposed();
 
@@ -132,6 +132,8 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
             cubeRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, deltaSeconds);
             SDL_EndGPURenderPass(renderPass);
+
+            imguiBackend?.Render(commandBuffer, swapchainTexture);
 
             if (screenshotPath is not null)
             {

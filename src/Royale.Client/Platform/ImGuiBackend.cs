@@ -96,11 +96,49 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         ImguiNative.igNewFrame();
     }
 
-    public void EndFrame()
+    public void BuildDebugOverlay(ImGuiDebugOverlayState state)
     {
         ThrowIfDisposed();
         ImguiNative.igSetCurrentContext(context);
-        ImguiNative.igEndFrame();
+
+        if (ImguiNative.igBegin("Royale", null, ImGuiWindowFlags.None))
+        {
+            ImguiNative.igText(state.FrameTimingText);
+            ImguiNative.igText(state.FixedTicksText);
+            ImguiNative.igText(state.TotalFixedTickText);
+            ImguiNative.igText(state.MouseCaptureText);
+        }
+
+        ImguiNative.igEnd();
+    }
+
+    internal void Render(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUTexture* swapchainTexture)
+    {
+        ThrowIfDisposed();
+        ImguiNative.igSetCurrentContext(context);
+        ImguiNative.igRender();
+
+        ImDrawData* drawData = ImguiNative.igGetDrawData();
+
+        if (drawData is null)
+            return;
+
+        royale_imgui_sdlgpu3_prepare_draw_data(drawData, commandBuffer);
+
+        var colorTarget = new SDL_GPUColorTargetInfo
+        {
+            texture = swapchainTexture,
+            load_op = SDL_GPULoadOp.SDL_GPU_LOADOP_LOAD,
+            store_op = SDL_GPUStoreOp.SDL_GPU_STOREOP_STORE,
+        };
+
+        SDL_GPURenderPass* renderPass = SDL.SDL3.SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, null);
+
+        if (renderPass is null)
+            throw new InvalidOperationException($"SDL GPU ImGui render pass creation failed: {SDL.SDL3.SDL_GetError()}");
+
+        royale_imgui_sdlgpu3_render_draw_data(drawData, commandBuffer, renderPass);
+        SDL.SDL3.SDL_EndGPURenderPass(renderPass);
     }
 
     public void Dispose()
@@ -153,4 +191,10 @@ internal sealed unsafe class ImGuiBackend : IDisposable
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     private static extern void royale_imgui_sdlgpu3_shutdown();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void royale_imgui_sdlgpu3_prepare_draw_data(ImDrawData* drawData, SDL_GPUCommandBuffer* commandBuffer);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void royale_imgui_sdlgpu3_render_draw_data(ImDrawData* drawData, SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass);
 }

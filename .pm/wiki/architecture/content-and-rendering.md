@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-05T18:34:22.3248970Z
+modifiedAt: 2026-07-05T18:50:51.2847530Z
 ---
 
 ## Content and Map Data
@@ -62,13 +62,24 @@ Initial responsibilities include:
 
 ImGui uses Evergine's generated ImGui.Net/cimgui bindings plus a project-owned native `royale_imgui` shim. The shim is built with Dear ImGui's SDL3 platform backend and SDL_GPU renderer backend.
 
-UI-001 owns ImGui context lifetime, SDL3 backend lifetime, SDL_GPU backend lifetime, SDL event forwarding, display size/framebuffer scale/delta-time updates, and frame begin/end. It does not submit ImGui draw data.
+UI-001 owns ImGui context lifetime, SDL3 backend lifetime, SDL_GPU backend lifetime, SDL event forwarding, display size/framebuffer scale/delta-time updates, and frame begin. UI-002 owns overlay construction and draw-data submission.
 
-UI-002 owns draw-data submission. The required SDL_GPU ordering is:
+Active ImGui rendering uses this SDL_GPU ordering:
 
-1. Call ImGui render to produce draw data.
-2. Call `ImGui_ImplSDLGPU3_PrepareDrawData()` before beginning the render pass that will draw ImGui.
-3. Call `ImGui_ImplSDLGPU3_RenderDrawData()` inside that SDL_GPU render pass.
+1. Poll SDL events and forward them to ImGui.
+2. Begin the ImGui frame after event polling.
+3. Build the debug overlay window before rendering.
+4. Acquire the SDL_GPU command buffer and swapchain texture.
+5. Render scene geometry in the depth-enabled main pass.
+6. Call ImGui render to produce draw data.
+7. Call `ImGui_ImplSDLGPU3_PrepareDrawData()` before beginning the render pass that will draw ImGui.
+8. Begin a color-only ImGui render pass over the swapchain texture with load `LOAD` and store `STORE`.
+9. Call `ImGui_ImplSDLGPU3_RenderDrawData()` inside that SDL_GPU render pass.
+10. End the ImGui render pass.
+11. Perform screenshot readback after ImGui rendering when screenshot mode is active.
+12. Submit the command buffer.
+
+The initial debug overlay window is titled `Royale` and shows frame delta/FPS, fixed ticks this frame, total fixed tick, and mouse capture state. It intentionally does not expose gameplay controls.
 
 ## Shader Build Pipeline
 
@@ -92,19 +103,20 @@ A simple render sequence is sufficient:
 4. Draw players and pickups.
 5. Draw debug geometry.
 6. End the main pass.
-7. Prepare ImGui draw data for SDL_GPU.
-8. Begin the ImGui render pass.
-9. Render ImGui draw data.
-10. End the ImGui render pass.
-11. Submit the command buffer.
+7. Render ImGui to produce draw data.
+8. Prepare ImGui draw data for SDL_GPU.
+9. Begin the ImGui render pass with the swapchain texture loaded.
+10. Render ImGui draw data.
+11. End the ImGui render pass.
+12. Submit the command buffer.
 
 For render validation, the client supports a development screenshot mode:
 
 ```text
-dotnet run --project src/Royale.Client/Royale.Client.csproj -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
 ```
 
-The screenshot path captures the presented swapchain frame through SDL GPU readback, writes a BMP, and exits the client after the requested frame.
+The screenshot path captures the presented swapchain frame through SDL GPU readback after ImGui rendering, writes a BMP, and exits the client after the requested frame.
 
 There is no initial requirement for:
 

@@ -16,6 +16,7 @@ thirdparty/
   README.md
   versions.env
   fetch-all.sh
+  build-box3d-macos.sh
   fetch-sdl3-cs.sh
   fetch-box3d.sh
   fetch-imgui-net.sh
@@ -68,6 +69,13 @@ Native build outputs should go under ignored directories such as:
 ```text
 thirdparty/build/
 thirdparty/artifacts/
+```
+
+The current Box3D macOS ARM64 shared-library workflow uses:
+
+```text
+thirdparty/build/box3d/osx-arm64/
+thirdparty/artifacts/box3d/osx-arm64/
 ```
 
 Project packaging tasks may copy selected final native binaries into project-controlled runtime or packaging directories later, but generated third-party build directories should remain ignored.

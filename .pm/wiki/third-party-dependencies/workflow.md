@@ -74,6 +74,28 @@ The upstream sample app opens a native graphics window. In sandboxed agent sessi
 
 Linux validation should use the matching upstream Linux preset once a task explicitly brings Linux x64 validation back into scope.
 
+## Box3D Shared Library Build
+
+Build the project-owned macOS ARM64 Box3D shared library from the repository root with:
+
+```sh
+sh thirdparty/build-box3d-macos.sh
+```
+
+The script refreshes the pinned upstream source with `thirdparty/fetch-box3d.sh`, configures a Release shared-library build with upstream samples, tests, benchmarks, docs, and profiling disabled, and installs the generated files into the ignored artifact directory:
+
+```text
+thirdparty/artifacts/box3d/osx-arm64/
+```
+
+The expected library output is:
+
+```text
+thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.dylib
+```
+
+Linux and Windows Box3D shared-library builds are intentionally deferred until dedicated platform tasks define and validate those workflows.
+
 ## Patch Policy
 
 Project-specific changes to third-party code must be stored as patches under `thirdparty/patches/<dependency>/`.

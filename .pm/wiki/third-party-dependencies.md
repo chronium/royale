@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependencies
 createdAt: 2026-07-05T07:54:48.9395240Z
-modifiedAt: 2026-07-05T08:48:40.1988760Z
+modifiedAt: 2026-07-05T12:13:26.8617830Z
 ---
 
 ## Overview
@@ -149,6 +149,10 @@ This avoids requiring Android workloads for the SDL3-CS Android target during de
 dotnet build Royale.slnx -m:1 --no-restore
 dotnet test Royale.slnx -m:1 --no-restore
 ```
+
+When a client project consumes SDL3-CS from source by project reference, it must explicitly copy the runtime-native SDL library from `thirdparty/repos/SDL3-CS/native/<rid>/` into the client output. Project references build the managed binding but do not automatically place the native package asset beside the consuming executable.
+
+`Royale.Client` currently copies only `SDL3` itself for desktop RIDs needed by the platform window task: `osx-arm64`, `osx-x64`, `linux-arm64`, `linux-x64`, `win-arm64`, and `win-x64`. Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
 
 ## Patch Policy
 

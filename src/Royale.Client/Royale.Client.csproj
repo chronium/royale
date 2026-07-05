@@ -11,6 +11,32 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RoyaleEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
+    <RoyaleEffectiveRuntimeIdentifier Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'osx-arm64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\osx-arm64\libSDL3.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="libSDL3.dylib" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'osx-x64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\osx-x64\libSDL3.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="libSDL3.dylib" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'linux-arm64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\linux-arm64\libSDL3.so" CopyToOutputDirectory="PreserveNewest" TargetPath="libSDL3.so" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'linux-x64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\linux-x64\libSDL3.so" CopyToOutputDirectory="PreserveNewest" TargetPath="libSDL3.so" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'win-arm64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\win-arm64\SDL3.dll" CopyToOutputDirectory="PreserveNewest" TargetPath="SDL3.dll" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'win-x64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\win-x64\SDL3.dll" CopyToOutputDirectory="PreserveNewest" TargetPath="SDL3.dll" />
+  </ItemGroup>
 
 </Project>

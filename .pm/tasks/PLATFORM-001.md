@@ -32,6 +32,8 @@ The task stayed platform-only: no SDL GPU device, renderer, ImGui, gameplay simu
 
 `Royale.Client` references the pinned fetched SDL3-CS source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`. The reference is constrained to `TargetFramework=net8.0`; the binding itself is restored with `CI_DONT_TARGET_ANDROID=1` for desktop-only work.
 
+Because project references to SDL3-CS do not copy the packaged native SDL library into the client output, `Royale.Client` explicitly copies the SDL3 native library for the effective runtime identifier. Current desktop copy rules cover `osx-arm64`, `osx-x64`, `linux-arm64`, `linux-x64`, `win-arm64`, and `win-x64`.
+
 Added `Royale.Client.Tests` for SDL-independent input behavior and registered it in `Royale.slnx`.
 
 Updated `AGENTS.md` and the `third-party-dependencies` wiki page with the SDL3-CS restore command and third-party MSBuild boundary files.
@@ -45,5 +47,7 @@ Updated `AGENTS.md` and the `third-party-dependencies` wiki page with the SDL3-C
 - `dotnet test Royale.slnx -m:1 --no-restore`
 - `dotnet list src/Royale.Server/Royale.Server.csproj reference` confirms the server references only Simulation, Protocol, Content, and Box3D.
 - `rg "SDL|Royale.Client|ImGui|Rendering" src/Royale.Server tests/Royale.Server.Tests -n` found no server-side SDL, client, ImGui, or rendering references.
+- First manual launch with `dotnet run --project src/Royale.Client --no-restore` failed with `DllNotFoundException` for `SDL3`/`libSDL3.dylib` because the native library was not in the app output.
+- After adding the native SDL copy rule, `dotnet run --project src/Royale.Client --no-restore` stayed running past startup on macOS arm64 and was stopped with Ctrl-C.
 
-Manual interactive window verification with `dotnet run --project src/Royale.Client --no-restore` was not performed in this non-interactive agent session. It should be run on a machine with display access to confirm the window opens, resizes, `F1` toggles capture, `Escape` release/quit behavior works, and the close button exits cleanly.
+The agent could verify startup and main-loop liveness, but does not have a native desktop screenshot/control surface in this session to confirm visual window contents, resize interaction, `F1`, `Escape`, or close-button behavior.

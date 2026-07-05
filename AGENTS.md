@@ -135,6 +135,8 @@ Any command that requires NuGet package access or restore may require an elevate
 
 Do not invent build, lint, format, or test commands. If no command exists yet, say so. Once commands are introduced, document them here and in the wiki when appropriate.
 
+Client shader builds require the `shadercross` executable to be available on `PATH`. The client project compiles HLSL sources under `src/Royale.Client/Shaders/` to SPIR-V (`.spv`) and Metal (`.msl`) outputs after build, and copies the original HLSL files for Direct3D/DXIL-facing development until a DXIL flow is explicitly chosen. `SDL_shadercross` is a local build tool dependency and is not vendored through `thirdparty`.
+
 ## Native Dependencies
 
 The project uses SDL3, SDL GPU, Box3D, and ImGui-related bindings or integration.

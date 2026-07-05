@@ -39,4 +39,28 @@
     <None Include="..\..\thirdparty\repos\SDL3-CS\native\win-x64\SDL3.dll" CopyToOutputDirectory="PreserveNewest" TargetPath="SDL3.dll" />
   </ItemGroup>
 
+  <ItemGroup>
+    <RoyaleShaderSource Include="Shaders/**/*.vert.hlsl">
+      <ShaderStage>vertex</ShaderStage>
+    </RoyaleShaderSource>
+    <RoyaleShaderSource Include="Shaders/**/*.frag.hlsl">
+      <ShaderStage>fragment</ShaderStage>
+    </RoyaleShaderSource>
+    <RoyaleShaderSource Include="Shaders/**/*.comp.hlsl">
+      <ShaderStage>compute</ShaderStage>
+    </RoyaleShaderSource>
+  </ItemGroup>
+
+  <Target Name="CompileRoyaleShaders"
+          AfterTargets="Build"
+          Inputs="@(RoyaleShaderSource)"
+          Outputs="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename).spv');@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename).msl');@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')">
+    <MakeDir Directories="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)')" />
+    <Exec Command="shadercross &quot;%(RoyaleShaderSource.FullPath)&quot; --source HLSL --dest SPIRV --stage %(RoyaleShaderSource.ShaderStage) --entrypoint main --output &quot;$(OutputPath)shaders/%(RoyaleShaderSource.RecursiveDir)%(RoyaleShaderSource.Filename).spv&quot;" />
+    <Exec Command="shadercross &quot;%(RoyaleShaderSource.FullPath)&quot; --source HLSL --dest MSL --stage %(RoyaleShaderSource.ShaderStage) --entrypoint main --output &quot;$(OutputPath)shaders/%(RoyaleShaderSource.RecursiveDir)%(RoyaleShaderSource.Filename).msl&quot;" />
+    <Copy SourceFiles="@(RoyaleShaderSource)"
+          DestinationFiles="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

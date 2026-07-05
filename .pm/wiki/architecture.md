@@ -660,6 +660,18 @@ Initial responsibilities include:
 * Debug geometry
 * ImGui rendering
 
+### Shader Build Pipeline
+
+Client shader sources live under `src/Royale.Client/Shaders/` as HLSL files using stage suffixes:
+
+* `.vert.hlsl`
+* `.frag.hlsl`
+* `.comp.hlsl`
+
+The client build requires `shadercross` to be available on `PATH`. After `Royale.Client` builds, MSBuild compiles each shader source to SPIR-V (`.spv`) and Metal (`.msl`) under the client output `shaders/` directory, preserving recursive shader folders. The original HLSL source is also copied to the same output tree for Direct3D/DXIL-facing development until a specific DXIL output flow is chosen.
+
+`SDL_shadercross` is not vendored through `thirdparty`; it is treated as an external local build tool dependency.
+
 A simple render sequence is sufficient:
 
 1. Acquire the swapchain texture.

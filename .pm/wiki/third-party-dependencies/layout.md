@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Layout
 createdAt: 2026-07-05T16:14:33.2369430Z
-modifiedAt: 2026-07-05T16:14:33.2369430Z
+modifiedAt: 2026-07-05T18:33:58.7128600Z
 ---
 
 ## Directory Layout
@@ -17,9 +17,11 @@ thirdparty/
   versions.env
   fetch-all.sh
   build-box3d-macos.sh
+  build-imgui-macos.sh
   fetch-sdl3-cs.sh
   fetch-box3d.sh
   fetch-imgui-net.sh
+  royale_imgui/          # committed project-owned C ABI shim source
   repos/                 # ignored clones, created by scripts
   build/                 # ignored generated native build output
   artifacts/             # ignored generated binaries or packages
@@ -36,6 +38,7 @@ The separation is intentional:
 
 * `thirdparty/repos/` contains ignored cloned repositories.
 * `thirdparty/patches/` contains committed project patches and placeholder README files.
+* `thirdparty/royale_imgui/` contains the committed project-owned native shim source that is built together with the ignored pinned ImGui.Net checkout.
 * `thirdparty/build/` contains ignored temporary build output.
 * `thirdparty/artifacts/` contains ignored generated binaries or packages.
 * `thirdparty/Directory.Packages.props` prevents root Central Package Management from overriding dependency-owned package versions.
@@ -43,7 +46,7 @@ The separation is intentional:
 
 ## Ignore Rules
 
-`thirdparty/.gitignore` ignores cloned repositories and generated artifacts while allowing scripts, docs, version pins, and patches to be committed.
+`thirdparty/.gitignore` ignores cloned repositories and generated artifacts while allowing scripts, docs, version pins, project-owned shim source, and patches to be committed.
 
 The ignored paths include:
 
@@ -76,6 +79,13 @@ The current Box3D macOS ARM64 shared-library workflow uses:
 ```text
 thirdparty/build/box3d/osx-arm64/
 thirdparty/artifacts/box3d/osx-arm64/
+```
+
+The current ImGui macOS ARM64 shared-library workflow uses:
+
+```text
+thirdparty/build/imgui/osx-arm64/
+thirdparty/artifacts/imgui/osx-arm64/lib/libroyale_imgui.dylib
 ```
 
 Project packaging tasks may copy selected final native binaries into project-controlled runtime or packaging directories later, but generated third-party build directories should remain ignored.

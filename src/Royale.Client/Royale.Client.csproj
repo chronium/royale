@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />
     <ProjectReference Include="..\Royale.Box3D\Royale.Box3D.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\SDL3-CS\SDL3-CS\SDL3-CS.csproj" AdditionalProperties="CI_DONT_TARGET_ANDROID=1" SetTargetFramework="TargetFramework=net8.0" />
+    <ProjectReference Include="..\..\thirdparty\repos\ImGui.Net\Generator\Evergine.Bindings.Imgui\Evergine.Bindings.Imgui.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -17,6 +18,7 @@
 
   <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'osx-arm64'">
     <None Include="..\..\thirdparty\repos\SDL3-CS\native\osx-arm64\libSDL3.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="libSDL3.dylib" />
+    <None Include="..\..\thirdparty\artifacts\imgui\osx-arm64\lib\libroyale_imgui.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="libroyale_imgui.dylib" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'osx-x64'">

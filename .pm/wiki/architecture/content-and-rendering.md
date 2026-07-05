@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-05T16:11:12.3546390Z
+modifiedAt: 2026-07-05T18:34:22.3248970Z
 ---
 
 ## Content and Map Data
@@ -60,6 +60,16 @@ Initial responsibilities include:
 * Debug geometry
 * ImGui rendering
 
+ImGui uses Evergine's generated ImGui.Net/cimgui bindings plus a project-owned native `royale_imgui` shim. The shim is built with Dear ImGui's SDL3 platform backend and SDL_GPU renderer backend.
+
+UI-001 owns ImGui context lifetime, SDL3 backend lifetime, SDL_GPU backend lifetime, SDL event forwarding, display size/framebuffer scale/delta-time updates, and frame begin/end. It does not submit ImGui draw data.
+
+UI-002 owns draw-data submission. The required SDL_GPU ordering is:
+
+1. Call ImGui render to produce draw data.
+2. Call `ImGui_ImplSDLGPU3_PrepareDrawData()` before beginning the render pass that will draw ImGui.
+3. Call `ImGui_ImplSDLGPU3_RenderDrawData()` inside that SDL_GPU render pass.
+
 ## Shader Build Pipeline
 
 Client shader sources live under `src/Royale.Client/Shaders/` as HLSL files using stage suffixes:
@@ -82,8 +92,11 @@ A simple render sequence is sufficient:
 4. Draw players and pickups.
 5. Draw debug geometry.
 6. End the main pass.
-7. Render ImGui.
-8. Submit the command buffer.
+7. Prepare ImGui draw data for SDL_GPU.
+8. Begin the ImGui render pass.
+9. Render ImGui draw data.
+10. End the ImGui render pass.
+11. Submit the command buffer.
 
 For render validation, the client supports a development screenshot mode:
 

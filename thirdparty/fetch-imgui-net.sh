@@ -22,6 +22,11 @@ git -C "$DEST" fetch --depth 1 origin "$IMGUI_NET_COMMIT"
 git -C "$DEST" checkout --detach FETCH_HEAD
 git -C "$DEST" reset --hard FETCH_HEAD
 git -C "$DEST" clean -xfd
+git -C "$DEST" submodule update --init --depth 1 NativeLibraries/cimgui NativeLibraries/cimplot NativeLibraries/cimnodes NativeLibraries/cimguizmo
+git -C "$DEST/NativeLibraries/cimgui" submodule update --init --depth 1 imgui
+git -C "$DEST/NativeLibraries/cimplot" submodule update --init --depth 1 implot
+git -C "$DEST/NativeLibraries/cimnodes" submodule update --init --depth 1 imnodes
+git -C "$DEST/NativeLibraries/cimguizmo" submodule update --init --depth 1 ImGuizmo
 
 if [ -d "$PATCH_DIR" ]; then
     for patch in "$PATCH_DIR"/*.patch; do

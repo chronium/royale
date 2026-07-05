@@ -72,6 +72,12 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         return null;
     }
 
+    internal SDL_GPUTextureFormat GetSwapchainTextureFormat()
+    {
+        ThrowIfDisposed();
+        return SDL_GetGPUSwapchainTextureFormat(device, window.Handle);
+    }
+
     public void PresentFrame(double deltaSeconds, string? screenshotPath = null)
     {
         ThrowIfDisposed();

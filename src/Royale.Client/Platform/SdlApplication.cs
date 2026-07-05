@@ -23,6 +23,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private double secondsSinceTitleUpdate;
     private int lastFixedTicksThisFrame;
     private SdlGpuDevice? gpuDevice;
+    private ImGuiBackend? imguiBackend;
 
     public SdlApplication()
         : this(SdlApplicationOptions.Default)
@@ -62,7 +63,9 @@ public sealed unsafe class SdlApplication : IDisposable
             var frameTime = new FrameTime(frameDeltaSeconds);
 
             input.BeginFrame();
-            PollEvents();
+            ImGuiCaptureState imguiCapture = imguiBackend?.Capture ?? default;
+            PollEvents(imguiCapture);
+            imguiBackend?.NewFrame(frameTime.DeltaSeconds);
 
             lastFixedTicksThisFrame = fixedTime.AddFrameTime(frameDeltaSeconds);
             ulong firstFixedTick = fixedTime.TotalFixedTicks - (ulong)lastFixedTicksThisFrame + 1;
@@ -71,6 +74,7 @@ public sealed unsafe class SdlApplication : IDisposable
                 FixedUpdate(new FixedTickTime(FixedDeltaSeconds, firstFixedTick + (ulong)tick));
 
             Render(frameTime);
+            imguiBackend?.EndFrame();
             UpdateWindowTitle(frameTime);
 
             SDL_Delay(1);
@@ -110,18 +114,26 @@ public sealed unsafe class SdlApplication : IDisposable
             720,
             SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY);
         gpuDevice = SdlGpuDevice.Create(Window);
+        imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
     }
 
-    private void PollEvents()
+    private void PollEvents(ImGuiCaptureState imguiCapture)
     {
         SDL_Event sdlEvent;
 
         while (SDL_PollEvent(&sdlEvent))
-            HandleEvent(sdlEvent);
+        {
+            imguiBackend?.ProcessEvent(&sdlEvent);
+            HandleEvent(sdlEvent, imguiCapture);
+        }
     }
 
-    private void HandleEvent(SDL_Event sdlEvent)
+    private void HandleEvent(SDL_Event sdlEvent, ImGuiCaptureState imguiCapture)
     {
+        var inputOwnership = new GameInputOwnership(
+            Window?.RelativeMouseMode.Enabled == true,
+            imguiCapture);
+
         switch (sdlEvent.Type)
         {
             case SDL_EventType.SDL_EVENT_QUIT:
@@ -136,30 +148,35 @@ public sealed unsafe class SdlApplication : IDisposable
 
             case SDL_EventType.SDL_EVENT_KEY_DOWN:
                 if (!sdlEvent.key.repeat)
-                    HandleKeyDown(sdlEvent.key.key);
+                    HandleKeyDown(sdlEvent.key.key, inputOwnership);
                 break;
 
             case SDL_EventType.SDL_EVENT_KEY_UP:
-                input.SetKeyUp((int)sdlEvent.key.key);
+                if (input.IsKeyDown((int)sdlEvent.key.key) || inputOwnership.ShouldApplyKeyboardToGame(IsGlobalControl(sdlEvent.key.key)))
+                    input.SetKeyUp((int)sdlEvent.key.key);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
-                input.SetMouseButtonDown((int)sdlEvent.button.button);
+                if (inputOwnership.ShouldApplyMouseToGame())
+                    input.SetMouseButtonDown((int)sdlEvent.button.button);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
-                input.SetMouseButtonUp((int)sdlEvent.button.button);
+                if (input.IsMouseButtonDown((int)sdlEvent.button.button) || inputOwnership.ShouldApplyMouseToGame())
+                    input.SetMouseButtonUp((int)sdlEvent.button.button);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
-                input.AddMouseDelta(sdlEvent.motion.xrel, sdlEvent.motion.yrel);
+                if (inputOwnership.ShouldApplyMouseToGame())
+                    input.AddMouseDelta(sdlEvent.motion.xrel, sdlEvent.motion.yrel);
                 break;
         }
     }
 
-    private void HandleKeyDown(SDL_Keycode key)
+    private void HandleKeyDown(SDL_Keycode key, GameInputOwnership inputOwnership)
     {
-        input.SetKeyDown((int)key);
+        if (inputOwnership.ShouldApplyKeyboardToGame(IsGlobalControl(key)))
+            input.SetKeyDown((int)key);
 
         switch (key)
         {
@@ -176,6 +193,8 @@ public sealed unsafe class SdlApplication : IDisposable
                 break;
         }
     }
+
+    private static bool IsGlobalControl(SDL_Keycode key) => key is SDL_Keycode.SDLK_F1 or SDL_Keycode.SDLK_ESCAPE;
 
     private void UpdateWindowTitle(FrameTime frameTime)
     {
@@ -195,6 +214,9 @@ public sealed unsafe class SdlApplication : IDisposable
 
     public void Dispose()
     {
+        imguiBackend?.Dispose();
+        imguiBackend = null;
+
         gpuDevice?.Dispose();
         gpuDevice = null;
 

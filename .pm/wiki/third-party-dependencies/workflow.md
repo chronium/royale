@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-05T17:55:16.3763060Z
+modifiedAt: 2026-07-05T18:33:42.1692550Z
 ---
 
 ## Fetch Scripts
@@ -27,15 +27,20 @@ Each fetch script is deterministic and safe to rerun:
 3. Fetch the pinned commit with `git fetch --depth 1 origin <commit>`.
 4. Check out detached `FETCH_HEAD`.
 5. Reset hard to `FETCH_HEAD` and clean ignored/untracked files inside the dependency clone.
-6. Apply any `*.patch` files from the matching patch directory with `git apply --3way`.
+6. Fetch any pinned submodules required by the dependency's committed source tree.
+7. Apply any `*.patch` files from the matching patch directory with `git apply --3way`.
 
-The scripts should fail clearly if the pinned commit cannot be fetched or a patch cannot be applied.
+The scripts should fail clearly if the pinned commit cannot be fetched, a required submodule cannot be fetched, or a patch cannot be applied.
+
+`fetch-imgui-net.sh` also initializes the pinned native submodule graph required by Evergine's generated binding surface: cimgui, Dear ImGui, cimplot/implot, cimnodes/imnodes, and cimguizmo/ImGuizmo.
 
 ## Restore and Build Notes
 
 SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`.
 
-For a fresh checkout after fetching SDL3-CS, restore the solution with the binding's desktop-target property:
+ImGui.Net is consumed from the fetched source project at `thirdparty/repos/ImGui.Net/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj`.
+
+For a fresh checkout after fetching SDL3-CS or ImGui.Net, restore the solution with the binding's desktop-target property:
 
 ```sh
 dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
@@ -51,6 +56,24 @@ dotnet test Royale.slnx -m:1 --no-restore
 When a client project consumes SDL3-CS from source by project reference, it must explicitly copy the runtime-native SDL library from `thirdparty/repos/SDL3-CS/native/<rid>/` into the client output. Project references build the managed binding but do not automatically place the native package asset beside the consuming executable.
 
 `Royale.Client` currently copies only `SDL3` itself for desktop RIDs needed by the platform window task: `osx-arm64`, `osx-x64`, `linux-arm64`, `linux-x64`, `win-arm64`, and `win-x64`. Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
+
+## ImGui Native Shim Build
+
+Build the project-owned macOS ARM64 ImGui shared library from the repository root with:
+
+```sh
+sh thirdparty/build-imgui-macos.sh
+```
+
+The script refreshes the pinned ImGui.Net source, verifies SDL3 development headers are available through `pkg-config sdl3`, compiles cimgui plus Dear ImGui's SDL3 platform backend and SDL_GPU renderer backend, and installs the generated library into:
+
+```text
+thirdparty/artifacts/imgui/osx-arm64/lib/libroyale_imgui.dylib
+```
+
+The ImGui shim includes cimgui symbols required by `Evergine.Bindings.Imgui` and project-owned `royale_imgui_*` C ABI entry points for backend lifetime, event forwarding, frame setup, and future draw-data submission. It intentionally uses SDL3 headers without linking against a separate SDL3 dylib, so the running client resolves SDL symbols through the SDL3-CS native library already copied beside `Royale.Client`.
+
+After running the native ImGui build script, run restore again before no-restore .NET build or test commands because the deterministic third-party refresh removes generated `obj/` files under the ignored ImGui.Net checkout.
 
 ## Box3D Sample Validation
 

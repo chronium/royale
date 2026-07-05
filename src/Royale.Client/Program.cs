@@ -1,4 +1,6 @@
 using Royale.Client.Platform;
 
-using var application = new SdlApplication();
+SdlApplicationOptions options = SdlApplicationOptions.Parse(args);
+
+using var application = new SdlApplication(options);
 application.Run();

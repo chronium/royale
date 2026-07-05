@@ -15,12 +15,24 @@ public sealed unsafe class SdlApplication : IDisposable
 
     private readonly InputState input = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
+    private readonly SdlApplicationOptions options;
     private bool initialized;
     private bool running;
+    private int renderedFrames;
     private int framesSinceTitleUpdate;
     private double secondsSinceTitleUpdate;
     private int lastFixedTicksThisFrame;
     private SdlGpuDevice? gpuDevice;
+
+    public SdlApplication()
+        : this(SdlApplicationOptions.Default)
+    {
+    }
+
+    public SdlApplication(SdlApplicationOptions options)
+    {
+        this.options = options;
+    }
 
     public SdlWindow? Window { get; private set; }
 
@@ -31,6 +43,7 @@ public sealed unsafe class SdlApplication : IDisposable
         Initialize();
 
         running = true;
+        renderedFrames = 0;
         framesSinceTitleUpdate = 0;
         secondsSinceTitleUpdate = 0;
 
@@ -70,7 +83,15 @@ public sealed unsafe class SdlApplication : IDisposable
 
     private void Render(FrameTime time)
     {
-        gpuDevice?.PresentClearFrame();
+        renderedFrames++;
+        string? screenshotPath = options.ScreenshotPath is not null && renderedFrames == options.ScreenshotAfterFrames
+            ? options.ScreenshotPath
+            : null;
+
+        gpuDevice?.PresentFrame(time.DeltaSeconds, screenshotPath);
+
+        if (screenshotPath is not null)
+            running = false;
     }
 
     private void Initialize()

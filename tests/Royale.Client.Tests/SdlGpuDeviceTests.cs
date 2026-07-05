@@ -1,4 +1,5 @@
 using Royale.Client.Platform;
+using Royale.Client.Rendering;
 using SDL;
 
 namespace Royale.Client.Tests;
@@ -38,5 +39,23 @@ public sealed class SdlGpuDeviceTests
     public void SelectPreferredShaderFormatReturnsNullWhenNoKnownFormatIsSupported()
     {
         Assert.Null(SdlGpuDevice.SelectPreferredShaderFormat(0));
+    }
+
+    [Theory]
+    [InlineData(SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_MSL, "basic.vert.msl")]
+    [InlineData(SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_SPIRV, "basic.vert.spv")]
+    [InlineData(SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_DXIL, "basic.vert.hlsl")]
+    public void ShaderAssetSelectorUsesCompiledShaderExtension(SDL_GPUShaderFormat format, string expectedFileName)
+    {
+        Assert.Equal(expectedFileName, ShaderAssetSelector.GetShaderFileName("basic.vert", format));
+    }
+
+    [Theory]
+    [InlineData(SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_MSL, "main0")]
+    [InlineData(SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_SPIRV, "main")]
+    [InlineData(SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_DXIL, "main")]
+    public void ShaderAssetSelectorUsesBackendEntrypoint(SDL_GPUShaderFormat format, string expectedEntrypoint)
+    {
+        Assert.Equal(expectedEntrypoint, ShaderAssetSelector.GetEntrypoint(format));
     }
 }

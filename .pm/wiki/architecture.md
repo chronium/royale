@@ -1,7 +1,7 @@
 ---
 title: Architecture
 createdAt: 2026-07-05T07:34:45.0706070Z
-modifiedAt: 2026-07-05T07:34:45.0706070Z
+modifiedAt: 2026-07-05T18:45:00.0000000Z
 ---
 
 ## Overview
@@ -683,6 +683,14 @@ A simple render sequence is sufficient:
 7. Render ImGui.
 8. Submit the command buffer.
 
+For render validation, the client supports a development screenshot mode:
+
+```text
+dotnet run --project src/Royale.Client/Royale.Client.csproj -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
+```
+
+The screenshot path captures the presented swapchain frame through SDL GPU readback, writes a BMP, and exits the client after the requested frame.
+
 There is no initial requirement for:
 
 * Deferred rendering
@@ -871,6 +879,7 @@ The architecture should expose important runtime information through structured 
 * Player position and velocity
 * Grounded state
 * Weapon state
+* One-shot screenshot capture for render validation
 
 ### Server diagnostics
 

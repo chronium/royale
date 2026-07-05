@@ -18,7 +18,7 @@ cbuffer CameraConstants : register(b0, space1)
 VertexOutput main(VertexInput input)
 {
     VertexOutput output;
-    output.Position = mul(WorldViewProjection, float4(input.Position, 1.0));
+    output.Position = mul(float4(input.Position, 1.0), WorldViewProjection);
     output.Color = input.Color;
     return output;
 }

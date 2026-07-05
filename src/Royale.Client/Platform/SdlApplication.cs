@@ -1,6 +1,9 @@
 using SDL;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Royale.Native;
 using static SDL.SDL3;
+using ZLogger;
 
 namespace Royale.Client.Platform;
 
@@ -17,6 +20,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private readonly InputState input = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
     private readonly SdlApplicationOptions options;
+    private readonly ILogger<SdlApplication> logger;
     private bool initialized;
     private bool running;
     private int renderedFrames;
@@ -32,8 +36,14 @@ public sealed unsafe class SdlApplication : IDisposable
     }
 
     public SdlApplication(SdlApplicationOptions options)
+        : this(options, NullLogger<SdlApplication>.Instance)
+    {
+    }
+
+    public SdlApplication(SdlApplicationOptions options, ILogger<SdlApplication> logger)
     {
         this.options = options;
+        this.logger = logger;
     }
 
     public SdlWindow? Window { get; private set; }
@@ -110,17 +120,25 @@ public sealed unsafe class SdlApplication : IDisposable
 
         NativeLibraryResolver.ConfigureForAssembly(typeof(SDL3).Assembly);
 
+        logger.ZLogInformation($"Initializing SDL video subsystem.");
+
         if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO))
             throw new InvalidOperationException($"SDL video initialization failed: {SDL_GetError()}");
 
         initialized = true;
+        logger.ZLogInformation($"SDL video subsystem initialized.");
 
+        logger.ZLogInformation($"Creating SDL window.");
         Window = SdlWindow.Create(
             "Royale",
             1280,
             720,
             SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        logger.ZLogInformation($"SDL window created.");
+
+        logger.ZLogInformation($"Creating SDL GPU device.");
         gpuDevice = SdlGpuDevice.Create(Window);
+        logger.ZLogInformation($"SDL GPU device created.");
         imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
     }
 
@@ -221,6 +239,8 @@ public sealed unsafe class SdlApplication : IDisposable
 
     public void Dispose()
     {
+        logger.ZLogInformation($"Client shutdown beginning.");
+
         imguiBackend?.Dispose();
         imguiBackend = null;
 
@@ -235,5 +255,7 @@ public sealed unsafe class SdlApplication : IDisposable
             SDL_Quit();
             initialized = false;
         }
+
+        logger.ZLogInformation($"Client shutdown complete.");
     }
 }

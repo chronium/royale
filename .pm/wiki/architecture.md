@@ -1,7 +1,7 @@
 ---
 title: Architecture
 createdAt: 2026-07-05T16:10:17.2845730Z
-modifiedAt: 2026-07-05T16:10:17.2845730Z
+modifiedAt: 2026-07-05T19:44:50.5075380Z
 ---
 
 ## Overview
@@ -17,5 +17,6 @@ Start here:
 * `architecture/physics-and-combat` - Box3D ownership, player controller, combat flow, and match state machine
 * `architecture/content-and-rendering` - map/content data, SDL GPU rendering, shaders, screenshot validation, and presentation state
 * `architecture/diagnostics-testing-deployment` - threading, error handling, diagnostics, testing, deployment shape, constraints, and data flow
+* `diagnostics` - concrete logging implementation, log shape, sinks, and lifecycle log policy
 
 The main invariant across all pages is unchanged: the dedicated server owns gameplay authority; the client owns interaction, prediction, presentation, and rendering.

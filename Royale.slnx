@@ -4,6 +4,7 @@
     <Project Path="src/Royale.Box3D/Royale.Box3D.csproj" />
     <Project Path="src/Royale.Client/Royale.Client.csproj" />
     <Project Path="src/Royale.Content/Royale.Content.csproj" />
+    <Project Path="src/Royale.Diagnostics/Royale.Diagnostics.csproj" />
     <Project Path="src/Royale.Native/Royale.Native.csproj" />
     <Project Path="src/Royale.Protocol/Royale.Protocol.csproj" />
     <Project Path="src/Royale.Server/Royale.Server.csproj" />
@@ -12,6 +13,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Royale.Box3D.Tests/Royale.Box3D.Tests.csproj" />
     <Project Path="tests/Royale.Client.Tests/Royale.Client.Tests.csproj" />
+    <Project Path="tests/Royale.Diagnostics.Tests/Royale.Diagnostics.Tests.csproj" />
     <Project Path="tests/Royale.Native.Tests/Royale.Native.Tests.csproj" />
     <Project Path="tests/Royale.Protocol.Tests/Royale.Protocol.Tests.csproj" />
     <Project Path="tests/Royale.Server.Tests/Royale.Server.Tests.csproj" />

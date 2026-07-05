@@ -31,3 +31,13 @@ milestones:
   M7: Minimal PUBG-like loot loop
   M8: Distributable cross-platform MVP
   M9: Optional Windows support
+milestonePriorities:
+  M1: urgent
+  M2: high
+  M3: high
+  M4: medium
+  M5: medium
+  M6: medium
+  M7: low
+  M8: low
+  M9: low

@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-05T17:54:49.0938680Z
+modifiedAt: 2026-07-05T18:08:31.9762300Z
 ---
 
 ## Physics Architecture
@@ -31,7 +31,7 @@ This keeps state ownership and replication straightforward.
 
 ## Box3D Binding Scope
 
-The current Box3D binding surface includes foundational native value types and the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world.
+The current Box3D binding surface includes foundational native value types, the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world, and the narrow body plus hull-shape subset needed by the upstream Box3D Hello World falling-box example.
 
 Foundational bindings include:
 
@@ -52,11 +52,27 @@ World lifecycle bindings include:
 * `b3World_IsValid`
 * `b3World_Step`
 
-This remains a low-level P/Invoke surface. Managed world ownership wrappers, runtime native-library resolution, body and shape lifecycle APIs, queries, debug draw, and gameplay-specific physics systems are deferred to their owning tasks.
+The Hello World subset adds:
+
+* `b3DefaultBodyDef`
+* `b3CreateBody`
+* `b3Body_IsValid`
+* `b3Body_GetPosition`
+* `b3Body_GetRotation`
+* `b3DefaultShapeDef`
+* `b3MakeBoxHull`
+* `b3MakeCubeHull`
+* `b3CreateHullShape`
+
+Supporting value bindings for that subset include `b3MotionLocks`, `b3BodyDef`, `b3SurfaceMaterial`, `b3ShapeDef`, `b3HullData`, and the embedded box hull storage used by `b3BoxHull`.
+
+This remains a low-level P/Invoke surface. Managed world, body, and shape ownership wrappers; broader body and shape lifecycle APIs; mesh, capsule, and sphere shape APIs; runtime native-library resolution; queries; debug draw; and gameplay-specific physics systems are deferred to their owning tasks.
 
 The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
 
 Every layout-sensitive binding type must have tests that verify native size and representative field offsets against the pinned Box3D headers. Pointer fields, native bool fields, inline fixed arrays, nested structs, and opaque IDs require explicit coverage because they are the most likely to drift silently.
+
+Native Box3D tests currently require the macOS ARM64 artifact at `thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.0.1.0.dylib`; build it with `sh thirdparty/build-box3d-macos.sh` before running tests on macOS ARM64 until final runtime native-library packaging is completed.
 
 ## Player Controller
 

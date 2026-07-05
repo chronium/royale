@@ -25,6 +25,10 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3ContactId>(12);
         AssertSize<B3Capacity>(20);
         AssertSize<B3WorldDef>(144);
+        AssertSize<B3MotionLocks>(6);
+        AssertSize<B3BodyDef>(104);
+        AssertSize<B3SurfaceMaterial>(40);
+        AssertSize<B3ShapeDef>(120);
         AssertSize<B3Version>(12);
         AssertSize<B3Filter>(24);
         AssertSize<B3QueryFilter>(32);
@@ -43,6 +47,11 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3CollisionPlane>(28);
         AssertSize<B3PlaneSolverResult>(16);
         AssertSize<B3BodyPlaneResult>(36);
+        AssertSize<B3HullVertex>(1);
+        AssertSize<B3HullHalfEdge>(4);
+        AssertSize<B3HullFace>(1);
+        AssertSize<B3HullData>(136);
+        AssertSize<B3BoxHull>(440);
     }
 
     [Fact]
@@ -111,6 +120,62 @@ public sealed class Box3DNativeLayoutTests
     }
 
     [Fact]
+    public void BodyAndShapeDefinitionOffsetsMatchPinnedBox3DLayout()
+    {
+        AssertOffset<B3MotionLocks>(nameof(B3MotionLocks.LinearX), 0);
+        AssertOffset<B3MotionLocks>(nameof(B3MotionLocks.LinearY), 1);
+        AssertOffset<B3MotionLocks>(nameof(B3MotionLocks.LinearZ), 2);
+        AssertOffset<B3MotionLocks>(nameof(B3MotionLocks.AngularX), 3);
+        AssertOffset<B3MotionLocks>(nameof(B3MotionLocks.AngularY), 4);
+        AssertOffset<B3MotionLocks>(nameof(B3MotionLocks.AngularZ), 5);
+
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.Type), 0);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.Position), 4);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.Rotation), 16);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.LinearVelocity), 32);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.AngularVelocity), 44);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.LinearDamping), 56);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.AngularDamping), 60);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.GravityScale), 64);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.SleepThreshold), 68);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.Name), 72);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.UserData), 80);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.MotionLocks), 88);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.EnableSleep), 94);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.IsAwake), 95);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.IsBullet), 96);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.IsEnabled), 97);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.AllowFastRotation), 98);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.EnableContactRecycling), 99);
+        AssertOffset<B3BodyDef>(nameof(B3BodyDef.InternalValue), 100);
+
+        AssertOffset<B3SurfaceMaterial>(nameof(B3SurfaceMaterial.Friction), 0);
+        AssertOffset<B3SurfaceMaterial>(nameof(B3SurfaceMaterial.Restitution), 4);
+        AssertOffset<B3SurfaceMaterial>(nameof(B3SurfaceMaterial.RollingResistance), 8);
+        AssertOffset<B3SurfaceMaterial>(nameof(B3SurfaceMaterial.TangentVelocity), 12);
+        AssertOffset<B3SurfaceMaterial>(nameof(B3SurfaceMaterial.UserMaterialId), 24);
+        AssertOffset<B3SurfaceMaterial>(nameof(B3SurfaceMaterial.CustomColor), 32);
+
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.Name), 0);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.UserData), 8);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.Materials), 16);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.MaterialCount), 24);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.BaseMaterial), 32);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.Density), 72);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.ExplosionScale), 76);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.Filter), 80);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.EnableCustomFiltering), 104);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.IsSensor), 105);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.EnableSensorEvents), 106);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.EnableContactEvents), 107);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.EnableHitEvents), 108);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.EnablePreSolveEvents), 109);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.InvokeContactCreation), 110);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.UpdateBodyMass), 111);
+        AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.InternalValue), 112);
+    }
+
+    [Fact]
     public void SupportStructOffsetsMatchPinnedBox3DLayout()
     {
         AssertOffset<B3Version>(nameof(B3Version.Major), 0);
@@ -161,6 +226,44 @@ public sealed class Box3DNativeLayoutTests
         AssertOffset<B3CollisionPlane>(nameof(B3CollisionPlane.ClipVelocity), 24);
         AssertOffset<B3PlaneSolverResult>(nameof(B3PlaneSolverResult.IterationCount), 12);
         AssertOffset<B3BodyPlaneResult>(nameof(B3BodyPlaneResult.Result), 8);
+    }
+
+    [Fact]
+    public void HullOffsetsMatchPinnedBox3DLayout()
+    {
+        AssertOffset<B3HullVertex>(nameof(B3HullVertex.Edge), 0);
+        AssertOffset<B3HullHalfEdge>(nameof(B3HullHalfEdge.Next), 0);
+        AssertOffset<B3HullHalfEdge>(nameof(B3HullHalfEdge.Twin), 1);
+        AssertOffset<B3HullHalfEdge>(nameof(B3HullHalfEdge.Origin), 2);
+        AssertOffset<B3HullHalfEdge>(nameof(B3HullHalfEdge.Face), 3);
+        AssertOffset<B3HullFace>(nameof(B3HullFace.Edge), 0);
+
+        AssertOffset<B3HullData>(nameof(B3HullData.Version), 0);
+        AssertOffset<B3HullData>(nameof(B3HullData.ByteCount), 8);
+        AssertOffset<B3HullData>(nameof(B3HullData.Hash), 12);
+        AssertOffset<B3HullData>(nameof(B3HullData.Aabb), 16);
+        AssertOffset<B3HullData>(nameof(B3HullData.SurfaceArea), 40);
+        AssertOffset<B3HullData>(nameof(B3HullData.Volume), 44);
+        AssertOffset<B3HullData>(nameof(B3HullData.InnerRadius), 48);
+        AssertOffset<B3HullData>(nameof(B3HullData.Center), 52);
+        AssertOffset<B3HullData>(nameof(B3HullData.CentralInertia), 64);
+        AssertOffset<B3HullData>(nameof(B3HullData.VertexCount), 100);
+        AssertOffset<B3HullData>(nameof(B3HullData.VertexOffset), 104);
+        AssertOffset<B3HullData>(nameof(B3HullData.PointOffset), 108);
+        AssertOffset<B3HullData>(nameof(B3HullData.EdgeCount), 112);
+        AssertOffset<B3HullData>(nameof(B3HullData.EdgeOffset), 116);
+        AssertOffset<B3HullData>(nameof(B3HullData.FaceCount), 120);
+        AssertOffset<B3HullData>(nameof(B3HullData.FaceOffset), 124);
+        AssertOffset<B3HullData>(nameof(B3HullData.PlaneOffset), 128);
+        AssertOffset<B3HullData>(nameof(B3HullData.Padding), 132);
+
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.Base), 0);
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxVertices), 136);
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxPoints), 144);
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxEdges), 240);
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxFaces), 336);
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.Padding), 342);
+        AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxPlanes), 344);
     }
 
     [Fact]

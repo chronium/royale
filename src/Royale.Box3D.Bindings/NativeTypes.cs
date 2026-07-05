@@ -153,12 +153,70 @@ public struct B3WorldDef
     public int InternalValue;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+public struct B3MotionLocks
+{
+    [MarshalAs(UnmanagedType.I1)]
+    public bool LinearX;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool LinearY;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool LinearZ;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool AngularX;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool AngularY;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool AngularZ;
+}
+
 public enum B3BodyType
 {
     StaticBody = 0,
     KinematicBody = 1,
     DynamicBody = 2,
     BodyTypeCount = 3,
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3BodyDef
+{
+    public B3BodyType Type;
+    public B3Pos Position;
+    public B3Quat Rotation;
+    public B3Vec3 LinearVelocity;
+    public B3Vec3 AngularVelocity;
+    public float LinearDamping;
+    public float AngularDamping;
+    public float GravityScale;
+    public float SleepThreshold;
+    public nint Name;
+    public nint UserData;
+    public B3MotionLocks MotionLocks;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableSleep;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool IsAwake;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool IsBullet;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool IsEnabled;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool AllowFastRotation;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableContactRecycling;
+    public int InternalValue;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3SurfaceMaterial
+{
+    public float Friction;
+    public float Restitution;
+    public float RollingResistance;
+    public B3Vec3 TangentVelocity;
+    public ulong UserMaterialId;
+    public uint CustomColor;
 }
 
 public enum B3ShapeType
@@ -170,6 +228,36 @@ public enum B3ShapeType
     MeshShape = 4,
     SphereShape = 5,
     ShapeTypeCount = 6,
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3ShapeDef
+{
+    public nint Name;
+    public nint UserData;
+    public nint Materials;
+    public int MaterialCount;
+    public B3SurfaceMaterial BaseMaterial;
+    public float Density;
+    public float ExplosionScale;
+    public B3Filter Filter;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableCustomFiltering;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool IsSensor;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableSensorEvents;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableContactEvents;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnableHitEvents;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool EnablePreSolveEvents;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool InvokeContactCreation;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool UpdateBodyMass;
+    public int InternalValue;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -378,4 +466,60 @@ public struct B3BodyPlaneResult
 {
     public B3ShapeId ShapeId;
     public B3PlaneResult Result;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3HullVertex
+{
+    public byte Edge;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3HullHalfEdge
+{
+    public byte Next;
+    public byte Twin;
+    public byte Origin;
+    public byte Face;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3HullFace
+{
+    public byte Edge;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3HullData
+{
+    public ulong Version;
+    public int ByteCount;
+    public uint Hash;
+    public B3Aabb Aabb;
+    public float SurfaceArea;
+    public float Volume;
+    public float InnerRadius;
+    public B3Vec3 Center;
+    public B3Matrix3 CentralInertia;
+    public int VertexCount;
+    public int VertexOffset;
+    public int PointOffset;
+    public int EdgeCount;
+    public int EdgeOffset;
+    public int FaceCount;
+    public int FaceOffset;
+    public int PlaneOffset;
+    public int Padding;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct B3BoxHull
+{
+    public B3HullData Base;
+    public fixed byte BoxVertices[8];
+    public fixed float BoxPoints[24];
+    public fixed byte BoxEdges[96];
+    public fixed byte BoxFaces[6];
+    public fixed byte Padding[2];
+    public fixed float BoxPlanes[24];
 }

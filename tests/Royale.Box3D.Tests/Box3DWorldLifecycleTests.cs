@@ -2,6 +2,7 @@ using Royale.Box3D.Bindings;
 
 namespace Royale.Box3D.Tests;
 
+[Collection(Box3DNativeTestCollection.Name)]
 public sealed class Box3DWorldLifecycleTests
 {
     [Fact]

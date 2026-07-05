@@ -125,6 +125,12 @@ dotnet build <solution>.slnx -m:1 --no-restore
 dotnet test <solution>.slnx -m:1 --no-restore
 ```
 
+After fetching SDL3-CS from source, restore with the desktop target property so the fetched binding does not require Android workloads:
+
+```text
+dotnet restore <solution>.slnx -p:CI_DONT_TARGET_ANDROID=1
+```
+
 Any command that requires NuGet package access or restore may require an elevated shell in sandboxed environments.
 
 Do not invent build, lint, format, or test commands. If no command exists yet, say so. Once commands are introduced, document them here and in the wiki when appropriate.

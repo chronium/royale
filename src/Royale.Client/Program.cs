@@ -1,6 +1,4 @@
-using Royale.Content;
-using Royale.Protocol;
-using Royale.Simulation;
+using Royale.Client.Platform;
 
-Console.WriteLine(
-    $"Royale client skeleton ready. Protocol {ProtocolConstants.Version}, map {ContentCatalog.DefaultMapId}, tick {SimulationSettings.TickRateHz} Hz.");
+using var application = new SdlApplication();
+application.Run();

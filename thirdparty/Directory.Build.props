@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <CI_DONT_TARGET_ANDROID>1</CI_DONT_TARGET_ANDROID>
+  </PropertyGroup>
+</Project>

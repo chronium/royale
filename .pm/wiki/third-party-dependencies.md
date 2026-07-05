@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependencies
 createdAt: 2026-07-05T07:54:48.9395240Z
-modifiedAt: 2026-07-05T08:22:19.8878780Z
+modifiedAt: 2026-07-05T08:48:40.1988760Z
 ---
 
 ## Overview
@@ -40,6 +40,8 @@ The committed layout is:
 ```text
 thirdparty/
   .gitignore
+  Directory.Build.props
+  Directory.Packages.props
   README.md
   versions.env
   fetch-all.sh
@@ -64,6 +66,8 @@ The separation is intentional:
 * `thirdparty/patches/` contains committed project patches and placeholder README files.
 * `thirdparty/build/` contains ignored temporary build output.
 * `thirdparty/artifacts/` contains ignored generated binaries or packages.
+* `thirdparty/Directory.Packages.props` prevents root Central Package Management from overriding dependency-owned package versions.
+* `thirdparty/Directory.Build.props` records third-party build defaults that apply when a fetched dependency does not provide a nearer build props file.
 
 ## Ignore Rules
 
@@ -128,6 +132,23 @@ Each fetch script is deterministic and safe to rerun:
 6. Apply any `*.patch` files from the matching patch directory with `git apply --3way`.
 
 The scripts should fail clearly if the pinned commit cannot be fetched or a patch cannot be applied.
+
+## Restore and Build Notes
+
+SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`.
+
+For a fresh checkout after fetching SDL3-CS, restore the solution with the binding's desktop-target property:
+
+```sh
+dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
+```
+
+This avoids requiring Android workloads for the SDL3-CS Android target during desktop client work. After restore has produced assets files, the normal no-restore build and test commands remain:
+
+```sh
+dotnet build Royale.slnx -m:1 --no-restore
+dotnet test Royale.slnx -m:1 --no-restore
+```
 
 ## Patch Policy
 

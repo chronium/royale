@@ -19,6 +19,7 @@ tracks:
   BR: Battle-royale match loop
   LOOT: Minimal loot loop
   PORT: Packaging and platform delivery
+  TEST: Automated gameplay testing
 milestones:
   M0: Cross-platform technical skeleton
   M1: Gray-box physics sandbox

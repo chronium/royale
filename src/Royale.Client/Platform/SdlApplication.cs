@@ -14,6 +14,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private bool running;
     private int framesSinceTitleUpdate;
     private long lastTitleUpdateMilliseconds;
+    private SdlGpuDevice? gpuDevice;
 
     public SdlWindow? Window { get; private set; }
 
@@ -31,6 +32,7 @@ public sealed unsafe class SdlApplication : IDisposable
         {
             input.BeginFrame();
             PollEvents();
+            gpuDevice?.PresentClearFrame();
             UpdateWindowTitle();
             SDL_Delay(1);
         }
@@ -51,6 +53,7 @@ public sealed unsafe class SdlApplication : IDisposable
             1280,
             720,
             SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        gpuDevice = SdlGpuDevice.Create(Window);
     }
 
     private void PollEvents()
@@ -137,6 +140,9 @@ public sealed unsafe class SdlApplication : IDisposable
 
     public void Dispose()
     {
+        gpuDevice?.Dispose();
+        gpuDevice = null;
+
         Window?.Dispose();
         Window = null;
 

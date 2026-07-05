@@ -8,6 +8,8 @@ public sealed unsafe class SdlWindow : IDisposable
     private SDL_Window* handle;
     private int width;
     private int height;
+    private int pixelWidth;
+    private int pixelHeight;
 
     private SdlWindow(SDL_Window* handle)
     {
@@ -22,7 +24,22 @@ public sealed unsafe class SdlWindow : IDisposable
 
     public float AspectRatio => height == 0 ? 0 : (float)width / height;
 
+    public int PixelWidth => pixelWidth;
+
+    public int PixelHeight => pixelHeight;
+
+    public float PixelAspectRatio => pixelHeight == 0 ? 0 : (float)pixelWidth / pixelHeight;
+
     public RelativeMouseMode RelativeMouseMode { get; }
+
+    internal SDL_Window* Handle
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return handle;
+        }
+    }
 
     public static SdlWindow Create(string title, int width, int height, SDL_WindowFlags flags)
     {
@@ -46,6 +63,19 @@ public sealed unsafe class SdlWindow : IDisposable
 
         width = currentWidth;
         height = currentHeight;
+
+        if (!SDL_GetWindowSizeInPixels(handle, &currentWidth, &currentHeight))
+            throw new InvalidOperationException($"SDL window pixel size query failed: {SDL_GetError()}");
+
+        UpdatePixelSize(currentWidth, currentHeight);
+    }
+
+    internal void UpdatePixelSize(int width, int height)
+    {
+        ThrowIfDisposed();
+
+        pixelWidth = width;
+        pixelHeight = height;
     }
 
     public void SetTitle(string title)

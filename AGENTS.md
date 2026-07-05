@@ -26,6 +26,18 @@ Current PM states are:
 
 Do not silently work around the board. The board is the source of execution state for agents.
 
+## PM Storage Protection
+
+The `.pm/` directory is PM storage, not a normal hand-edited project area.
+
+- Do not manually edit files under `.pm/`.
+- Do not manually move task state refs, edit task markdown files, rename or delete wiki files, or change PM metadata through filesystem edits.
+- Use PM MCP tools for task creation, task state changes, task markdown updates, wiki page creation, wiki edits, wiki renames, wiki deletes, and project metadata changes.
+- Direct `.pm/` reads are allowed for inspection only when useful, but direct `.pm/` writes are forbidden.
+- If the PM MCP tool lacks an operation needed to update board or wiki state, stop and tell the user which PM MCP capability is missing.
+
+When these instructions say that updating task markdown or editing the wiki is allowed, that means through the PM MCP tools only.
+
 ## Git Workflow
 
 At the start of work, check whether Git is available and whether the worktree is clean.
@@ -257,6 +269,7 @@ Before moving a task to `done`, verify:
 - Relevant tests were added or updated.
 - Relevant build and test commands were run, or unavailable commands were explicitly noted.
 - The wiki was updated if source-of-truth documentation changed.
+- No direct `.pm/` storage edits were made.
 - Native and cross-platform implications were considered.
 - The server remains free of client rendering and UI dependencies.
 - No unrelated changes or generated artifacts were introduced.

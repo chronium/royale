@@ -29,6 +29,23 @@ The first synchronized gameplay objects should be:
 
 This keeps state ownership and replication straightforward.
 
+## Box3D Binding Scope
+
+The initial Box3D binding surface is limited to foundational native value types:
+
+* Math values
+* Opaque IDs
+* Core body and shape enums
+* Filters
+* Diagnostics structs
+* Query and cast result structs
+
+This surface intentionally does not bind world, body, shape, or joint lifecycle APIs yet. Those calls should be added by the task that introduces the corresponding gameplay or simulation behavior.
+
+The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
+
+Every layout-sensitive binding type must have tests that verify native size and representative field offsets against the pinned Box3D headers. Pointer fields, native bool fields, inline fixed arrays, nested structs, and opaque IDs require explicit coverage because they are the most likely to drift silently.
+
 ## Player Controller
 
 The player is represented as a kinematic capsule rather than a freely simulated dynamic rigid body.

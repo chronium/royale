@@ -1,0 +1,10 @@
+---
+id: TEST-008
+title: Add deterministic seeds and replay capture
+track: TEST
+milestone: M6
+createdAt: 2026-07-05T15:17:25.2800820Z
+modifiedAt: 2026-07-05T15:17:31.2738160Z
+---
+
+Record scenario configuration, random seeds, inputs by tick, network changes, important events, and failure state in a reproducible replay artifact.

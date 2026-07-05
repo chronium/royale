@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-05T16:15:06.4438470Z
+modifiedAt: 2026-07-05T17:28:58.7018800Z
 ---
 
 ## Fetch Scripts
@@ -51,6 +51,28 @@ dotnet test Royale.slnx -m:1 --no-restore
 When a client project consumes SDL3-CS from source by project reference, it must explicitly copy the runtime-native SDL library from `thirdparty/repos/SDL3-CS/native/<rid>/` into the client output. Project references build the managed binding but do not automatically place the native package asset beside the consuming executable.
 
 `Royale.Client` currently copies only `SDL3` itself for desktop RIDs needed by the platform window task: `osx-arm64`, `osx-x64`, `linux-arm64`, `linux-x64`, `win-arm64`, and `win-x64`. Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
+
+## Box3D Sample Validation
+
+Validate the pinned upstream Box3D source from the repository root with:
+
+```sh
+sh thirdparty/fetch-box3d.sh
+```
+
+Then configure, build, and run the bounded upstream sample app from `thirdparty/repos/box3d`:
+
+```sh
+cmake --preset macos
+cmake --build --preset macos-release
+./build/bin/Release/samples --frames 3
+```
+
+A passing macOS ARM64 sample run exits with status `0` and reports `samples: 3 frames, 0 sokol errors`.
+
+The upstream sample app opens a native graphics window. In sandboxed agent sessions, the configure/build steps may need host compiler/Xcode access, and the sample run may need host GUI access. Keep generated CMake, FetchContent, Xcode, and binary outputs inside the ignored `thirdparty/repos/box3d` tree.
+
+Linux validation should use the matching upstream Linux preset once a task explicitly brings Linux x64 validation back into scope.
 
 ## Patch Policy
 

@@ -4,4 +4,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Royale.Native\Royale.Native.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,4 +1,5 @@
 using SDL;
+using Royale.Native;
 using static SDL.SDL3;
 
 namespace Royale.Client.Platform;
@@ -106,6 +107,8 @@ public sealed unsafe class SdlApplication : IDisposable
     {
         if (initialized)
             return;
+
+        NativeLibraryResolver.ConfigureForAssembly(typeof(SDL3).Assembly);
 
         if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO))
             throw new InvalidOperationException($"SDL video initialization failed: {SDL_GetError()}");

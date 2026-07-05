@@ -1,10 +1,16 @@
 using System.Runtime.InteropServices;
+using Royale.Native;
 
 namespace Royale.Box3D.Bindings;
 
 public static class Box3DBindingSurface
 {
     public const string NativeLibraryName = "box3d";
+
+    static Box3DBindingSurface()
+    {
+        NativeLibraryResolver.ConfigureForAssembly(typeof(Box3DBindingSurface).Assembly);
+    }
 
     [DllImport(NativeLibraryName, EntryPoint = "b3DefaultWorldDef", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3WorldDef b3DefaultWorldDef();

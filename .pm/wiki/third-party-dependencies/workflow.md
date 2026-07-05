@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-05T18:33:42.1692550Z
+modifiedAt: 2026-07-05T19:06:18Z
 ---
 
 ## Fetch Scripts
@@ -55,7 +55,7 @@ dotnet test Royale.slnx -m:1 --no-restore
 
 When a client project consumes SDL3-CS from source by project reference, it must explicitly copy the runtime-native SDL library from `thirdparty/repos/SDL3-CS/native/<rid>/` into the client output. Project references build the managed binding but do not automatically place the native package asset beside the consuming executable.
 
-`Royale.Client` currently copies only `SDL3` itself for desktop RIDs needed by the platform window task: `osx-arm64`, `osx-x64`, `linux-arm64`, `linux-x64`, `win-arm64`, and `win-x64`. Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
+`Royale.Client` currently copies only `SDL3` itself for macOS ARM64 into `runtimes/osx-arm64/native/libSDL3.dylib`. Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
 
 ## ImGui Native Shim Build
 
@@ -71,7 +71,7 @@ The script refreshes the pinned ImGui.Net source, verifies SDL3 development head
 thirdparty/artifacts/imgui/osx-arm64/lib/libroyale_imgui.dylib
 ```
 
-The ImGui shim includes cimgui symbols required by `Evergine.Bindings.Imgui` and project-owned `royale_imgui_*` C ABI entry points for backend lifetime, event forwarding, frame setup, and future draw-data submission. It intentionally uses SDL3 headers without linking against a separate SDL3 dylib, so the running client resolves SDL symbols through the SDL3-CS native library already copied beside `Royale.Client`.
+The ImGui shim includes cimgui symbols required by `Evergine.Bindings.Imgui` and project-owned `royale_imgui_*` C ABI entry points for backend lifetime, event forwarding, frame setup, and future draw-data submission. It intentionally uses SDL3 headers without linking against a separate SDL3 dylib, so the running client resolves SDL symbols through the SDL3-CS native library copied into `runtimes/osx-arm64/native/`.
 
 After running the native ImGui build script, run restore again before no-restore .NET build or test commands because the deterministic third-party refresh removes generated `obj/` files under the ignored ImGui.Net checkout.
 
@@ -111,13 +111,13 @@ The script refreshes the pinned upstream source with `thirdparty/fetch-box3d.sh`
 thirdparty/artifacts/box3d/osx-arm64/
 ```
 
-The expected library output is:
+The expected upstream library output is:
 
 ```text
-thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.dylib
+thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.0.1.0.dylib
 ```
 
-Box3D native lifecycle tests on macOS ARM64 copy this artifact into the `Royale.Box3D.Tests` output as `libbox3d.dylib`. Build the artifact before running the solution tests on a fresh checkout or after cleaning ignored build outputs.
+Managed build outputs copy this artifact under the canonical resolver filename `runtimes/osx-arm64/native/libbox3d.dylib`. Box3D native lifecycle tests load the library from that runtime-native path. Build the artifact before running the solution tests on a fresh checkout or after cleaning ignored build outputs.
 
 Linux and Windows Box3D shared-library builds are intentionally deferred until dedicated platform tasks define and validate those workflows.
 

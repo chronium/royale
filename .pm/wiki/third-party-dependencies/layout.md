@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Layout
 createdAt: 2026-07-05T16:14:33.2369430Z
-modifiedAt: 2026-07-05T18:33:58.7128600Z
+modifiedAt: 2026-07-05T19:06:18Z
 ---
 
 ## Directory Layout
@@ -89,3 +89,22 @@ thirdparty/artifacts/imgui/osx-arm64/lib/libroyale_imgui.dylib
 ```
 
 Project packaging tasks may copy selected final native binaries into project-controlled runtime or packaging directories later, but generated third-party build directories should remain ignored.
+
+## Runtime Native Layout
+
+Managed projects load bundled native libraries from the standard `.NET` runtime-native layout under each build output:
+
+```text
+runtimes/osx-arm64/native/libSDL3.dylib
+runtimes/osx-arm64/native/libbox3d.dylib
+runtimes/osx-arm64/native/libroyale_imgui.dylib
+```
+
+`Royale.Native` owns the shared import-name resolver for this layout. BUILD-004 intentionally supports only macOS ARM64 mappings:
+
+* `SDL3` -> `libSDL3.dylib`
+* `box3d` -> `libbox3d.dylib`
+* `cimgui` -> `libroyale_imgui.dylib`
+* `royale_imgui` -> `libroyale_imgui.dylib`
+
+The client output includes SDL3, Box3D, and the ImGui shim. The server output includes Box3D only and must remain free of SDL and ImGui native libraries.

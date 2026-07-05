@@ -9,4 +9,10 @@ public sealed class ProtocolConstantsTests
     {
         Assert.Equal(1, ProtocolConstants.Version);
     }
+
+    [Fact]
+    public void DefinesDefaultNetworkPort()
+    {
+        Assert.Equal(7777, ProtocolConstants.DefaultPort);
+    }
 }

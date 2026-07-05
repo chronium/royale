@@ -8,8 +8,11 @@ ILogger logger = loggerFactory.CreateLogger("Royale.Client");
 
 try
 {
-    logger.ZLogInformation($"Client startup beginning.");
-    SdlApplicationOptions options = SdlApplicationOptions.Parse(args);
+    ClientLaunchOptions options = ClientLaunchOptions.Parse(args);
+    logger.ZLogInformation($"Client startup beginning. Mode {options.Mode}, map {options.MapId}, port {options.Port}.");
+
+    if (options.Mode == ClientLaunchMode.Connect)
+        logger.ZLogInformation($"Client remote endpoint selected: {options.ConnectHost}:{options.Port}. Networking transport is not implemented yet.");
 
     using var application = new SdlApplication(
         options,

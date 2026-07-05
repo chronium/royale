@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-05T16:10:17.3761740Z
+modifiedAt: 2026-07-05T20:00:54.3746730Z
 ---
 
 ## Networking Layers
@@ -41,6 +41,10 @@ The connection layer manages:
 * Acknowledgements
 * Connection state
 * Disconnect reasons
+
+Client and server launch options already expose the default network port contract. Both sides default to port `7777`. The client accepts `--connect <host>` and `--port <port>` to describe the intended remote endpoint, and the server accepts `--port <port>` to select its listen port.
+
+Real transport behavior is still deferred. At this stage, `--connect` is parsed and logged by the client so later networking tasks can attach transport behavior without changing the launch contract.
 
 ## Protocol
 

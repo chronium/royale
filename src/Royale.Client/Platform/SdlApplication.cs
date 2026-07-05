@@ -19,7 +19,7 @@ public sealed unsafe class SdlApplication : IDisposable
 
     private readonly InputState input = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
-    private readonly SdlApplicationOptions options;
+    private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
     private bool initialized;
     private bool running;
@@ -31,16 +31,16 @@ public sealed unsafe class SdlApplication : IDisposable
     private ImGuiBackend? imguiBackend;
 
     public SdlApplication()
-        : this(SdlApplicationOptions.Default)
+        : this(ClientLaunchOptions.Default)
     {
     }
 
-    public SdlApplication(SdlApplicationOptions options)
+    public SdlApplication(ClientLaunchOptions options)
         : this(options, NullLogger<SdlApplication>.Instance)
     {
     }
 
-    public SdlApplication(SdlApplicationOptions options, ILogger<SdlApplication> logger)
+    public SdlApplication(ClientLaunchOptions options, ILogger<SdlApplication> logger)
     {
         this.options = options;
         this.logger = logger;

@@ -11,6 +11,7 @@ public sealed class ClientCameraModeControllerTests
 
         Assert.Equal(ClientCameraMode.Gameplay, controller.Mode);
         Assert.False(controller.IsFreecam);
+        Assert.True(controller.ShouldApplyGameplayFixedUpdate);
     }
 
     [Fact]
@@ -22,10 +23,12 @@ public sealed class ClientCameraModeControllerTests
 
         Assert.Equal(ClientCameraMode.Freecam, controller.Mode);
         Assert.True(controller.IsFreecam);
+        Assert.False(controller.ShouldApplyGameplayFixedUpdate);
 
         controller.Toggle();
 
         Assert.Equal(ClientCameraMode.Gameplay, controller.Mode);
         Assert.False(controller.IsFreecam);
+        Assert.True(controller.ShouldApplyGameplayFixedUpdate);
     }
 }

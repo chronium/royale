@@ -6,6 +6,8 @@ public sealed class ClientCameraModeController
 
     public bool IsFreecam => Mode == ClientCameraMode.Freecam;
 
+    public bool ShouldApplyGameplayFixedUpdate => Mode == ClientCameraMode.Gameplay;
+
     public void Toggle()
     {
         Mode = Mode == ClientCameraMode.Gameplay

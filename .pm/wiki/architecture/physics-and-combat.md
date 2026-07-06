@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T06:37:39.6478610Z
+modifiedAt: 2026-07-06T07:41:09.3783880Z
 ---
 
 ## Physics Architecture
@@ -157,7 +157,7 @@ Movement behavior is intentionally direct and inspectable for the MVP:
 
 Slope checks use collision plane normals and treat normals with `Y >= cos(45 degrees)` as walkable. Steeper planes are blocking or airborne contacts, not ground. The first implementation prioritizes deterministic, testable behavior over polished feel; more exhaustive collision edge cases remain in the GAME-006 collision test task.
 
-The controller is simulation-only. It does not integrate with client input devices, camera attachment, networking, server match state, animation, audio, or combat.
+The controller is simulation-only. `GAME-005` uses it from a client-owned local offline player controller for first-person camera movement, but that local capsule is not authoritative server state and does not add networking, match state, animation, audio, or combat behavior.
 
 ## Combat Flow
 

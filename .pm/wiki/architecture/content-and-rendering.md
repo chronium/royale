@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T06:59:15.8290600Z
+modifiedAt: 2026-07-06T07:40:41.7615530Z
 ---
 
 ## Content and Map Data
@@ -87,7 +87,9 @@ Gameplay view and freecam are separate client presentation modes. The client sta
 
 The debug camera remains a free-fly controller that can produce a `RenderCamera`. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses `W/A/S/D` for horizontal local movement, `Space` for up, `Left Ctrl` for down, and rotates from mouse deltas only while SDL relative mouse mode is enabled. This camera is renderer/debug presentation state and is not the gameplay first-person controller or a server-authoritative player view.
 
-Gameplay view owns a `PlayerLookState` and currently renders from a temporary fixed camera anchor using that look state. Attaching the first-person camera to the player capsule remains `GAME-005`.
+Gameplay view now renders from a local offline player capsule instead of a temporary fixed camera anchor. `LocalPlayerController` selects a valid spawn with `MapSpawnSelector`, owns a client-side `MapStaticCollisionWorld`, advances `KinematicCharacterController` during fixed gameplay ticks, and keeps the `PlayerLookState` updated from mouse input while gameplay mode is active. `GameplayView` creates the first-person `RenderCamera` from the capsule feet anchor plus `PlayerViewSettings.DefaultEyeHeight` (`1.62` metres), using the local gameplay yaw and pitch.
+
+The local player capsule is client-owned presentation and prediction state for offline startup. It does not add protocol messages, authoritative server player state, combat, snapshots, reconciliation, or networking behavior.
 
 ImGui uses Evergine's generated ImGui.Net/cimgui bindings plus a project-owned native `royale_imgui` shim. The shim is built with Dear ImGui's SDL3 platform backend and SDL_GPU renderer backend.
 

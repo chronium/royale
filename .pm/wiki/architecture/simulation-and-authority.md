@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-06T06:58:53.7021170Z
+modifiedAt: 2026-07-06T07:40:55.9507890Z
 ---
 
 ## Simulation Model
@@ -162,7 +162,7 @@ public readonly record struct PlayerInputSample(
     Vector2 LookDelta);
 ```
 
-`PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` is button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled. Converting movement through player yaw, assigning sequence numbers, and sending network input commands remain later server/network tasks.
+`PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` is button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled. For the local offline player, the client converts `Move` through the current gameplay yaw before passing a world X/Z movement vector to `KinematicCharacterController`. Assigning sequence numbers and sending network input commands remain later server/network tasks.
 
 Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`. Mouse deltas adjust yaw and clamped pitch with finite-value guards so invalid device deltas do not corrupt local look state.
 

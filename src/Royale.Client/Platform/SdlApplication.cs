@@ -1,6 +1,8 @@
+using System.Numerics;
 using SDL;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Royale.Client.Gameplay;
 using Royale.Client.Rendering;
 using Royale.Content;
 using Royale.Native;
@@ -35,6 +37,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private int lastFixedTicksThisFrame;
     private SdlGpuDevice? gpuDevice;
     private ImGuiBackend? imguiBackend;
+    private LocalPlayerController? localPlayer;
     private PlayerInputSample lastGameplayInput;
 
     public SdlApplication()
@@ -60,6 +63,8 @@ public sealed unsafe class SdlApplication : IDisposable
     public ClientCameraMode CameraMode => cameraMode.Mode;
 
     public PlayerInputSample LastGameplayInput => lastGameplayInput;
+
+    public LocalPlayerController? LocalPlayer => localPlayer;
 
     public void Run()
     {
@@ -108,8 +113,10 @@ public sealed unsafe class SdlApplication : IDisposable
         }
     }
 
-    private static void FixedUpdate(FixedTickTime time)
+    private void FixedUpdate(FixedTickTime time)
     {
+        if (cameraMode.ShouldApplyGameplayFixedUpdate)
+            localPlayer?.FixedUpdate(lastGameplayInput, time.DeltaSeconds);
     }
 
     private void Render(FrameTime time)
@@ -121,7 +128,7 @@ public sealed unsafe class SdlApplication : IDisposable
 
         RenderCamera renderCamera = cameraMode.IsFreecam
             ? freeCamera.ToRenderCamera()
-            : gameplayView.ToRenderCamera();
+            : localPlayer?.ToRenderCamera() ?? gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
 
         gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, imguiBackend, screenshotPath);
 
@@ -146,8 +153,9 @@ public sealed unsafe class SdlApplication : IDisposable
 
         logger.ZLogInformation($"Loading map {options.MapId}.");
         GameMap map = MapCatalog.LoadById(options.MapId);
+        localPlayer = LocalPlayerController.Create(map);
         IReadOnlyList<StaticMeshInstance> staticMeshInstances = MapStaticMeshScene.CreateInstances(map);
-        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes.");
+        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and local spawn {localPlayer.SpawnPoint.Id}.");
 
         logger.ZLogInformation($"Creating SDL window.");
         Window = SdlWindow.Create(
@@ -259,7 +267,7 @@ public sealed unsafe class SdlApplication : IDisposable
             return;
         }
 
-        gameplayView.Update(lastGameplayInput);
+        localPlayer?.UpdateLook(lastGameplayInput);
     }
 
     private void UpdateWindowTitle(FrameTime frameTime)
@@ -287,6 +295,9 @@ public sealed unsafe class SdlApplication : IDisposable
 
         gpuDevice?.Dispose();
         gpuDevice = null;
+
+        localPlayer?.Dispose();
+        localPlayer = null;
 
         Window?.Dispose();
         Window = null;

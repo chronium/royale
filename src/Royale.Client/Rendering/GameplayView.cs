@@ -5,30 +5,25 @@ namespace Royale.Client.Rendering;
 
 public sealed class GameplayView
 {
-    public GameplayView(Vector3 temporaryCameraPosition, PlayerLookState lookState, PlayerLookSettings? lookSettings = null)
+    public GameplayView(PlayerViewSettings? viewSettings = null)
     {
-        TemporaryCameraPosition = temporaryCameraPosition;
-        LookState = lookState;
-        LookSettings = lookSettings ?? PlayerLookSettings.Default;
+        ViewSettings = viewSettings ?? PlayerViewSettings.Default;
     }
 
-    public Vector3 TemporaryCameraPosition { get; }
+    public PlayerViewSettings ViewSettings { get; }
 
-    public PlayerLookState LookState { get; private set; }
+    public static GameplayView CreateDefault() => new();
 
-    public PlayerLookSettings LookSettings { get; }
+    public RenderCamera ToRenderCamera(Vector3 playerFeetPosition, PlayerLookState lookState) =>
+        CreateRenderCamera(playerFeetPosition, lookState, ViewSettings);
 
-    public static GameplayView CreateDefault()
+    public static RenderCamera CreateRenderCamera(
+        Vector3 playerFeetPosition,
+        PlayerLookState lookState,
+        PlayerViewSettings? viewSettings = null)
     {
-        DebugCamera initialCamera = DebugCamera.CreateDefault();
-        return new GameplayView(
-            initialCamera.Position,
-            new PlayerLookState(initialCamera.YawRadians, initialCamera.PitchRadians));
+        PlayerViewSettings resolvedSettings = viewSettings ?? PlayerViewSettings.Default;
+        Vector3 cameraPosition = playerFeetPosition + new Vector3(0.0f, resolvedSettings.EyeHeight, 0.0f);
+        return new RenderCamera(cameraPosition, lookState.YawRadians, lookState.PitchRadians);
     }
-
-    public void Update(PlayerInputSample input) =>
-        LookState = PlayerLookController.ApplyMouseDelta(LookState, input.LookDelta, LookSettings);
-
-    public RenderCamera ToRenderCamera() =>
-        new(TemporaryCameraPosition, LookState.YawRadians, LookState.PitchRadians);
 }

@@ -38,3 +38,13 @@ The training dummy is a development target for checking weapon behavior as comba
 ## Human Validation
 
 Ask the project owner to play a short combat loop and validate that the dummy diagnostics make weapon damage and cadence understandable.
+
+## Notes
+
+- 2026-07-06 - Implemented a client-owned offline `training-dummy` fixture, not map-authored content, server-authoritative state, networking state, AI, final HUD, or respawn gameplay.
+- The local offline player resolves rifle hitscan against static map collision and the dummy capsule target. Static collision still blocks farther dummy targets. Applied dummy damage goes through `DamageController.Apply()`; dead dummy hits remain queryable but do not append damage history under COMBAT-004 no-op rules.
+- Damage history stores the 16 most recent applied entries newest-first with tick, weapon id, raw damage, applied damage, remaining health, hit distance, hit point, and nullable placeholders for hit region, falloff multiplier, and random modifier.
+- Added an ImGui `Training Dummy` diagnostics window with health/alive state, recent damage history, and a diagnostics-only reset button that restores dummy health and clears history. This reset is not gameplay input and is not authoritative combat behavior.
+- Added debug primitive capsule rendering for the dummy so F6/F7 modes expose the target location.
+- Updated `architecture/physics-and-combat` with the offline dummy behavior, damage history, reset exception, and debug visualization.
+- Validation: `dotnet build Royale.slnx -m:1 --no-restore` passed with the existing ImGui.Net `NU1510` warning; `dotnet test Royale.slnx -m:1 --no-restore` passed with the same warning; `dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build -- --screenshot /tmp/royale-training-dummy.bmp --screenshot-after-frames 2` passed and the converted PNG showed the `Training Dummy` ImGui window with health, reset, and empty recent-damage state; PM project validation passed.

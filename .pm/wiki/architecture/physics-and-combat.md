@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T13:50:50.3579920Z
+modifiedAt: 2026-07-06T14:22:28.9562650Z
 ---
 
 ## Physics Architecture
@@ -208,7 +208,7 @@ Damage application is driven by `DamageController.Apply()` using a weapon-backed
 
 The default rifle deals `25` damage, so four valid target hits reduce default player health to `0`. Health clamps at zero, and reaching zero sets `Alive == false`. Applying damage to an already-dead target is a no-op that preserves `0` health and `Alive == false`.
 
-There is no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire rule, target ownership, damage history, respawn, or combat UI in this contract. Dead-player movement, firing restrictions, spectator behavior, and respawn remain deferred to `COMBAT-005`.
+There is no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire rule, target ownership, authoritative damage history, respawn, or final combat UI in this contract. Dead-player movement, firing restrictions, spectator behavior, and respawn remain deferred to `COMBAT-005`.
 
 ### Hitscan Raycasts
 
@@ -217,6 +217,18 @@ There is no armor, healing, limb multiplier, distance falloff, randomness, frien
 `HitscanResolver` queries static map collision through `MapStaticCollisionWorld.CastRayClosest()` and wraps the closest static hit with point, normal, fraction, distance, and source static collider metadata. Callers may also pass feet-anchored vertical capsule `HitscanTarget` values using the same radius and height convention as the kinematic character controller. The nearest valid hit wins across static geometry and capsule targets, so static geometry blocks farther targets.
 
 Hitscan resolution reports hit geometry and target ids only. `COMBAT-004` applies damage from target hits through `DamageController`; ammunition consumption, authoritative combat events, target ownership, and presentation effects remain deferred to later combat tasks.
+
+### Offline Training Dummy
+
+`COMBAT-007` adds a client-owned offline training dummy as a development fixture for validating rifle damage and cadence without a second player. The stable target id is `training-dummy`. The dummy starts from `HealthState.DefaultPlayer`, uses a feet-anchored vertical capsule with the same default radius `0.35` and height `1.8` convention as player hitscan targets, and is placed near the selected local spawn in the graybox arena. Tests can inject explicit dummy placement.
+
+Local offline firing now resolves rifle hitscan against both static map collision and the training dummy target. Static geometry still wins over a farther dummy target. When the dummy is hit, damage is applied through `DamageController.Apply()` using the existing health table contract. Dead dummy targets remain queryable for diagnostics, but COMBAT-004 dead-target no-op rules prevent further damage or damage-history entries.
+
+The dummy keeps a client-only diagnostics history of the 16 most recent applied damage entries, newest first. Each entry records tick, weapon id, raw damage, applied damage, remaining health, hit distance, hit point, and nullable placeholders for future hit region, falloff multiplier, and random modifier.
+
+The ImGui `Training Dummy` window is diagnostics tooling, not player-facing HUD and not authoritative combat behavior. It displays dummy health/alive state and recent damage history. Its reset button is a diagnostics-only exception that restores dummy health and clears history; it is not reachable from gameplay input and does not define respawn or server-authoritative reset behavior.
+
+F6/F7 debug primitive modes draw the dummy capsule through the client debug line path so the target location is inspectable alongside the local player capsule and static collision debug geometry.
 
 ### Rifle Definition
 

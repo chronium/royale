@@ -105,4 +105,31 @@ public sealed class DebugPrimitiveNativeRenderingTests
         Assert.True(primitives.LineCount >= map.StaticBoxes.Count * 12);
         Assert.NotEmpty(primitives.ToVertices());
     }
+
+    [Fact]
+    public void DebugSceneBuilderEmitsLocalPlayerAndTrainingDummyCapsules()
+    {
+        GameMap map = CreateDebugMap();
+        using LocalPlayerController localPlayer = LocalPlayerController.Create(
+            map,
+            trainingDummy: new TrainingDummy(new Vector3(0.0f, 0.0f, -3.0f)));
+
+        DebugPrimitiveList primitives = DebugSceneBuilder.Build(map, localPlayer);
+
+        Assert.Equal(107, primitives.LineCount);
+    }
+
+    private static GameMap CreateDebugMap() => new()
+    {
+        Id = "debug-map",
+        Name = "Debug Map",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+    };
 }

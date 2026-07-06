@@ -22,7 +22,8 @@ public sealed class LocalPlayerController : IDisposable
         PlayerLookState lookState,
         PlayerLookSettings lookSettings,
         PlayerViewSettings viewSettings,
-        WeaponDefinition weapon)
+        WeaponDefinition weapon,
+        TrainingDummy trainingDummy)
     {
         Map = map;
         SpawnPoint = spawnPoint;
@@ -33,6 +34,7 @@ public sealed class LocalPlayerController : IDisposable
         LookSettings = lookSettings;
         ViewSettings = viewSettings;
         Weapon = weapon;
+        TrainingDummy = trainingDummy;
         Health = HealthState.DefaultPlayer;
         weaponFireState = WeaponFireState.Ready;
     }
@@ -55,6 +57,8 @@ public sealed class LocalPlayerController : IDisposable
 
     public WeaponDefinition Weapon { get; }
 
+    public TrainingDummy TrainingDummy { get; }
+
     public HealthState Health { get; }
 
     public WeaponFireState WeaponFireState => weaponFireState;
@@ -62,6 +66,8 @@ public sealed class LocalPlayerController : IDisposable
     public WeaponFireStepResult LastFireResult { get; private set; }
 
     public HitscanHit? LastHitscanResult { get; private set; }
+
+    public DamageResult? LastTrainingDummyDamageResult { get; private set; }
 
     public int TotalShotsFired { get; private set; }
 
@@ -74,7 +80,8 @@ public sealed class LocalPlayerController : IDisposable
         PlayerLookState? initialLookState = null,
         PlayerLookSettings? lookSettings = null,
         KinematicCharacterController? characterController = null,
-        PlayerViewSettings? viewSettings = null)
+        PlayerViewSettings? viewSettings = null,
+        TrainingDummy? trainingDummy = null)
     {
         ArgumentNullException.ThrowIfNull(map);
 
@@ -96,7 +103,8 @@ public sealed class LocalPlayerController : IDisposable
                 initialLookState ?? new PlayerLookState(0.0f, 0.0f),
                 lookSettings ?? PlayerLookSettings.Default,
                 viewSettings ?? PlayerViewSettings.Default,
-                WeaponCatalog.DefaultRifle);
+                WeaponCatalog.DefaultRifle,
+                trainingDummy ?? TrainingDummy.CreateDefault(feetPosition));
         }
         catch
         {
@@ -122,14 +130,20 @@ public sealed class LocalPlayerController : IDisposable
         LastFireResult = WeaponFireController.Step(Weapon, weaponFireState, input.Fire, fixedTick);
         weaponFireState = LastFireResult.State;
 
-        LastHitscanResult = LastFireResult.Fired
-            ? HitscanResolver.Resolve(
-                collisionWorld,
-                HitscanResolver.CreatePlayerRay(CharacterState, LookState, ViewSettings, Weapon))
-            : null;
-
         if (LastFireResult.Fired)
+        {
+            LastHitscanResult = HitscanResolver.Resolve(
+                collisionWorld,
+                HitscanResolver.CreatePlayerRay(CharacterState, LookState, ViewSettings, Weapon),
+                [TrainingDummy.Target]);
+            LastTrainingDummyDamageResult = TrainingDummy.ApplyDamage(Weapon, LastHitscanResult.Value, fixedTick);
             TotalShotsFired++;
+        }
+        else
+        {
+            LastHitscanResult = null;
+            LastTrainingDummyDamageResult = null;
+        }
 
         fixedTick++;
 

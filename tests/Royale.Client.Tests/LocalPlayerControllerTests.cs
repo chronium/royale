@@ -20,10 +20,26 @@ public sealed class LocalPlayerControllerTests
         Assert.Contains(map.SpawnPoints, spawn => spawn.Id == player.SpawnPoint.Id);
         Assert.Equal(HealthState.DefaultPlayer, player.Health);
         Assert.True(player.Health.Alive);
+        Assert.Equal(TrainingDummy.StableId, player.TrainingDummy.Id);
+        Assert.Equal(HealthState.DefaultPlayer, player.TrainingDummy.Health);
+        Assert.Empty(player.TrainingDummy.DamageHistory);
         AssertVector(ToVector3(player.SpawnPoint.Position), player.FeetPosition);
         AssertVector(
             ToVector3(player.SpawnPoint.Position) + new Vector3(0.0f, PlayerViewSettings.DefaultEyeHeight, 0.0f),
             player.ToRenderCamera().Position);
+    }
+
+    [Fact]
+    public void TrainingDummyInitializesWithFullHealthAndPlayerTargetGeometry()
+    {
+        var dummy = new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f));
+
+        Assert.Equal(HealthState.DefaultPlayer, dummy.Health);
+        Assert.True(dummy.Health.Alive);
+        Assert.Equal(TrainingDummy.StableId, dummy.Target.Id);
+        AssertVector(new Vector3(0.0f, 0.0f, -10.0f), dummy.Target.FeetPosition);
+        Assert.Equal(new KinematicCharacterSettings().Radius, dummy.Target.Radius);
+        Assert.Equal(new KinematicCharacterSettings().Height, dummy.Target.Height);
     }
 
     [Theory]
@@ -114,6 +130,111 @@ public sealed class LocalPlayerControllerTests
     }
 
     [Fact]
+    public void RifleTargetHitDamagesTrainingDummyThroughCombatPath()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireOneTick(player);
+
+        Assert.NotNull(player.LastHitscanResult);
+        Assert.True(player.LastHitscanResult.Value.IsTarget);
+        Assert.Equal(TrainingDummy.StableId, player.LastHitscanResult.Value.TargetId);
+        Assert.NotNull(player.LastTrainingDummyDamageResult);
+        Assert.True(player.LastTrainingDummyDamageResult.Value.Applied);
+        Assert.Equal(75, player.TrainingDummy.Health.CurrentHealth);
+        Assert.Single(player.TrainingDummy.DamageHistory);
+        Assert.Equal((ulong)0, player.TrainingDummy.DamageHistory[0].Tick);
+        Assert.Equal(WeaponCatalog.DefaultRifle.Id, player.TrainingDummy.DamageHistory[0].WeaponId);
+        Assert.Equal(25, player.TrainingDummy.DamageHistory[0].RawDamage);
+        Assert.Equal(25, player.TrainingDummy.DamageHistory[0].AppliedDamage);
+        Assert.Equal(75, player.TrainingDummy.DamageHistory[0].RemainingHealth);
+    }
+
+    [Fact]
+    public void FourValidRifleHitsKillTrainingDummy()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireHeldTicks(player, 19);
+
+        Assert.Equal(4, player.TotalShotsFired);
+        Assert.Equal(0, player.TrainingDummy.Health.CurrentHealth);
+        Assert.False(player.TrainingDummy.Health.Alive);
+        Assert.Equal(4, player.TrainingDummy.DamageHistory.Count);
+        Assert.Equal((ulong)18, player.TrainingDummy.DamageHistory[0].Tick);
+        Assert.Equal((ulong)0, player.TrainingDummy.DamageHistory[^1].Tick);
+    }
+
+    [Fact]
+    public void DeadTrainingDummyRemainsQueryableButDoesNotAppendDamageHistory()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireHeldTicks(player, 25);
+
+        Assert.Equal(5, player.TotalShotsFired);
+        Assert.NotNull(player.LastHitscanResult);
+        Assert.True(player.LastHitscanResult.Value.IsTarget);
+        Assert.NotNull(player.LastTrainingDummyDamageResult);
+        Assert.False(player.LastTrainingDummyDamageResult.Value.Applied);
+        Assert.Equal(0, player.TrainingDummy.Health.CurrentHealth);
+        Assert.Equal(4, player.TrainingDummy.DamageHistory.Count);
+    }
+
+    [Fact]
+    public void TrainingDummyDamageHistoryIsNewestFirstAndCapped()
+    {
+        var dummy = new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f));
+
+        for (ulong tick = 0; tick < 20; tick++)
+            dummy.ApplyDamage(new DamageRequest("test-weapon", 1, TargetHit()), tick);
+
+        Assert.Equal(TrainingDummy.DamageHistoryCapacity, dummy.DamageHistory.Count);
+        Assert.Equal((ulong)19, dummy.DamageHistory[0].Tick);
+        Assert.Equal((ulong)4, dummy.DamageHistory[^1].Tick);
+        Assert.All(dummy.DamageHistory, entry =>
+        {
+            Assert.Equal("test-weapon", entry.WeaponId);
+            Assert.Equal(1, entry.RawDamage);
+            Assert.Equal(1, entry.AppliedDamage);
+            Assert.Null(entry.HitRegion);
+            Assert.Null(entry.FalloffMultiplier);
+            Assert.Null(entry.RandomModifier);
+        });
+    }
+
+    [Fact]
+    public void TrainingDummyResetRestoresFullHealthAndClearsHistory()
+    {
+        var dummy = new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f));
+        dummy.ApplyDamage(WeaponCatalog.DefaultRifle, TargetHit(), tick: 12);
+
+        dummy.Reset();
+
+        Assert.Equal(HealthState.DefaultPlayer, dummy.Health);
+        Assert.True(dummy.Health.Alive);
+        Assert.Empty(dummy.DamageHistory);
+    }
+
+    [Fact]
+    public void StaticCollisionWinsOverTrainingDummyBehindWall()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(
+            CreateWallBetweenPlayerAndDummyMap(),
+            trainingDummy: new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f)));
+
+        FireOneTick(player);
+
+        Assert.NotNull(player.LastHitscanResult);
+        Assert.True(player.LastHitscanResult.Value.IsStatic);
+        Assert.Equal("near-wall", player.LastHitscanResult.Value.StaticColliderId);
+        Assert.Equal(HealthState.DefaultPlayer, player.TrainingDummy.Health);
+        Assert.Empty(player.TrainingDummy.DamageHistory);
+        Assert.NotNull(player.LastTrainingDummyDamageResult);
+        Assert.False(player.LastTrainingDummyDamageResult.Value.Applied);
+    }
+
+    [Fact]
     public void FixedUpdatesProduceNoRifleShotsWithoutFireIntent()
     {
         using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
@@ -147,6 +268,52 @@ public sealed class LocalPlayerControllerTests
                 Id = "floor",
                 Position = new MapVector3(0.0f, -0.1f, 0.0f),
                 Size = new MapVector3(20.0f, 0.2f, 20.0f),
+            },
+        ],
+    };
+
+    private static LocalPlayerController CreatePlayerWithDummyInFront() =>
+        LocalPlayerController.Create(
+            CreateFloorMap(),
+            trainingDummy: new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f)));
+
+    private static void FireOneTick(LocalPlayerController player) =>
+        player.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), Tick);
+
+    private static void FireHeldTicks(LocalPlayerController player, int ticks)
+    {
+        for (int i = 0; i < ticks; i++)
+            FireOneTick(player);
+    }
+
+    private static HitscanHit TargetHit() => new(
+        HitscanHitType.Target,
+        new Vector3(0.0f, PlayerViewSettings.DefaultEyeHeight, -9.65f),
+        Vector3.UnitZ,
+        Distance: 9.65f,
+        Fraction: 0.08f,
+        StaticCollider: null,
+        TrainingDummy.StableId);
+
+    private static GameMap CreateWallBetweenPlayerAndDummyMap() => new()
+    {
+        Id = "wall-between-player-and-dummy-map",
+        Name = "Wall Between Player And Dummy Map",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "near-wall",
+                Position = new MapVector3(0.0f, 1.5f, -5.0f),
+                Size = new MapVector3(8.0f, 3.0f, 0.5f),
             },
         ],
     };

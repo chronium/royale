@@ -112,7 +112,8 @@ public sealed unsafe class SdlApplication : IDisposable
                 lastFixedTicksThisFrame,
                 fixedTime.TotalFixedTicks,
                 Window?.RelativeMouseMode.Enabled == true,
-                renderViewMode.Mode));
+                renderViewMode.Mode),
+                localPlayer?.TrainingDummy);
             Render(frameTime);
             UpdateWindowTitle(frameTime);
 

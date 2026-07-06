@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Evergine.Bindings.Imgui;
 using Evergine.Mathematics;
+using Royale.Client.Gameplay;
 using SDL;
 
 namespace Royale.Client.Platform;
@@ -96,7 +97,7 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         ImguiNative.igNewFrame();
     }
 
-    public void BuildDebugOverlay(ImGuiDebugOverlayState state)
+    public void BuildDebugOverlay(ImGuiDebugOverlayState state, TrainingDummy? trainingDummy = null)
     {
         ThrowIfDisposed();
         ImguiNative.igSetCurrentContext(context);
@@ -109,6 +110,40 @@ internal sealed unsafe class ImGuiBackend : IDisposable
             ImguiNative.igText(state.TotalFixedTickText);
             ImguiNative.igText(state.MouseCaptureText);
             ImguiNative.igText(state.RenderViewModeText);
+        }
+
+        ImguiNative.igEnd();
+
+        if (trainingDummy is not null)
+            BuildTrainingDummyDiagnostics(trainingDummy);
+    }
+
+    private static void BuildTrainingDummyDiagnostics(TrainingDummy trainingDummy)
+    {
+        TrainingDummyDiagnosticsState state = TrainingDummyDiagnosticsState.FromDummy(trainingDummy);
+
+        ImguiNative.igSetNextWindowSize(new Vector2(620.0f, 320.0f), ImGuiCond.FirstUseEver);
+        if (ImguiNative.igBegin("Training Dummy", null, ImGuiWindowFlags.None))
+        {
+            ImguiNative.igText($"Id: {state.Id}");
+            ImguiNative.igText(state.HealthText);
+            ImguiNative.igText(state.AliveText);
+
+            if (ImguiNative.igButton("Reset", new Vector2(80.0f, 0.0f)))
+                trainingDummy.Reset();
+
+            ImguiNative.igSeparator();
+            ImguiNative.igText(state.HistoryHeaderText);
+
+            if (state.DamageHistory.Count == 0)
+            {
+                ImguiNative.igText("No applied damage");
+            }
+            else
+            {
+                foreach (TrainingDummyDamageEntry entry in state.DamageHistory)
+                    ImguiNative.igText(TrainingDummyDiagnosticsState.FormatDamageEntry(entry));
+            }
         }
 
         ImguiNative.igEnd();

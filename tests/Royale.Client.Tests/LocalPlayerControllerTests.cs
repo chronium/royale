@@ -48,11 +48,38 @@ public sealed class LocalPlayerControllerTests
         using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
 
         for (int i = 0; i < 60; i++)
-            player.FixedUpdate(new PlayerInputSample(new Vector2(0.0f, 1.0f), Jump: false, Vector2.Zero), Tick);
+            player.FixedUpdate(new PlayerInputSample(new Vector2(0.0f, 1.0f), Jump: false, Fire: false, Vector2.Zero), Tick);
 
         Assert.True(player.IsGrounded);
         Assert.InRange(player.FeetPosition.Z, -4.60f, -4.35f);
         Assert.InRange(MathF.Abs(player.FeetPosition.X), 0.0f, 0.001f);
+    }
+
+    [Fact]
+    public void FixedUpdatesProduceRifleShotsFromHeldFireIntent()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
+
+        for (int i = 0; i < 60; i++)
+            player.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), Tick);
+
+        Assert.Equal(10, player.TotalShotsFired);
+        Assert.Equal((ulong)54, player.WeaponFireState.LastFiredTick);
+        Assert.Equal((ulong)60, player.WeaponFireState.NextAllowedFireTick);
+    }
+
+    [Fact]
+    public void FixedUpdatesProduceNoRifleShotsWithoutFireIntent()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
+
+        for (int i = 0; i < 60; i++)
+            player.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: false, Vector2.Zero), Tick);
+
+        Assert.Equal(0, player.TotalShotsFired);
+        Assert.False(player.LastFireResult.Fired);
+        Assert.Null(player.WeaponFireState.LastFiredTick);
+        Assert.Equal((ulong)0, player.WeaponFireState.NextAllowedFireTick);
     }
 
     private static GameMap CreateFloorMap() => new()

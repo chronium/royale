@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T12:43:45.8815090Z
+modifiedAt: 2026-07-06T13:27:49.6200130Z
 ---
 
 ## Physics Architecture
@@ -215,7 +215,11 @@ Canonical rifle tuning is:
 * Reload time: `2.0 seconds`
 * Range: `120 meters`
 
-The definition is data only. Fire cadence enforcement, ammunition mutation, raycasts, damage application, reload state, pickups, inventory, networking, and UI remain deferred to later combat tasks.
+`COMBAT-002` adds the first fire-intent and cadence path. `PlayerInputSample` carries `Fire` as player intent alongside movement, jump, and look delta. The client maps held left mouse button input to `Fire`; existing ImGui capture and mouse ownership rules still determine whether mouse input reaches gameplay.
+
+Rifle cadence is enforced by `WeaponFireController` in `Royale.Simulation` using fixed simulation ticks. The default rifle's `0.1 second` fire interval resolves to `6` ticks at `SimulationSettings.TickRateHz` (`60 Hz`). A fresh `WeaponFireState` can fire immediately on the first eligible tick with `Fire == true`; after a shot at tick `T`, the next allowed shot is tick `T + intervalTicks`. Holding fire only emits shots on eligible ticks. Releasing fire does not reset cooldown, and pressing again after cooldown fires immediately.
+
+The local offline client player currently owns a default-rifle cadence state so fixed updates can exercise the input path before inventory, pickups, networking, raycasts, damage, ammunition, reloads, targets, combat feedback, and UI controls are added. Server-authoritative combat remains the contract for networked play.
 
 ## Match State Machine
 

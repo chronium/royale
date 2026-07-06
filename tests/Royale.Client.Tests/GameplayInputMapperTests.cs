@@ -45,6 +45,27 @@ public sealed class GameplayInputMapperTests
     }
 
     [Fact]
+    public void LeftMouseMapsToFire()
+    {
+        var input = new InputState();
+        input.SetMouseButtonDown((int)SDLButton.SDL_BUTTON_LEFT);
+
+        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+
+        Assert.True(sample.Fire);
+    }
+
+    [Fact]
+    public void NoLeftMouseMapsToNoFire()
+    {
+        var input = new InputState();
+
+        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+
+        Assert.False(sample.Fire);
+    }
+
+    [Fact]
     public void MouseLookIsIgnoredWhenRelativeMouseModeIsDisabled()
     {
         var input = new InputState();

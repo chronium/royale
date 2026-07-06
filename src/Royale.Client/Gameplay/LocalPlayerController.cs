@@ -9,6 +9,8 @@ public sealed class LocalPlayerController : IDisposable
 {
     private readonly MapStaticCollisionWorld collisionWorld;
     private readonly KinematicCharacterController characterController;
+    private WeaponFireState weaponFireState;
+    private ulong fixedTick;
     private bool disposed;
 
     private LocalPlayerController(
@@ -19,7 +21,8 @@ public sealed class LocalPlayerController : IDisposable
         KinematicCharacterState characterState,
         PlayerLookState lookState,
         PlayerLookSettings lookSettings,
-        PlayerViewSettings viewSettings)
+        PlayerViewSettings viewSettings,
+        WeaponDefinition weapon)
     {
         Map = map;
         SpawnPoint = spawnPoint;
@@ -29,6 +32,8 @@ public sealed class LocalPlayerController : IDisposable
         LookState = lookState;
         LookSettings = lookSettings;
         ViewSettings = viewSettings;
+        Weapon = weapon;
+        weaponFireState = WeaponFireState.Ready;
     }
 
     public GameMap Map { get; }
@@ -46,6 +51,14 @@ public sealed class LocalPlayerController : IDisposable
     public PlayerViewSettings ViewSettings { get; }
 
     public KinematicCharacterSettings CharacterSettings => characterController.Settings;
+
+    public WeaponDefinition Weapon { get; }
+
+    public WeaponFireState WeaponFireState => weaponFireState;
+
+    public WeaponFireStepResult LastFireResult { get; private set; }
+
+    public int TotalShotsFired { get; private set; }
 
     public Vector3 FeetPosition => CharacterState.Position;
 
@@ -77,7 +90,8 @@ public sealed class LocalPlayerController : IDisposable
                 new KinematicCharacterState(feetPosition, Vector3.Zero, IsGrounded: false),
                 initialLookState ?? new PlayerLookState(0.0f, 0.0f),
                 lookSettings ?? PlayerLookSettings.Default,
-                viewSettings ?? PlayerViewSettings.Default);
+                viewSettings ?? PlayerViewSettings.Default,
+                WeaponCatalog.DefaultRifle);
         }
         catch
         {
@@ -99,6 +113,14 @@ public sealed class LocalPlayerController : IDisposable
 
         if (!double.IsFinite(fixedDeltaSeconds) || fixedDeltaSeconds <= 0.0)
             throw new ArgumentOutOfRangeException(nameof(fixedDeltaSeconds), "Fixed timestep must be finite and positive.");
+
+        LastFireResult = WeaponFireController.Step(Weapon, weaponFireState, input.Fire, fixedTick);
+        weaponFireState = LastFireResult.State;
+
+        if (LastFireResult.Fired)
+            TotalShotsFired++;
+
+        fixedTick++;
 
         Vector2 worldMove = ToWorldMovement(input.Move, LookState.YawRadians);
         KinematicCharacterStepResult result = characterController.Step(

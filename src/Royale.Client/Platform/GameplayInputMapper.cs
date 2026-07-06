@@ -29,6 +29,7 @@ public static class GameplayInputMapper
         return new PlayerInputSample(
             move,
             Jump: input.IsKeyDown((int)SDL_Keycode.SDLK_SPACE),
+            Fire: input.IsMouseButtonDown((int)SDLButton.SDL_BUTTON_LEFT),
             lookDelta);
     }
 }

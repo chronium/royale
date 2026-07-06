@@ -2,4 +2,4 @@ using System.Numerics;
 
 namespace Royale.Simulation;
 
-public readonly record struct PlayerInputSample(Vector2 Move, bool Jump, Vector2 LookDelta);
+public readonly record struct PlayerInputSample(Vector2 Move, bool Jump, bool Fire, Vector2 LookDelta);

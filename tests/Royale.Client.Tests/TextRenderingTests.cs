@@ -201,6 +201,34 @@ public sealed class TextRenderingTests
     }
 
     [Fact]
+    public void ProjectedWorldTextScreenOffsetDoesNotChangeProjectedSize()
+    {
+        var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
+        TextQuadSource glyph = new(new IntPtr(1), 0, 0, 100, 50, 0.0f, 0.0f, 1.0f, 1.0f, BlurgColor.White);
+        WorldTextBillboard billboard = FixedLabel(worldHeight: 1.0f);
+
+        TextProjectedQuadSource baseQuad = Assert.Single(WorldTextProjector.CreateProjectedQuads(
+            billboard,
+            [glyph],
+            new Vector2(100.0f, 50.0f),
+            camera,
+            1920,
+            1080));
+        TextProjectedQuadSource offsetQuad = Assert.Single(WorldTextProjector.CreateProjectedQuads(
+            billboard,
+            [glyph],
+            new Vector2(100.0f, 50.0f),
+            camera,
+            1920,
+            1080,
+            new Vector2(2.0f, 3.0f)));
+
+        Assert.Equal(baseQuad.TopLeft + new Vector2(2.0f, 3.0f), offsetQuad.TopLeft);
+        Assert.Equal(Vector2.Distance(baseQuad.TopLeft, baseQuad.BottomLeft), Vector2.Distance(offsetQuad.TopLeft, offsetQuad.BottomLeft), precision: 4);
+        Assert.Equal(Vector2.Distance(baseQuad.TopLeft, baseQuad.TopRight), Vector2.Distance(offsetQuad.TopLeft, offsetQuad.TopRight), precision: 4);
+    }
+
+    [Fact]
     public void WorldTextBehindCameraIsCulled()
     {
         var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
@@ -211,6 +239,32 @@ public sealed class TextRenderingTests
             1.0f,
             Vector2.Zero,
             WorldTextBasis.Identity,
+            BlurgColor.White,
+            new BlurgColor(0, 0, 0, 180),
+            Vector2.One);
+
+        IReadOnlyList<TextProjectedQuadSource> quads = WorldTextProjector.CreateProjectedQuads(
+            billboard,
+            [glyph],
+            new Vector2(100.0f, 50.0f),
+            camera,
+            1920,
+            1080);
+
+        Assert.Empty(quads);
+    }
+
+    [Fact]
+    public void FixedFacingWorldTextIsCulledWhenAuthoredPlaneIsEdgeOn()
+    {
+        var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
+        TextQuadSource glyph = new(new IntPtr(1), 0, 0, 100, 50, 0.0f, 0.0f, 1.0f, 1.0f, BlurgColor.White);
+        WorldTextBillboard billboard = WorldTextBillboard.FixedFacing(
+            "Edge",
+            new Vector3(0.0f, 0.0f, -5.0f),
+            1.0f,
+            Vector2.Zero,
+            new WorldTextBasis(Vector3.UnitZ, Vector3.UnitY),
             BlurgColor.White,
             new BlurgColor(0, 0, 0, 180),
             Vector2.One);

@@ -10,6 +10,7 @@ namespace Royale.Client.Rendering;
 internal sealed unsafe class BlurgTextRenderer : IDisposable
 {
     internal const SDL_GPUTextureFormat AtlasTextureFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
+    private const int AtlasBytesPerPixel = 4;
 
     private static readonly string[] DefaultFontFamilies =
     [
@@ -186,8 +187,8 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
             BlurgRect rect = result[index];
             worldSourceScratch.Add(new TextQuadSource(
                 rect.UserData,
-                (int)MathF.Round(offsetPixels.X + rect.X),
-                (int)MathF.Round(offsetPixels.Y + rect.Y),
+                rect.X,
+                rect.Y,
                 rect.Width,
                 rect.Height,
                 rect.U0,
@@ -203,7 +204,8 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
             textPixelSize,
             camera,
             width,
-            height);
+            height,
+            offsetPixels);
 
         foreach (TextProjectedQuadSource source in projectedSources)
             queuedProjectedSources.Add(source);
@@ -231,6 +233,7 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
             throw new InvalidOperationException($"SDL GPU BlurgText atlas texture creation failed: {SDL_GetError()}");
 
         atlasTextures.Add((IntPtr)texture);
+        pendingAtlasUpdates.Add(new TextAtlasUpdate((IntPtr)texture, CreateTransparentWhiteAtlasPixels(width, height), 0, 0, width, height));
         return (IntPtr)texture;
     }
 
@@ -239,7 +242,7 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
         if (textureUserData == IntPtr.Zero || buffer == IntPtr.Zero || width <= 0 || height <= 0)
             return;
 
-        int byteCount = checked(width * height * 4);
+        int byteCount = checked(width * height * AtlasBytesPerPixel);
         byte[] pixels = new byte[byteCount];
         Marshal.Copy(buffer, pixels, 0, byteCount);
         pendingAtlasUpdates.Add(new TextAtlasUpdate(textureUserData, pixels, x, y, width, height));
@@ -316,6 +319,22 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
 
         throw new InvalidOperationException(
             $"BlurgText could not resolve a default system font. Tried: {string.Join(", ", DefaultFontFamilies)}.");
+    }
+
+    internal static byte[] CreateTransparentWhiteAtlasPixels(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width), "Atlas dimensions must be positive.");
+
+        byte[] pixels = new byte[checked(width * height * AtlasBytesPerPixel)];
+        for (int offset = 0; offset < pixels.Length; offset += AtlasBytesPerPixel)
+        {
+            pixels[offset] = 255;
+            pixels[offset + 1] = 255;
+            pixels[offset + 2] = 255;
+        }
+
+        return pixels;
     }
 
     private void ThrowIfDisposed()

@@ -4,6 +4,8 @@ namespace Royale.Client.Rendering;
 
 public static class WorldTextProjector
 {
+    private const float MinFixedFacingDot = 0.08f;
+
     public static WorldTextBasis CreateCameraFacingBasis(RenderCamera camera)
     {
         Vector3 forward = camera.Forward;
@@ -79,7 +81,8 @@ public static class WorldTextProjector
         Vector2 textPixelSize,
         RenderCamera camera,
         uint renderWidth,
-        uint renderHeight)
+        uint renderHeight,
+        Vector2 screenOffsetPixels = default)
     {
         ArgumentNullException.ThrowIfNull(sources);
 
@@ -89,9 +92,16 @@ public static class WorldTextProjector
             billboard.WorldHeight <= 0.0f ||
             !IsFinite(billboard.Position) ||
             !IsFinite(textPixelSize) ||
+            !IsFinite(screenOffsetPixels) ||
             textPixelSize.X <= 0.0f ||
             textPixelSize.Y <= 0.0f ||
             !TryResolveBasis(billboard, camera, out WorldTextBasis basis))
+        {
+            return [];
+        }
+
+        if (billboard.Mode == WorldTextBillboardMode.FixedFacing &&
+            IsFixedBasisEdgeOn(billboard.Position, basis, camera))
         {
             return [];
         }
@@ -130,6 +140,7 @@ public static class WorldTextProjector
                 screenRightPerPixel,
                 screenUpPerPixel,
                 anchorPixels,
+                screenOffsetPixels,
                 out TextProjectedQuadSource projected))
             {
                 continue;
@@ -147,6 +158,7 @@ public static class WorldTextProjector
         Vector2 screenRightPerPixel,
         Vector2 screenUpPerPixel,
         Vector2 anchorPixels,
+        Vector2 screenOffsetPixels,
         out TextProjectedQuadSource projected)
     {
         projected = default;
@@ -159,10 +171,10 @@ public static class WorldTextProjector
         float x1 = x0 + source.Width;
         float y1 = y0 + source.Height;
 
-        Vector2 topLeft = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x0, y0);
-        Vector2 topRight = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x1, y0);
-        Vector2 bottomLeft = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x0, y1);
-        Vector2 bottomRight = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x1, y1);
+        Vector2 topLeft = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x0, y0) + screenOffsetPixels;
+        Vector2 topRight = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x1, y0) + screenOffsetPixels;
+        Vector2 bottomLeft = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x0, y1) + screenOffsetPixels;
+        Vector2 bottomRight = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x1, y1) + screenOffsetPixels;
 
         projected = new TextProjectedQuadSource(
             source.TextureUserData,
@@ -180,6 +192,17 @@ public static class WorldTextProjector
 
     private static Vector2 ToScreen(Vector2 anchor, Vector2 rightPerPixel, Vector2 upPerPixel, float x, float y) =>
         anchor + (rightPerPixel * x) - (upPerPixel * y);
+
+    private static bool IsFixedBasisEdgeOn(Vector3 position, WorldTextBasis basis, RenderCamera camera)
+    {
+        Vector3 normal = Vector3.Cross(basis.Right, basis.Up);
+        Vector3 toCamera = camera.Position - position;
+        if (normal.LengthSquared() < 0.000001f || toCamera.LengthSquared() < 0.000001f)
+            return false;
+
+        float facing = MathF.Abs(Vector3.Dot(Vector3.Normalize(normal), Vector3.Normalize(toCamera)));
+        return float.IsFinite(facing) && facing < MinFixedFacingDot;
+    }
 
     private static bool IsFiniteCamera(RenderCamera camera) =>
         IsFinite(camera.Position) &&

@@ -1,7 +1,7 @@
 ---
 title: Runtime Processes
 createdAt: 2026-07-05T16:10:17.2894450Z
-modifiedAt: 2026-07-06T19:43:29.2609990Z
+modifiedAt: 2026-07-06T19:56:27.1403540Z
 ---
 
 ## Game Client
@@ -95,3 +95,5 @@ By default the server runs until Ctrl+C or process shutdown. `--run-ticks` is a 
 At startup the server loads the selected map through `MapCatalog.LoadById`, creates the server-owned `MapStaticCollisionWorld`, and logs the selected protocol version, port, map id, static collider count, simulation tick rate, headless status, and finite or infinite run mode.
 
 Server argument parsing rejects unknown flags, missing or empty values, invalid ports outside `1..65535`, and `--run-ticks` values that are not positive integers.
+
+SERVER-002 also initializes the in-memory authoritative state container during `HeadlessServerSimulation.Create`: no players, match phase `WaitingForPlayers`, no winner, and safe-zone center/radius copied from the loaded map. This initialization is not currently logged separately and does not create connections, protocol sessions, snapshots, or match lifecycle transitions.

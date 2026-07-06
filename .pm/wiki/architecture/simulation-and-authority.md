@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-06T19:43:39.2727720Z
+modifiedAt: 2026-07-06T19:56:22.4838910Z
 ---
 
 ## Simulation Model
@@ -120,6 +120,22 @@ Interact
 ```
 
 The server interprets that intent using authoritative state.
+
+### Initial Server State Model
+
+SERVER-002 introduces the first concrete authoritative state container in `Royale.Server`. `HeadlessServerSimulation` owns:
+
+* `IReadOnlyDictionary<ServerPlayerId, AuthoritativePlayerState>` for active players
+* `AuthoritativeMatchState` for phase, phase-start tick, living-player count, and optional winner
+* `AuthoritativeSafeZoneState` initialized from `GameMap.SafeZone`
+
+Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player IDs are allocated monotonically by the simulation and are not reused when a player is removed.
+
+`AuthoritativePlayerState` currently contains the server player id, optional connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and the last processed input sequence placeholder. `AddPlayer` selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the player with `WeaponCatalog.DefaultRifle`.
+
+`AuthoritativeWeaponState` stores the current weapon id, magazine ammunition, reserve ammunition, `WeaponFireState`, and reload placeholders. Rifle cadence, ammo consumption, reload behavior, hit resolution, and damage are still future server simulation work.
+
+SERVER-002 only initializes and owns authoritative state. The fixed server tick still advances the static Box3D world and server tick counter; it does not process networking, input commands, snapshots, movement, combat, match phase transitions, safe-zone shrinking, eliminations, winners, or match reset yet.
 
 ## Input Commands
 

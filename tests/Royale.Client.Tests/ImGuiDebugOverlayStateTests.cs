@@ -92,7 +92,7 @@ public sealed class ImGuiDebugOverlayStateTests
         Assert.Equal("Hit marker: active", state.HitMarkerText);
         Assert.Equal("Hit id: training-dummy", state.HitIdentityText);
         Assert.Equal("Damage: 25", state.DamageText);
-        Assert.Equal("Feedback: 0.12s", state.FeedbackLifetimeText);
+        Assert.Equal("Feedback: 3.00s", state.FeedbackLifetimeText);
     }
 
     private static GameMap CreateFloorMap() => new()

@@ -19,4 +19,13 @@ public readonly record struct WeaponFeedbackShot(
     public bool HitMarkerActive => Active && HitType == HitscanHitType.Target;
 
     public int AppliedDamage => DamageResult?.AppliedDamage ?? 0;
+
+    public Vector3 Direction
+    {
+        get
+        {
+            Vector3 direction = End - Origin;
+            return direction.LengthSquared() <= float.Epsilon ? -Vector3.UnitZ : Vector3.Normalize(direction);
+        }
+    }
 }

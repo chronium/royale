@@ -5,7 +5,7 @@ namespace Royale.Client.Gameplay;
 
 public sealed class WeaponFeedbackState
 {
-    public const float DefaultShotLifetimeSeconds = 0.12f;
+    public const float DefaultShotLifetimeSeconds = 3.0f;
     public const float DefaultRecoilKickRadians = MathF.PI / 120.0f;
     public const float DefaultRecoilDecaySeconds = 0.12f;
 

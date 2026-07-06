@@ -234,12 +234,31 @@ public sealed class LocalPlayerControllerTests
         FireOneTick(player);
         Assert.NotNull(player.WeaponFeedback.ActiveShot);
 
+        player.WeaponFeedback.Update(2.0);
+
+        Assert.NotNull(player.WeaponFeedback.ActiveShot);
+        Assert.NotNull(player.WeaponFeedback.LastShot);
+        Assert.True(player.WeaponFeedback.LastShot.Value.HitMarkerActive);
+        Assert.Equal(1.0f, player.WeaponFeedback.LastShot.Value.RemainingLifetimeSeconds);
+
         player.WeaponFeedback.Update(WeaponFeedbackState.DefaultShotLifetimeSeconds + 0.01f);
 
         Assert.Null(player.WeaponFeedback.ActiveShot);
         Assert.NotNull(player.WeaponFeedback.LastShot);
         Assert.False(player.WeaponFeedback.LastShot.Value.Active);
         Assert.Equal(0.0f, player.WeaponFeedback.LastShot.Value.RemainingLifetimeSeconds);
+    }
+
+    [Fact]
+    public void FeedbackShotDirectionPointsFromOriginToEnd()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireOneTick(player);
+
+        WeaponFeedbackShot shot = AssertActiveShot(player);
+
+        AssertVector(Vector3.Normalize(shot.End - shot.Origin), shot.Direction);
     }
 
     [Fact]

@@ -131,13 +131,36 @@ public sealed class DebugPrimitiveNativeRenderingTests
         localPlayer.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), 1.0 / 60.0);
 
         DebugPrimitiveList primitives = DebugSceneBuilder.Build(map, localPlayer);
+        WeaponFeedbackShot shot = localPlayer.WeaponFeedback.ActiveShot!.Value;
+        Vector3 expectedMuzzlePosition = shot.Origin + (shot.Direction * 0.35f);
 
         Assert.Equal(114, primitives.LineCount);
+        DebugLine tracer = Assert.Single(primitives.Lines, line => Approximately(line.End, shot.End));
+        AssertVector(expectedMuzzlePosition, tracer.Start);
+
+        DebugLine[] muzzleLines = primitives.Lines
+            .Where(line => Approximately((line.Start + line.End) * 0.5f, expectedMuzzlePosition))
+            .ToArray();
+        Assert.Equal(3, muzzleLines.Length);
+        Assert.All(muzzleLines, line => Assert.InRange(Vector3.Distance(line.Start, line.End), 0.015f, 0.017f));
+
         foreach (DebugLineVertex vertex in primitives.ToVertices())
         {
             AssertFinite(vertex.Position);
             AssertFinite(vertex.Color);
         }
+    }
+
+    private static bool Approximately(Vector3 expected, Vector3 actual) =>
+        MathF.Abs(expected.X - actual.X) <= 0.0001f &&
+        MathF.Abs(expected.Y - actual.Y) <= 0.0001f &&
+        MathF.Abs(expected.Z - actual.Z) <= 0.0001f;
+
+    private static void AssertVector(Vector3 expected, Vector3 actual)
+    {
+        Assert.InRange(actual.X, expected.X - 0.0001f, expected.X + 0.0001f);
+        Assert.InRange(actual.Y, expected.Y - 0.0001f, expected.Y + 0.0001f);
+        Assert.InRange(actual.Z, expected.Z - 0.0001f, expected.Z + 0.0001f);
     }
 
     private static void AssertFinite(Vector3 vector)

@@ -7,6 +7,10 @@ namespace Royale.Client.Rendering;
 
 public static class DebugSceneBuilder
 {
+    private const float MuzzleForwardOffsetMeters = 0.35f;
+    private const float MuzzleMarkerSizeMeters = 0.016f;
+    private const float ImpactMarkerSizeMeters = 0.22f;
+
     private static readonly Vector4 PlayerCapsuleColor = new(0.20f, 0.95f, 0.45f, 1.0f);
     private static readonly Vector4 TrainingDummyCapsuleColor = new(1.0f, 0.32f, 0.25f, 1.0f);
     private static readonly Vector4 SpawnColor = new(1.0f, 0.78f, 0.20f, 1.0f);
@@ -65,13 +69,14 @@ public static class DebugSceneBuilder
         if (activeShot is not WeaponFeedbackShot shot || !shot.Active)
             return;
 
-        primitives.AddPoint(shot.Origin, 0.16f, MuzzleColor);
-        primitives.AddLine(shot.Origin, shot.End, TracerColor);
+        Vector3 muzzlePosition = shot.Origin + (shot.Direction * MuzzleForwardOffsetMeters);
+        primitives.AddPoint(muzzlePosition, MuzzleMarkerSizeMeters, MuzzleColor);
+        primitives.AddLine(muzzlePosition, shot.End, TracerColor);
 
         if (shot.HitType == HitscanHitType.Static)
-            primitives.AddPoint(shot.End, 0.22f, StaticImpactColor);
+            primitives.AddPoint(shot.End, ImpactMarkerSizeMeters, StaticImpactColor);
         else if (shot.HitType == HitscanHitType.Target)
-            primitives.AddPoint(shot.End, 0.22f, TargetImpactColor);
+            primitives.AddPoint(shot.End, ImpactMarkerSizeMeters, TargetImpactColor);
     }
 
     private static void AddSpawnMarkers(DebugPrimitiveList primitives, GameMap map)

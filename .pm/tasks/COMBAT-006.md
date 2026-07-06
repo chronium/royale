@@ -13,12 +13,19 @@ Add minimal recoil, muzzle indication, hit markers, and impact visualization.
 
 ## Completion Notes
 
-- Added client-owned `WeaponFeedbackState` for local offline rifle shots. It records one transient shot with origin, tracer end, hit type, target/static id metadata, optional damage result, and render-time lifetime.
+- Added client-owned `WeaponFeedbackState` for local offline rifle shots. It records one transient shot with origin, tracer end, shot direction, hit type, target/static id metadata, optional damage result, and render-time lifetime.
 - Feedback emits only when the existing rifle cadence path fires. Dead-player fixed updates do not emit feedback, and debug respawn clears active and last feedback.
 - Added presentation-only recoil. The recoil offset is applied only while creating the render camera, decays by render-frame time, and does not mutate `PlayerLookState`, hitscan direction, cadence, or damage behavior.
 - Added debug-line muzzle, tracer, and impact markers through `DebugSceneBuilder`, so they are visible only in existing debug primitive render modes.
 - Added ImGui `Player` diagnostics text for last shot result, transient hit marker, hit id, applied damage, and feedback lifetime.
 - Updated `architecture/physics-and-combat` with the COMBAT-006 client-only feedback contract.
+
+## Follow-up Refinement
+
+- Increased inspectable weapon feedback lifetime to `3.0` seconds so hit markers and tracer direction remain visible long enough to inspect.
+- Added explicit shot direction metadata for debug feedback.
+- Moved the debug muzzle marker `0.35m` forward from the camera-origin shot point and reduced it to `0.016m`, one tenth of the prior marker size.
+- The tracer now starts at the forward-offset muzzle marker and remains visible for the same inspectable feedback lifetime.
 
 ## Validation
 

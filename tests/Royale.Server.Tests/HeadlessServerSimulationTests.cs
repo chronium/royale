@@ -128,6 +128,19 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
+    public void StepDoesNotUpdateLastProcessedInputSequence()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        AuthoritativePlayerState player = simulation.AddPlayer();
+
+        simulation.Step();
+
+        Assert.True(simulation.TryGetPlayer(player.PlayerId, out AuthoritativePlayerState? steppedPlayer));
+        Assert.NotNull(steppedPlayer);
+        Assert.Null(steppedPlayer.LastProcessedInputSequence);
+    }
+
+    [Fact]
     public async Task RunFiniteTickCountExitsAfterExactTickCount()
     {
         var options = new ServerLaunchOptions(7777, ContentCatalog.DefaultMapId, RunTicks: 5);

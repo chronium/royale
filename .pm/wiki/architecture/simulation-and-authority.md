@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-06T19:56:22.4838910Z
+modifiedAt: 2026-07-06T20:04:30.6378790Z
 ---
 
 ## Simulation Model
@@ -139,26 +139,27 @@ SERVER-002 only initializes and owns authoritative state. The fixed server tick 
 
 ## Input Commands
 
-Client input is represented as discrete commands associated with simulation ticks.
+Client input commands are protocol-owned intent messages associated with client simulation ticks. They are not authoritative gameplay state; the server will interpret accepted commands against server-owned player, weapon, match, and map state in later tasks.
 
 ```csharp
 public readonly record struct PlayerInputCommand(
     uint Sequence,
     uint ClientTick,
     Vector2 Move,
-    Vector2 LookDelta,
+    float YawRadians,
+    float PitchRadians,
     InputButtons Buttons);
 ```
 
-Each command should include:
+Each command includes:
 
-* A monotonically increasing sequence number
-* The client simulation tick
-* Movement input
-* Look input or resulting view orientation
-* Button states
+* `Sequence`: a client-assigned command sequence number. It is `uint` for the initial protocol shape; wraparound ordering is future networking work.
+* `ClientTick`: the client simulation tick that produced the command.
+* `Move`: local two-axis movement intent, bounded to unit length.
+* `YawRadians` and `PitchRadians`: the client's resulting view orientation for the command. Pitch uses the same conceptual `-89` to `89` degree range as gameplay look state.
+* `Buttons`: a bitmask of discrete button intent.
 
-Possible buttons include:
+Defined buttons are:
 
 ```csharp
 [Flags]
@@ -169,13 +170,15 @@ public enum InputButtons : ushort
     Fire = 1 << 1,
     Reload = 1 << 2,
     Interact = 1 << 3,
-    Crouch = 1 << 4
+    Crouch = 1 << 4,
 }
 ```
 
-The server records the most recent processed input sequence for each player. That sequence is returned in snapshots so the client knows which predicted inputs have been acknowledged.
+`PlayerInputCommandValidation` accepts only finite movement and look values, movement vectors whose length is at most `1.0` plus a small tolerance, pitch within the allowed look range, and button masks containing only defined bits. Yaw is validated for finiteness but is not clamped by the protocol helper.
 
-Local offline gameplay input now has a shared pre-protocol sample type:
+`AuthoritativePlayerState.LastProcessedInputSequence` remains the future acknowledgement field that snapshots will use once server command processing exists. SERVER-004 does not add networking, serialization, command queues, prediction, reconciliation, movement processing, combat processing, or updates to that acknowledgement field.
+
+Local offline gameplay input still has a shared pre-protocol sample type:
 
 ```csharp
 public readonly record struct PlayerInputSample(

@@ -8,6 +8,7 @@ namespace Royale.Native;
 public static class NativeLibraryResolver
 {
     public const string MacOSArm64Rid = "osx-arm64";
+    public const string LinuxX64Rid = "linux-x64";
 
     private static readonly ConcurrentDictionary<Assembly, bool> ConfiguredAssemblies = new();
 
@@ -24,7 +25,12 @@ public static class NativeLibraryResolver
 
     public static string GetExpectedPath(string importName)
     {
-        string rid = CurrentRuntimeIdentifier;
+        return GetExpectedPath(importName, CurrentRuntimeIdentifier);
+    }
+
+    public static string GetExpectedPath(string importName, string runtimeIdentifier)
+    {
+        string rid = runtimeIdentifier;
         string fileName = GetNativeFileName(importName, rid);
         return Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", fileName);
     }
@@ -70,6 +76,7 @@ public static class NativeLibraryResolver
             (MacOSArm64Rid, "box3d") => "libbox3d.dylib",
             (MacOSArm64Rid, "cimgui") => "libroyale_imgui.dylib",
             (MacOSArm64Rid, "royale_imgui") => "libroyale_imgui.dylib",
+            (LinuxX64Rid, "box3d") => "libbox3d.so",
             _ => null,
         };
 

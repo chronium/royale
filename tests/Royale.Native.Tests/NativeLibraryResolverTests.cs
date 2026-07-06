@@ -11,11 +11,30 @@ public sealed class NativeLibraryResolverTests
     [InlineData("royale_imgui", "libroyale_imgui.dylib")]
     public void MacOSArm64MappingsUseBundledRuntimeNativeLayout(string importName, string fileName)
     {
-        if (NativeLibraryResolver.CurrentRuntimeIdentifier != NativeLibraryResolver.MacOSArm64Rid)
-            return;
-
-        string path = NativeLibraryResolver.GetExpectedPath(importName);
+        string path = NativeLibraryResolver.GetExpectedPath(importName, NativeLibraryResolver.MacOSArm64Rid);
 
         Assert.EndsWith(Path.Combine("runtimes", "osx-arm64", "native", fileName), path);
+    }
+
+    [Fact]
+    public void LinuxX64Box3DMappingUsesBundledRuntimeNativeLayout()
+    {
+        string path = NativeLibraryResolver.GetExpectedPath("box3d", NativeLibraryResolver.LinuxX64Rid);
+
+        Assert.EndsWith(Path.Combine("runtimes", "linux-x64", "native", "libbox3d.so"), path);
+    }
+
+    [Fact]
+    public void UnsupportedRidThrows()
+    {
+        Assert.Throws<DllNotFoundException>(() =>
+            NativeLibraryResolver.GetExpectedPath("box3d", "win-x64"));
+    }
+
+    [Fact]
+    public void UnsupportedImportThrows()
+    {
+        Assert.Throws<DllNotFoundException>(() =>
+            NativeLibraryResolver.GetExpectedPath("SDL3", NativeLibraryResolver.LinuxX64Rid));
     }
 }

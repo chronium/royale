@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Layout
 createdAt: 2026-07-05T16:14:33.2369430Z
-modifiedAt: 2026-07-05T19:06:18Z
+modifiedAt: 2026-07-06T05:37:42.2641910Z
 ---
 
 ## Directory Layout
@@ -17,6 +17,7 @@ thirdparty/
   versions.env
   fetch-all.sh
   build-box3d-macos.sh
+  build-box3d-linux.sh
   build-imgui-macos.sh
   fetch-sdl3-cs.sh
   fetch-box3d.sh
@@ -81,6 +82,13 @@ thirdparty/build/box3d/osx-arm64/
 thirdparty/artifacts/box3d/osx-arm64/
 ```
 
+The current Box3D Linux x64 shared-library workflow uses:
+
+```text
+thirdparty/build/box3d/linux-x64/
+thirdparty/artifacts/box3d/linux-x64/
+```
+
 The current ImGui macOS ARM64 shared-library workflow uses:
 
 ```text
@@ -98,13 +106,15 @@ Managed projects load bundled native libraries from the standard `.NET` runtime-
 runtimes/osx-arm64/native/libSDL3.dylib
 runtimes/osx-arm64/native/libbox3d.dylib
 runtimes/osx-arm64/native/libroyale_imgui.dylib
+runtimes/linux-x64/native/libbox3d.so
 ```
 
-`Royale.Native` owns the shared import-name resolver for this layout. BUILD-004 intentionally supports only macOS ARM64 mappings:
+`Royale.Native` owns the shared import-name resolver for this layout. The current resolver mappings are:
 
-* `SDL3` -> `libSDL3.dylib`
-* `box3d` -> `libbox3d.dylib`
-* `cimgui` -> `libroyale_imgui.dylib`
-* `royale_imgui` -> `libroyale_imgui.dylib`
+* `osx-arm64` `SDL3` -> `libSDL3.dylib`
+* `osx-arm64` `box3d` -> `libbox3d.dylib`
+* `osx-arm64` `cimgui` -> `libroyale_imgui.dylib`
+* `osx-arm64` `royale_imgui` -> `libroyale_imgui.dylib`
+* `linux-x64` `box3d` -> `libbox3d.so`
 
-The client output includes SDL3, Box3D, and the ImGui shim. The server output includes Box3D only and must remain free of SDL and ImGui native libraries.
+Box3D runtime-native copy rules are centralized in `Royale.Box3D`, so clients, servers, and tests receive Box3D through their project reference. The client output includes SDL3, Box3D, and the ImGui shim. The server output includes Box3D only and must remain free of SDL and ImGui native libraries.

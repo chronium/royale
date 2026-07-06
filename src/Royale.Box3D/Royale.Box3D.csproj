@@ -13,4 +13,8 @@
     <None Include="..\..\thirdparty\artifacts\box3d\osx-arm64\lib\libbox3d.0.1.0.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="runtimes/osx-arm64/native/libbox3d.dylib" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'linux-x64'">
+    <None Include="..\..\thirdparty\artifacts\box3d\linux-x64\lib\libbox3d.so" CopyToOutputDirectory="PreserveNewest" TargetPath="runtimes/linux-x64/native/libbox3d.so" />
+  </ItemGroup>
+
 </Project>

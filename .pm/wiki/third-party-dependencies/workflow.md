@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-05T19:06:18Z
+modifiedAt: 2026-07-06T05:37:57.9124550Z
 ---
 
 ## Fetch Scripts
@@ -105,21 +105,44 @@ Build the project-owned macOS ARM64 Box3D shared library from the repository roo
 sh thirdparty/build-box3d-macos.sh
 ```
 
-The script refreshes the pinned upstream source with `thirdparty/fetch-box3d.sh`, configures a Release shared-library build with upstream samples, tests, benchmarks, docs, and profiling disabled, and installs the generated files into the ignored artifact directory:
+Build the project-owned Linux x64 Box3D shared library from a Linux x64 environment with:
+
+```sh
+sh thirdparty/build-box3d-linux.sh
+```
+
+The scripts refresh the pinned upstream source with `thirdparty/fetch-box3d.sh`, configure a Release shared-library build with upstream samples, tests, benchmarks, docs, and profiling disabled, and install generated files into ignored artifact directories:
 
 ```text
 thirdparty/artifacts/box3d/osx-arm64/
+thirdparty/artifacts/box3d/linux-x64/
 ```
 
-The expected upstream library output is:
+The expected upstream library outputs are:
 
 ```text
 thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.0.1.0.dylib
+thirdparty/artifacts/box3d/linux-x64/lib/libbox3d.so
 ```
 
-Managed build outputs copy this artifact under the canonical resolver filename `runtimes/osx-arm64/native/libbox3d.dylib`. Box3D native lifecycle tests load the library from that runtime-native path. Build the artifact before running the solution tests on a fresh checkout or after cleaning ignored build outputs.
+Managed build outputs copy these artifacts under the canonical resolver filenames:
 
-Linux and Windows Box3D shared-library builds are intentionally deferred until dedicated platform tasks define and validate those workflows.
+```text
+runtimes/osx-arm64/native/libbox3d.dylib
+runtimes/linux-x64/native/libbox3d.so
+```
+
+Box3D runtime-native copy rules live in `Royale.Box3D`, so clients, servers, and Box3D tests receive the native library through their project reference. The server receives Box3D only; SDL, ImGui, shaders, textures, and other client-only assets must stay out of the server output.
+
+For Linux x64 validation from an Apple Silicon host, use OrbStack Docker with an amd64 .NET SDK container:
+
+```sh
+docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work mcr.microsoft.com/dotnet/sdk:10.0 sh -lc 'sh thirdparty/build-box3d-linux.sh && dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1 && dotnet build Royale.slnx -m:1 --no-restore && dotnet test Royale.slnx -m:1 --no-restore'
+```
+
+The SDK image may need CMake and C/C++ build tools installed before running `build-box3d-linux.sh`. Build the relevant Box3D artifact before running solution tests on a fresh checkout or after cleaning ignored build outputs.
+
+Windows Box3D shared-library builds are intentionally deferred until a dedicated platform task defines and validates that workflow.
 
 ## Patch Policy
 

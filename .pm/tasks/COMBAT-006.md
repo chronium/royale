@@ -6,7 +6,7 @@ milestone: M3
 dependsOn:
 - COMBAT-005
 createdAt: 2026-07-04T09:21:58.8223690Z
-modifiedAt: 2026-07-06T08:28:00.6782200Z
+modifiedAt: 2026-07-06T15:04:07.3137830Z
 ---
 
 Add minimal recoil, muzzle indication, hit markers, and impact visualization.
@@ -32,3 +32,7 @@ Add minimal recoil, muzzle indication, hit markers, and impact visualization.
 
 - `dotnet build Royale.slnx -m:1 --no-restore` passed with the existing ImGui `NU1510` warning.
 - `dotnet test Royale.slnx -m:1 --no-restore` passed.
+
+## Notes
+
+- 2026-07-06 15:04 UTC - Project owner completed manual human validation after implementation and made follow-up refinements. The weapon feedback was verified interactively, including recoil feel, tracer visibility, muzzle marker placement, impact marker readability, and diagnostics usefulness.

@@ -1,16 +1,11 @@
 using System.Numerics;
-using System.Runtime.InteropServices;
 using SDL;
 using static SDL.SDL3;
 
 namespace Royale.Client.Rendering;
 
-internal sealed unsafe class CubeRenderer : IDisposable
+internal sealed unsafe class StaticMeshRenderer : IDisposable
 {
-    [StructLayout(LayoutKind.Sequential)]
-    private readonly record struct CubeVertex(Vector3 Position, Vector3 Color);
-
-    private const uint IndexCount = 36;
     private const SDL_GPUTextureFormat DepthFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 
     private readonly SDL_GPUDevice* device;
@@ -19,19 +14,32 @@ internal sealed unsafe class CubeRenderer : IDisposable
     private readonly SDL_GPUGraphicsPipeline* pipeline;
     private readonly SDL_GPUBuffer* vertexBuffer;
     private readonly SDL_GPUBuffer* indexBuffer;
+    private readonly StaticMeshGeometry unitBoxMesh;
+    private readonly IReadOnlyList<StaticMeshInstance> previewInstances;
     private SDL_GPUTexture* depthTexture;
     private uint depthTextureWidth;
     private uint depthTextureHeight;
-    private float rotationRadians;
 
-    public CubeRenderer(SDL_GPUDevice* device, SDL_GPUTextureFormat swapchainFormat, SDL_GPUShaderFormat shaderFormat)
+    public StaticMeshRenderer(SDL_GPUDevice* device, SDL_GPUTextureFormat swapchainFormat, SDL_GPUShaderFormat shaderFormat)
+        : this(device, swapchainFormat, shaderFormat, UnitBoxMesh.Create(), GrayBoxPreviewScene.CreateInstances())
+    {
+    }
+
+    private StaticMeshRenderer(
+        SDL_GPUDevice* device,
+        SDL_GPUTextureFormat swapchainFormat,
+        SDL_GPUShaderFormat shaderFormat,
+        StaticMeshGeometry unitBoxMesh,
+        IReadOnlyList<StaticMeshInstance> previewInstances)
     {
         this.device = device;
+        this.unitBoxMesh = unitBoxMesh;
+        this.previewInstances = previewInstances;
 
         vertexShader = LoadShader("basic.vert", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_VERTEX, uniformBufferCount: 1);
         fragmentShader = LoadShader("basic.frag", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_FRAGMENT, uniformBufferCount: 0);
-        vertexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_VERTEX, (uint)(CubeVertices.Length * sizeof(CubeVertex)));
-        indexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_INDEX, (uint)(CubeIndices.Length * sizeof(ushort)));
+        vertexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_VERTEX, (uint)(unitBoxMesh.Vertices.Count * sizeof(StaticMeshVertex)));
+        indexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_INDEX, (uint)(unitBoxMesh.Indices.Count * sizeof(ushort)));
         pipeline = CreatePipeline(swapchainFormat);
 
         UploadGeometry();
@@ -42,16 +50,8 @@ internal sealed unsafe class CubeRenderer : IDisposable
         SDL_GPURenderPass* renderPass,
         uint width,
         uint height,
-        double deltaSeconds,
         DebugCamera camera)
     {
-        rotationRadians += (float)deltaSeconds * 0.8f;
-
-        Matrix4x4 world = Matrix4x4.CreateRotationY(rotationRadians * 0.35f);
-        Matrix4x4 worldViewProjection = camera.CreateTransposedWorldViewProjection(world, width, height);
-
-        SDL_PushGPUVertexUniformData(commandBuffer, 0, (IntPtr)(&worldViewProjection), (uint)sizeof(Matrix4x4));
-
         var vertexBinding = new SDL_GPUBufferBinding
         {
             buffer = vertexBuffer,
@@ -66,7 +66,13 @@ internal sealed unsafe class CubeRenderer : IDisposable
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
         SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
         SDL_BindGPUIndexBuffer(renderPass, &indexBinding, SDL_GPUIndexElementSize.SDL_GPU_INDEXELEMENTSIZE_16BIT);
-        SDL_DrawGPUIndexedPrimitives(renderPass, IndexCount, 1, 0, 0, 0);
+
+        foreach (StaticMeshInstance instance in previewInstances)
+        {
+            Matrix4x4 worldViewProjection = StaticMeshDraw.CreateTransposedWorldViewProjection(instance, camera, width, height);
+            SDL_PushGPUVertexUniformData(commandBuffer, 0, (IntPtr)(&worldViewProjection), (uint)sizeof(Matrix4x4));
+            SDL_DrawGPUIndexedPrimitives(renderPass, (uint)unitBoxMesh.Indices.Count, 1, 0, 0, 0);
+        }
     }
 
     public SDL_GPUDepthStencilTargetInfo GetDepthTarget(uint width, uint height)
@@ -143,7 +149,7 @@ internal sealed unsafe class CubeRenderer : IDisposable
         var vertexBufferDescription = new SDL_GPUVertexBufferDescription
         {
             slot = 0,
-            pitch = (uint)sizeof(CubeVertex),
+            pitch = (uint)sizeof(StaticMeshVertex),
             input_rate = SDL_GPUVertexInputRate.SDL_GPU_VERTEXINPUTRATE_VERTEX,
         };
 
@@ -231,8 +237,8 @@ internal sealed unsafe class CubeRenderer : IDisposable
 
     private void UploadGeometry()
     {
-        uint vertexBytes = (uint)(CubeVertices.Length * sizeof(CubeVertex));
-        uint indexBytes = (uint)(CubeIndices.Length * sizeof(ushort));
+        uint vertexBytes = (uint)(unitBoxMesh.Vertices.Count * sizeof(StaticMeshVertex));
+        uint indexBytes = (uint)(unitBoxMesh.Indices.Count * sizeof(ushort));
         uint transferBytes = vertexBytes + indexBytes;
 
         var transferCreateInfo = new SDL_GPUTransferBufferCreateInfo
@@ -253,11 +259,14 @@ internal sealed unsafe class CubeRenderer : IDisposable
             if (mapped == IntPtr.Zero)
                 throw new InvalidOperationException($"SDL GPU transfer buffer mapping failed: {SDL_GetError()}");
 
-            fixed (CubeVertex* vertices = CubeVertices)
-            fixed (ushort* indices = CubeIndices)
+            StaticMeshVertex[] vertices = unitBoxMesh.Vertices.ToArray();
+            ushort[] indices = unitBoxMesh.Indices.ToArray();
+
+            fixed (StaticMeshVertex* vertexPointer = vertices)
+            fixed (ushort* indexPointer = indices)
             {
-                Buffer.MemoryCopy(vertices, (void*)mapped, transferBytes, vertexBytes);
-                Buffer.MemoryCopy(indices, (byte*)mapped + vertexBytes, transferBytes - vertexBytes, indexBytes);
+                Buffer.MemoryCopy(vertexPointer, (void*)mapped, transferBytes, vertexBytes);
+                Buffer.MemoryCopy(indexPointer, (byte*)mapped + vertexBytes, transferBytes - vertexBytes, indexBytes);
             }
 
             SDL_UnmapGPUTransferBuffer(device, transferBuffer);
@@ -337,47 +346,4 @@ internal sealed unsafe class CubeRenderer : IDisposable
         if (depthTexture is null)
             throw new InvalidOperationException($"SDL GPU depth texture creation failed: {SDL_GetError()}");
     }
-
-    private static readonly CubeVertex[] CubeVertices =
-    [
-        new(new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-        new(new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-        new(new Vector3(0.5f, 0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-        new(new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-
-        new(new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-        new(new Vector3(0.5f, -0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-        new(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-        new(new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-
-        new(new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-        new(new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-        new(new Vector3(0.5f, -0.5f, 0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-        new(new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-
-        new(new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-        new(new Vector3(0.5f, 0.5f, -0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-        new(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-        new(new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-
-        new(new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-        new(new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-        new(new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-        new(new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-
-        new(new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-        new(new Vector3(0.5f, 0.5f, -0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-        new(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-        new(new Vector3(0.5f, -0.5f, 0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-    ];
-
-    private static readonly ushort[] CubeIndices =
-    [
-        0, 2, 1, 0, 3, 2,
-        4, 5, 6, 4, 6, 7,
-        8, 9, 10, 8, 10, 11,
-        12, 15, 14, 12, 14, 13,
-        16, 18, 17, 16, 19, 18,
-        20, 21, 22, 20, 22, 23,
-    ];
 }

@@ -13,7 +13,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
     private readonly SdlWindow window;
     private SDL_GPUDevice* device;
-    private CubeRenderer? cubeRenderer;
+    private StaticMeshRenderer? staticMeshRenderer;
     private bool windowClaimed;
 
     private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window)
@@ -109,7 +109,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         {
             window.UpdatePixelSize((int)swapchainWidth, (int)swapchainHeight);
             swapchainFormat = SDL_GetGPUSwapchainTextureFormat(device, window.Handle);
-            cubeRenderer ??= new CubeRenderer(
+            staticMeshRenderer ??= new StaticMeshRenderer(
                 Handle,
                 swapchainFormat,
                 PreferredShaderFormat.Value);
@@ -127,14 +127,14 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 load_op = SDL_GPULoadOp.SDL_GPU_LOADOP_CLEAR,
                 store_op = SDL_GPUStoreOp.SDL_GPU_STOREOP_STORE,
             };
-            SDL_GPUDepthStencilTargetInfo depthTarget = cubeRenderer.GetDepthTarget(swapchainWidth, swapchainHeight);
+            SDL_GPUDepthStencilTargetInfo depthTarget = staticMeshRenderer.GetDepthTarget(swapchainWidth, swapchainHeight);
 
             SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, &depthTarget);
 
             if (renderPass is null)
                 throw new InvalidOperationException($"SDL GPU render pass creation failed: {SDL_GetError()}");
 
-            cubeRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, deltaSeconds, camera);
+            staticMeshRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
             SDL_EndGPURenderPass(renderPass);
 
             imguiBackend?.Render(commandBuffer, swapchainTexture);
@@ -163,8 +163,8 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         if (device is null)
             return;
 
-        cubeRenderer?.Dispose();
-        cubeRenderer = null;
+        staticMeshRenderer?.Dispose();
+        staticMeshRenderer = null;
 
         if (windowClaimed)
         {

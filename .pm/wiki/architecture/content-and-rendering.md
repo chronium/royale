@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T04:15:12.0482950Z
+modifiedAt: 2026-07-06T04:46:17.9839360Z
 ---
 
 ## Content and Map Data
@@ -59,6 +59,10 @@ Initial responsibilities include:
 * Basic lighting
 * Debug geometry
 * ImGui rendering
+
+The current static mesh renderer is a procedural client preview path. It owns one SDL GPU pipeline and shader pair, uploads a built-in unit box mesh once, and draws a deterministic gray-box preview scene by pushing one world-view-projection matrix per static mesh instance. The preview scene is intentionally client-only and contains floor, wall, cover, and ramp-visual box instances centered near the origin for the debug camera. It is not a scene graph, ECS, material system, mesh asset loader, map loader, culling system, batching system, or instancing API.
+
+Committed static mesh asset formats and gameplay-relevant map/content loading remain deferred to GAME-001. Until that work lands, this preview renderer should stay procedural and should not define server gameplay collision, spawn, loot, safe-zone, or protocol contracts.
 
 The current scene camera is an FPS-style free-fly debug camera owned by the client presentation loop. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses a 60 degree vertical field of view, a 0.1 near plane, and a 100.0 far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
 

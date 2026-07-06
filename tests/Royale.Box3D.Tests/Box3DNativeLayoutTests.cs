@@ -30,6 +30,9 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3SurfaceMaterial>(40);
         AssertSize<B3ShapeDef>(120);
         AssertSize<B3Capsule>(28);
+        AssertSize<B3Sphere>(16);
+        AssertSize<B3DebugShape>(24);
+        AssertSize<B3DebugDraw>(136);
         AssertSize<B3Version>(12);
         AssertSize<B3Filter>(24);
         AssertSize<B3QueryFilter>(32);
@@ -178,6 +181,35 @@ public sealed class Box3DNativeLayoutTests
         AssertOffset<B3Capsule>(nameof(B3Capsule.Center1), 0);
         AssertOffset<B3Capsule>(nameof(B3Capsule.Center2), 12);
         AssertOffset<B3Capsule>(nameof(B3Capsule.Radius), 24);
+        AssertOffset<B3Sphere>(nameof(B3Sphere.Center), 0);
+        AssertOffset<B3Sphere>(nameof(B3Sphere.Radius), 12);
+    }
+
+    [Fact]
+    public void DebugDrawOffsetsMatchPinnedBox3DLayout()
+    {
+        AssertOffset<B3DebugShape>(nameof(B3DebugShape.ShapeId), 0);
+        AssertOffset<B3DebugShape>(nameof(B3DebugShape.Type), 8);
+        AssertOffset<B3DebugShape>(nameof(B3DebugShape.Shape), 16);
+
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawShapeFcn), 0);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawSegmentFcn), 8);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawTransformFcn), 16);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawPointFcn), 24);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawSphereFcn), 32);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawCapsuleFcn), 40);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawBoundsFcn), 48);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawBoxFcn), 56);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawStringFcn), 64);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawingBounds), 72);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.ForceScale), 96);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.JointScale), 100);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawShapes), 104);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawBounds), 107);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawContacts), 111);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawAnchorA), 112);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.DrawIslands), 121);
+        AssertOffset<B3DebugDraw>(nameof(B3DebugDraw.Context), 128);
     }
 
     [Fact]
@@ -286,6 +318,9 @@ public sealed class Box3DNativeLayoutTests
         Assert.Equal(4, (int)B3ShapeType.MeshShape);
         Assert.Equal(5, (int)B3ShapeType.SphereShape);
         Assert.Equal(6, (int)B3ShapeType.ShapeTypeCount);
+        Assert.Equal(0xA9A9A9, (int)B3HexColor.DarkGray);
+        Assert.Equal(0xFFD700, (int)B3HexColor.Gold);
+        Assert.Equal(0xFFFFFF, (int)B3HexColor.White);
     }
 
     private static unsafe void AssertSize<T>(int expected)

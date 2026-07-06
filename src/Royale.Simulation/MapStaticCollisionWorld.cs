@@ -10,6 +10,8 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
 {
     private static readonly B3OverlapResultFcn OverlapCallback = OnOverlapResult;
     private static readonly B3PlaneResultFcn PlaneCallback = OnPlaneResult;
+    private static readonly B3CreateDebugShapeFcn CreateDebugShapeCallback = OnCreateDebugShape;
+    private static readonly B3DestroyDebugShapeFcn DestroyDebugShapeCallback = OnDestroyDebugShape;
 
     private readonly Dictionary<B3ShapeId, MapStaticCollider> collidersByShape = [];
     private readonly List<MapStaticCollider> colliders = [];
@@ -35,6 +37,8 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
 
         B3WorldDef worldDef = Box3DBindingSurface.b3DefaultWorldDef();
         worldDef.Gravity = ToB3Vector(Vector3.Zero);
+        worldDef.CreateDebugShape = Marshal.GetFunctionPointerForDelegate(CreateDebugShapeCallback);
+        worldDef.DestroyDebugShape = Marshal.GetFunctionPointerForDelegate(DestroyDebugShapeCallback);
         Box3DWorld world = Box3DWorld.Create(in worldDef);
 
         try
@@ -178,6 +182,25 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
         var callbackContext = (OverlapQueryContext)GCHandle.FromIntPtr(context).Target!;
         callbackContext.ShapeIds.Add(shapeId);
         return true;
+    }
+
+    private static nint OnCreateDebugShape(B3DebugShape* debugShape, nint context)
+    {
+        if (debugShape is null)
+            return nint.Zero;
+
+        Box3DDebugShapeGeometry geometry = Box3DDebugShapeGeometry.Create(in *debugShape);
+        return GCHandle.ToIntPtr(GCHandle.Alloc(geometry));
+    }
+
+    private static void OnDestroyDebugShape(nint userShape, nint context)
+    {
+        if (userShape == nint.Zero)
+            return;
+
+        GCHandle handle = GCHandle.FromIntPtr(userShape);
+        if (handle.IsAllocated)
+            handle.Free();
     }
 
     private static unsafe bool OnPlaneResult(B3ShapeId shapeId, B3PlaneResult* planes, int planeCount, nint context)

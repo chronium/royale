@@ -38,6 +38,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private SdlGpuDevice? gpuDevice;
     private ImGuiBackend? imguiBackend;
     private LocalPlayerController? localPlayer;
+    private GameMap? loadedMap;
     private PlayerInputSample lastGameplayInput;
 
     public SdlApplication()
@@ -130,7 +131,11 @@ public sealed unsafe class SdlApplication : IDisposable
             ? freeCamera.ToRenderCamera()
             : localPlayer?.ToRenderCamera() ?? gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
 
-        gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, imguiBackend, screenshotPath);
+        DebugPrimitiveList? debugPrimitives = loadedMap is null
+            ? null
+            : DebugSceneBuilder.Build(loadedMap, localPlayer);
+
+        gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, debugPrimitives, imguiBackend, screenshotPath);
 
         if (screenshotPath is not null)
             running = false;
@@ -153,6 +158,7 @@ public sealed unsafe class SdlApplication : IDisposable
 
         logger.ZLogInformation($"Loading map {options.MapId}.");
         GameMap map = MapCatalog.LoadById(options.MapId);
+        loadedMap = map;
         localPlayer = LocalPlayerController.Create(map);
         IReadOnlyList<StaticMeshInstance> staticMeshInstances = MapStaticMeshScene.CreateInstances(map);
         logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and local spawn {localPlayer.SpawnPoint.Id}.");
@@ -298,6 +304,7 @@ public sealed unsafe class SdlApplication : IDisposable
 
         localPlayer?.Dispose();
         localPlayer = null;
+        loadedMap = null;
 
         Window?.Dispose();
         Window = null;

@@ -15,6 +15,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
     private readonly IReadOnlyList<StaticMeshInstance> staticMeshInstances;
     private SDL_GPUDevice* device;
     private StaticMeshRenderer? staticMeshRenderer;
+    private DebugLineRenderer? debugLineRenderer;
     private bool windowClaimed;
 
     private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window, IReadOnlyList<StaticMeshInstance> staticMeshInstances)
@@ -83,6 +84,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
     internal void PresentFrame(
         double deltaSeconds,
         RenderCamera camera,
+        DebugPrimitiveList? debugPrimitives = null,
         ImGuiBackend? imguiBackend = null,
         string? screenshotPath = null)
     {
@@ -116,6 +118,12 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 swapchainFormat,
                 PreferredShaderFormat.Value,
                 staticMeshInstances);
+            debugLineRenderer ??= new DebugLineRenderer(
+                Handle,
+                swapchainFormat,
+                PreferredShaderFormat.Value,
+                StaticMeshRenderer.DepthFormat);
+            debugLineRenderer.Upload(commandBuffer, debugPrimitives ?? new DebugPrimitiveList());
 
             var colorTarget = new SDL_GPUColorTargetInfo
             {
@@ -138,6 +146,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 throw new InvalidOperationException($"SDL GPU render pass creation failed: {SDL_GetError()}");
 
             staticMeshRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
+            debugLineRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
             SDL_EndGPURenderPass(renderPass);
 
             imguiBackend?.Render(commandBuffer, swapchainTexture);
@@ -168,6 +177,9 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
         staticMeshRenderer?.Dispose();
         staticMeshRenderer = null;
+
+        debugLineRenderer?.Dispose();
+        debugLineRenderer = null;
 
         if (windowClaimed)
         {

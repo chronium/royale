@@ -35,6 +35,8 @@ public sealed class LocalPlayerController : IDisposable
 
     public MapSpawnPoint SpawnPoint { get; }
 
+    public MapStaticCollisionWorld CollisionWorld => collisionWorld;
+
     public KinematicCharacterState CharacterState { get; private set; }
 
     public PlayerLookState LookState { get; private set; }
@@ -42,6 +44,8 @@ public sealed class LocalPlayerController : IDisposable
     public PlayerLookSettings LookSettings { get; }
 
     public PlayerViewSettings ViewSettings { get; }
+
+    public KinematicCharacterSettings CharacterSettings => characterController.Settings;
 
     public Vector3 FeetPosition => CharacterState.Position;
 

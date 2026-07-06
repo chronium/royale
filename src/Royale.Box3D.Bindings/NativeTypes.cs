@@ -230,6 +230,16 @@ public enum B3ShapeType
     ShapeTypeCount = 6,
 }
 
+public enum B3HexColor
+{
+    DarkGray = 0xA9A9A9,
+    Gold = 0xFFD700,
+    Green = 0x008000,
+    Red = 0xFF0000,
+    White = 0xFFFFFF,
+    Yellow = 0xFFFF00,
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct B3ShapeDef
 {
@@ -315,6 +325,102 @@ public delegate bool B3MoverFilterFcn(B3ShapeId shapeId, nint context);
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 [return: MarshalAs(UnmanagedType.I1)]
 public unsafe delegate bool B3PlaneResultFcn(B3ShapeId shapeId, B3PlaneResult* planes, int planeCount, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public unsafe delegate nint B3CreateDebugShapeFcn(B3DebugShape* debugShape, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DestroyDebugShapeFcn(nint userShape, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.I1)]
+public delegate bool B3DrawShapeFcn(nint userShape, B3WorldTransform transform, B3HexColor color, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawSegmentFcn(B3Pos p1, B3Pos p2, B3HexColor color, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawTransformFcn(B3WorldTransform transform, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawPointFcn(B3Pos p, float size, B3HexColor color, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawSphereFcn(B3Pos p, float radius, B3HexColor color, float alpha, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawCapsuleFcn(B3Pos p1, B3Pos p2, float radius, B3HexColor color, float alpha, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawBoundsFcn(B3Aabb aabb, B3HexColor color, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawBoxFcn(B3Vec3 extents, B3WorldTransform transform, B3HexColor color, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void B3DrawStringFcn(B3Pos p, nint text, B3HexColor color, nint context);
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3DebugShape
+{
+    public B3ShapeId ShapeId;
+    public B3ShapeType Type;
+    public nint Shape;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3Sphere
+{
+    public B3Vec3 Center;
+    public float Radius;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3DebugDraw
+{
+    public nint DrawShapeFcn;
+    public nint DrawSegmentFcn;
+    public nint DrawTransformFcn;
+    public nint DrawPointFcn;
+    public nint DrawSphereFcn;
+    public nint DrawCapsuleFcn;
+    public nint DrawBoundsFcn;
+    public nint DrawBoxFcn;
+    public nint DrawStringFcn;
+    public B3Aabb DrawingBounds;
+    public float ForceScale;
+    public float JointScale;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawShapes;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawJoints;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawJointExtras;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawBounds;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawMass;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawSleep;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawBodyNames;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawContacts;
+    public int DrawAnchorA;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawGraphColors;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawContactFeatures;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawContactNormals;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawContactForces;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawFrictionForces;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool DrawIslands;
+    public nint Context;
+}
 
 [StructLayout(LayoutKind.Sequential)]
 public struct B3Profile

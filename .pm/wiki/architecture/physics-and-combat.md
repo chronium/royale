@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T08:00:19.5220390Z
+modifiedAt: 2026-07-06T08:49:43.0152610Z
 ---
 
 ## Physics Architecture
@@ -113,6 +113,8 @@ Every layout-sensitive binding type must have tests that verify native size and 
 
 Native Box3D tests currently require the macOS ARM64 artifact at `thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.0.1.0.dylib`; build it with `sh thirdparty/build-box3d-macos.sh` before running tests on macOS ARM64 until final runtime native-library packaging is completed.
 
+`RENDER-006` extends the low-level Box3D binding surface with debug draw support: `b3DebugDraw`, `b3DebugShape`, `b3Sphere`, `b3DefaultDebugDraw`, `b3World_Draw`, and managed delegate types for debug shape creation/destruction plus shape, segment, transform, point, sphere, capsule, bounds, box, and string drawing callbacks. The bindings remain low-level P/Invoke types and are covered by native layout and callback tests.
+
 ## Static Map Collision
 
 `GAME-002` creates static Box3D collision from `GameMap.StaticBoxes` in `Royale.Simulation`. The map collision world is a disposable, game-specific owner for one Box3D world, one static body per static box, and one box hull shape per body. Each collider keeps the source static-box id associated with the created shape id so tests and debugging can resolve query hits back to map content.
@@ -124,6 +126,8 @@ This type exists to build and query gray-box map collision for gameplay systems.
 `GAME-007` adds reusable spawn selection on top of static overlap queries. `MapSpawnPoint.Position` is the player feet anchor, and `MapSpawnSelector.CreateReservation()` builds a standing clearance AABB above that point using the default player radius `0.35`, height `1.8`, and ground clearance `0.05`. `TrySelectSpawn()` scans spawn points in map order and returns the first candidate whose clearance AABB does not overlap static map collision or caller-provided `SpawnReservation` AABBs. AABB touching without positive overlap is allowed. The selector is deterministic and does not randomize; battle-royale spawn randomization belongs to later match-flow work.
 
 `GAME-004` adds focused capsule query helpers to `MapStaticCollisionWorld` for simulation movement. `CastCapsuleMover()` wraps `b3World_CastMover` for a feet-anchored vertical capsule, and `CollectCapsuleCollisionPlanes()` wraps `b3World_CollideMover` to return contact planes with optional source collider metadata. These helpers are intentionally game-specific wrappers over the low-level Box3D query API, not a general managed query abstraction.
+
+`MapStaticCollisionWorld` now configures Box3D `createDebugShape` and `destroyDebugShape` callbacks when the world is created. The callbacks capture geometry-only local wire segments for Box3D hull, capsule, and sphere debug shapes as managed handles stored behind Box3D's opaque `userShape` pointer. This keeps collision-world debug geometry backed by Box3D while avoiding any SDL, renderer, or client UI dependency in simulation code.
 
 ## Player Controller
 

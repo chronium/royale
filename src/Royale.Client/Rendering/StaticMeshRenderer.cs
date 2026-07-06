@@ -6,7 +6,7 @@ namespace Royale.Client.Rendering;
 
 internal sealed unsafe class StaticMeshRenderer : IDisposable
 {
-    private const SDL_GPUTextureFormat DepthFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+    internal const SDL_GPUTextureFormat DepthFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 
     private readonly SDL_GPUDevice* device;
     private readonly SDL_GPUShader* vertexShader;

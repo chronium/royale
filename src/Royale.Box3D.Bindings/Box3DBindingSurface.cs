@@ -6,6 +6,7 @@ namespace Royale.Box3D.Bindings;
 public static class Box3DBindingSurface
 {
     public const string NativeLibraryName = "box3d";
+    public const ulong B3DefaultMaskBits = ulong.MaxValue;
 
     static Box3DBindingSurface()
     {
@@ -33,6 +34,12 @@ public static class Box3DBindingSurface
 
     [DllImport(NativeLibraryName, EntryPoint = "b3World_Step", CallingConvention = CallingConvention.Cdecl)]
     public static extern void b3World_Step(B3WorldId worldId, float timeStep, int subStepCount);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_Draw", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3World_Draw(B3WorldId worldId, ref B3DebugDraw draw, ulong maskBits);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3DefaultDebugDraw", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3DebugDraw b3DefaultDebugDraw();
 
     [DllImport(NativeLibraryName, EntryPoint = "b3DefaultQueryFilter", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3QueryFilter b3DefaultQueryFilter();

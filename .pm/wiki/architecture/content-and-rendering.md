@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T08:22:29.7285700Z
+modifiedAt: 2026-07-06T08:49:33.2070000Z
 ---
 
 ## Content and Map Data
@@ -113,6 +113,12 @@ Active ImGui rendering uses this SDL GPU ordering:
 12. Submit the command buffer.
 
 The initial debug overlay window is titled `Royale` and shows frame delta/FPS, fixed ticks this frame, total fixed tick, and mouse capture state. It intentionally does not expose gameplay controls.
+
+`RENDER-006` adds the first debug primitive rendering path. `DebugPrimitiveList` is a project-owned CPU line list for game-specific debug visuals such as the local player capsule, spawn markers, safe-zone boundary, and future ray/contact markers. `Box3DDebugDrawAdapter` calls `b3World_Draw` for the local static collision world and converts Box3D debug shapes and callbacks into the same line list.
+
+`DebugLineRenderer` owns a separate SDL GPU line-list pipeline and `debug_line` shader pair. It uploads frame-local line vertices before the main render pass, then draws the line list after static solids inside the main pass. Its pipeline keeps the depth target attached but disables depth testing and depth writes so debug lines remain visible through solid gray-box geometry by default.
+
+The F5-F8 render-mode workflow is intentionally deferred to `RENDER-007`; `RENDER-006` establishes the underlying primitive debug drawing system only.
 
 ## Shader Build Pipeline
 

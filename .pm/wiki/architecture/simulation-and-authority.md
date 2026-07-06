@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-06T07:40:55.9507890Z
+modifiedAt: 2026-07-06T19:43:39.2727720Z
 ---
 
 ## Simulation Model
@@ -44,6 +44,12 @@ while running:
 
     sleep or yield until more work is available
 ```
+
+The SERVER-001 headless server runtime advances at `SimulationSettings.TickRateHz` (`60 Hz`). Each initial server tick steps the server-owned Box3D static map collision world once using `SimulationSettings.FixedDeltaSeconds`, then increments the authoritative server tick counter. The loop bounds catch-up work to avoid uncontrolled simulation spirals after stalls.
+
+No networking, authoritative player state, snapshots, input processing, match phases, safe zone updates, or combat resolution are part of the initial SERVER-001 server tick. The first server tick is structurally empty beyond the Box3D static-world step and authoritative tick increment.
+
+A finite validation mode is available through `--run-ticks <count>`; it runs exactly that many fixed ticks as fast as possible and exits. Without `--run-ticks`, the dedicated server runs until Ctrl+C or process shutdown.
 
 The client also maintains a fixed simulation loop for prediction. Rendering remains variable-rate.
 

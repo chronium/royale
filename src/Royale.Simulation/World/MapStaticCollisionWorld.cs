@@ -73,6 +73,12 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
             Box3DBindingSurface.b3DefaultQueryFilter());
     }
 
+    public void Step(float timeStep, int subStepCount)
+    {
+        ThrowIfDisposed();
+        world.Step(timeStep, subStepCount);
+    }
+
     public IReadOnlyList<MapStaticCollider> OverlapAabb(MapVector3 lowerBound, MapVector3 upperBound)
     {
         ThrowIfDisposed();

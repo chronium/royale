@@ -1,7 +1,7 @@
 ---
 title: Runtime Processes
 createdAt: 2026-07-05T16:10:17.2894450Z
-modifiedAt: 2026-07-05T20:00:39.1541700Z
+modifiedAt: 2026-07-06T19:43:29.2609990Z
 ---
 
 ## Game Client
@@ -87,8 +87,11 @@ Supported server flags are:
 ```text
 --port <port>
 --map <map-id>
+--run-ticks <positive-integer>
 ```
 
-The startup log includes the selected protocol version, map id, port, simulation tick rate, and headless status. Server argument parsing rejects unknown flags, missing or empty values, and invalid ports outside `1..65535`.
+By default the server runs until Ctrl+C or process shutdown. `--run-ticks` is a deterministic validation option: when present, the server runs exactly that many fixed simulation ticks as fast as possible, then exits.
 
-As with the client, server map selection is syntactic only until map registry and loading behavior are implemented.
+At startup the server loads the selected map through `MapCatalog.LoadById`, creates the server-owned `MapStaticCollisionWorld`, and logs the selected protocol version, port, map id, static collider count, simulation tick rate, headless status, and finite or infinite run mode.
+
+Server argument parsing rejects unknown flags, missing or empty values, invalid ports outside `1..65535`, and `--run-ticks` values that are not positive integers.

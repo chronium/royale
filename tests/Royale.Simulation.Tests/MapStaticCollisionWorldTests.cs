@@ -119,6 +119,16 @@ public sealed class MapStaticCollisionWorldTests
     }
 
     [Fact]
+    public void StepKeepsWorldValidBeforeDispose()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
+
+        collisionWorld.Step(SimulationSettings.FixedDeltaSeconds, SimulationSettings.PhysicsSubStepCount);
+
+        Assert.True(Box3DBindingSurface.b3World_IsValid(collisionWorld.WorldId));
+    }
+
+    [Fact]
     public void DisposingDestroysWorldAndInvalidatesOwnedNativeIds()
     {
         MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
@@ -133,5 +143,6 @@ public sealed class MapStaticCollisionWorldTests
         Assert.False(Box3DBindingSurface.b3Body_IsValid(bodyId));
         Assert.False(Box3DBindingSurface.b3Shape_IsValid(shapeId));
         Assert.Throws<ObjectDisposedException>(() => collisionWorld.CastRayClosest(new MapVector3(), new MapVector3(0.0f, -1.0f, 0.0f)));
+        Assert.Throws<ObjectDisposedException>(() => collisionWorld.Step(SimulationSettings.FixedDeltaSeconds, SimulationSettings.PhysicsSubStepCount));
     }
 }

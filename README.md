@@ -131,13 +131,19 @@ dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_AN
 
 ## Running The Server
 
-The server project exists and intentionally avoids client rendering dependencies:
+The server project runs a headless fixed-timestep simulation, loads the selected map, and builds the server-owned Box3D static collision world without SDL, SDL GPU, ImGui, or client rendering dependencies:
 
 ```sh
 dotnet run --project src/Royale.Server/Royale.Server.csproj -- --port 7777 --map graybox
 ```
 
-The dedicated authoritative simulation and real networking stack are still planned work. See the PM board for current task state.
+For deterministic validation runs, provide a finite tick count:
+
+```sh
+dotnet run --project src/Royale.Server/Royale.Server.csproj -- --map graybox --run-ticks 5
+```
+
+Real networking, player state, and match flow are still planned work. See the PM board for current task state.
 
 ## Project Management And Documentation
 

@@ -1,6 +1,7 @@
 using SDL;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Royale.Client.Rendering;
 using Royale.Native;
 using static SDL.SDL3;
 using ZLogger;
@@ -18,6 +19,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private const int TitleUpdateIntervalMilliseconds = 500;
 
     private readonly InputState input = new();
+    private readonly DebugCamera camera = DebugCamera.CreateDefault();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
     private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
@@ -76,6 +78,7 @@ public sealed unsafe class SdlApplication : IDisposable
             input.BeginFrame();
             ImGuiCaptureState imguiCapture = imguiBackend?.Capture ?? default;
             PollEvents(imguiCapture);
+            UpdateCamera(frameTime);
             imguiBackend?.NewFrame(frameTime.DeltaSeconds);
 
             lastFixedTicksThisFrame = fixedTime.AddFrameTime(frameDeltaSeconds);
@@ -107,7 +110,7 @@ public sealed unsafe class SdlApplication : IDisposable
             ? options.ScreenshotPath
             : null;
 
-        gpuDevice?.PresentFrame(time.DeltaSeconds, imguiBackend, screenshotPath);
+        gpuDevice?.PresentFrame(time.DeltaSeconds, camera, imguiBackend, screenshotPath);
 
         if (screenshotPath is not null)
             running = false;
@@ -220,6 +223,11 @@ public sealed unsafe class SdlApplication : IDisposable
     }
 
     private static bool IsGlobalControl(SDL_Keycode key) => key is SDL_Keycode.SDLK_F1 or SDL_Keycode.SDLK_ESCAPE;
+
+    private void UpdateCamera(FrameTime frameTime) =>
+        camera.Update(
+            DebugCameraInputMapper.FromInputState(input, Window?.RelativeMouseMode.Enabled == true),
+            frameTime.DeltaSeconds);
 
     private void UpdateWindowTitle(FrameTime frameTime)
     {

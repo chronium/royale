@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-05T18:50:51.2847530Z
+modifiedAt: 2026-07-06T04:15:12.0482950Z
 ---
 
 ## Content and Map Data
@@ -55,10 +55,14 @@ Initial responsibilities include:
 * Buffer creation
 * Texture creation
 * Static mesh rendering
-* Camera constants
+* Debug camera matrices
 * Basic lighting
 * Debug geometry
 * ImGui rendering
+
+The current scene camera is an FPS-style free-fly debug camera owned by the client presentation loop. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses a 60 degree vertical field of view, a 0.1 near plane, and a 100.0 far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
+
+Debug camera controls are `W/A/S/D` for horizontal local movement, `Space` for up, and `Left Ctrl` for down. Mouse deltas rotate yaw and clamped pitch only while SDL relative mouse mode is enabled. `F1` toggles relative mouse mode and `Escape` releases capture before exiting. This camera is renderer/debug presentation state and is not the gameplay first-person controller or a server-authoritative player view.
 
 ImGui uses Evergine's generated ImGui.Net/cimgui bindings plus a project-owned native `royale_imgui` shim. The shim is built with Dear ImGui's SDL3 platform backend and SDL_GPU renderer backend.
 

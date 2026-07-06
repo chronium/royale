@@ -37,18 +37,18 @@ internal sealed unsafe class CubeRenderer : IDisposable
         UploadGeometry();
     }
 
-    public void Render(SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass, uint width, uint height, double deltaSeconds)
+    public void Render(
+        SDL_GPUCommandBuffer* commandBuffer,
+        SDL_GPURenderPass* renderPass,
+        uint width,
+        uint height,
+        double deltaSeconds,
+        DebugCamera camera)
     {
         rotationRadians += (float)deltaSeconds * 0.8f;
 
         Matrix4x4 world = Matrix4x4.CreateRotationY(rotationRadians * 0.35f);
-        Matrix4x4 view = Matrix4x4.CreateLookAt(new Vector3(2.8f, 2.1f, 2.8f), Vector3.Zero, Vector3.UnitY);
-        Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(
-            MathF.PI / 3.0f,
-            height == 0 ? 1.0f : width / (float)height,
-            0.1f,
-            100.0f);
-        Matrix4x4 worldViewProjection = Matrix4x4.Transpose(world * view * projection);
+        Matrix4x4 worldViewProjection = camera.CreateTransposedWorldViewProjection(world, width, height);
 
         SDL_PushGPUVertexUniformData(commandBuffer, 0, (IntPtr)(&worldViewProjection), (uint)sizeof(Matrix4x4));
 

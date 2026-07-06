@@ -78,7 +78,11 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         return SDL_GetGPUSwapchainTextureFormat(device, window.Handle);
     }
 
-    internal void PresentFrame(double deltaSeconds, ImGuiBackend? imguiBackend = null, string? screenshotPath = null)
+    internal void PresentFrame(
+        double deltaSeconds,
+        DebugCamera camera,
+        ImGuiBackend? imguiBackend = null,
+        string? screenshotPath = null)
     {
         ThrowIfDisposed();
 
@@ -130,7 +134,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
             if (renderPass is null)
                 throw new InvalidOperationException($"SDL GPU render pass creation failed: {SDL_GetError()}");
 
-            cubeRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, deltaSeconds);
+            cubeRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, deltaSeconds, camera);
             SDL_EndGPURenderPass(renderPass);
 
             imguiBackend?.Render(commandBuffer, swapchainTexture);

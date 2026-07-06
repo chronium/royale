@@ -33,6 +33,7 @@ public sealed class LocalPlayerController : IDisposable
         LookSettings = lookSettings;
         ViewSettings = viewSettings;
         Weapon = weapon;
+        Health = HealthState.DefaultPlayer;
         weaponFireState = WeaponFireState.Ready;
     }
 
@@ -53,6 +54,8 @@ public sealed class LocalPlayerController : IDisposable
     public KinematicCharacterSettings CharacterSettings => characterController.Settings;
 
     public WeaponDefinition Weapon { get; }
+
+    public HealthState Health { get; }
 
     public WeaponFireState WeaponFireState => weaponFireState;
 

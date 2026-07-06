@@ -18,6 +18,8 @@ public sealed class LocalPlayerControllerTests
         using LocalPlayerController player = LocalPlayerController.Create(map);
 
         Assert.Contains(map.SpawnPoints, spawn => spawn.Id == player.SpawnPoint.Id);
+        Assert.Equal(HealthState.DefaultPlayer, player.Health);
+        Assert.True(player.Health.Alive);
         AssertVector(ToVector3(player.SpawnPoint.Position), player.FeetPosition);
         AssertVector(
             ToVector3(player.SpawnPoint.Position) + new Vector3(0.0f, PlayerViewSettings.DefaultEyeHeight, 0.0f),

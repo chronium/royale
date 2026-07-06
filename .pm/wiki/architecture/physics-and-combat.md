@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T13:39:11.7216570Z
+modifiedAt: 2026-07-06T13:50:50.3579920Z
 ---
 
 ## Physics Architecture
@@ -200,13 +200,23 @@ The client may immediately show:
 
 The client must wait for authoritative confirmation before treating another player as damaged or dead.
 
+### Health and Damage
+
+`COMBAT-004` adds the first simulation-owned reusable health and damage model. `HealthState.DefaultPlayer` starts players at `100/100` HP with `Alive == true`.
+
+Damage application is driven by `DamageController.Apply()` using a weapon-backed `DamageRequest`, the authoritative `HitscanHit`, and a target health table keyed by target id. Static hits and no-hit results apply no damage. Target hits apply the weapon's raw damage to the matching target entry only; missing target ids or missing health entries return a no-damage result and do not mutate other health state.
+
+The default rifle deals `25` damage, so four valid target hits reduce default player health to `0`. Health clamps at zero, and reaching zero sets `Alive == false`. Applying damage to an already-dead target is a no-op that preserves `0` health and `Alive == false`.
+
+There is no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire rule, target ownership, damage history, respawn, or combat UI in this contract. Dead-player movement, firing restrictions, spectator behavior, and respawn remain deferred to `COMBAT-005`.
+
 ### Hitscan Raycasts
 
 `COMBAT-003` adds simulation-owned hitscan query types for rifle shots. `HitscanRay.FromPlayerLook()` builds the shot from the player's feet-anchored `KinematicCharacterState.Position` plus `PlayerViewSettings.EyeHeight`; its direction uses the same yaw and pitch convention as `RenderCamera.Forward`, and its length is the weapon `RangeMeters`.
 
 `HitscanResolver` queries static map collision through `MapStaticCollisionWorld.CastRayClosest()` and wraps the closest static hit with point, normal, fraction, distance, and source static collider metadata. Callers may also pass feet-anchored vertical capsule `HitscanTarget` values using the same radius and height convention as the kinematic character controller. The nearest valid hit wins across static geometry and capsule targets, so static geometry blocks farther targets.
 
-This task reports hits only. Damage application, ammunition consumption, authoritative combat events, target ownership, and presentation effects remain deferred to `COMBAT-004` and later combat tasks.
+Hitscan resolution reports hit geometry and target ids only. `COMBAT-004` applies damage from target hits through `DamageController`; ammunition consumption, authoritative combat events, target ownership, and presentation effects remain deferred to later combat tasks.
 
 ### Rifle Definition
 

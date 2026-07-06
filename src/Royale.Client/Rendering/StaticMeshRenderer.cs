@@ -20,8 +20,12 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
     private uint depthTextureWidth;
     private uint depthTextureHeight;
 
-    public StaticMeshRenderer(SDL_GPUDevice* device, SDL_GPUTextureFormat swapchainFormat, SDL_GPUShaderFormat shaderFormat)
-        : this(device, swapchainFormat, shaderFormat, UnitBoxMesh.Create(), GrayBoxPreviewScene.CreateInstances())
+    public StaticMeshRenderer(
+        SDL_GPUDevice* device,
+        SDL_GPUTextureFormat swapchainFormat,
+        SDL_GPUShaderFormat shaderFormat,
+        IReadOnlyList<StaticMeshInstance> staticMeshInstances)
+        : this(device, swapchainFormat, shaderFormat, UnitBoxMesh.Create(), staticMeshInstances)
     {
     }
 
@@ -30,11 +34,11 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         SDL_GPUTextureFormat swapchainFormat,
         SDL_GPUShaderFormat shaderFormat,
         StaticMeshGeometry unitBoxMesh,
-        IReadOnlyList<StaticMeshInstance> previewInstances)
+        IReadOnlyList<StaticMeshInstance> staticMeshInstances)
     {
         this.device = device;
         this.unitBoxMesh = unitBoxMesh;
-        this.previewInstances = previewInstances;
+        previewInstances = staticMeshInstances;
 
         vertexShader = LoadShader("basic.vert", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_VERTEX, uniformBufferCount: 1);
         fragmentShader = LoadShader("basic.frag", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_FRAGMENT, uniformBufferCount: 0);

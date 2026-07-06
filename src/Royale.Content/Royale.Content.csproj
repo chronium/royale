@@ -1,3 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <Content Include="Maps\*.json" CopyToOutputDirectory="PreserveNewest" TargetPath="maps\%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

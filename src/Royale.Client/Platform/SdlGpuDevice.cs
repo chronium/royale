@@ -12,14 +12,16 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_DXIL;
 
     private readonly SdlWindow window;
+    private readonly IReadOnlyList<StaticMeshInstance> staticMeshInstances;
     private SDL_GPUDevice* device;
     private StaticMeshRenderer? staticMeshRenderer;
     private bool windowClaimed;
 
-    private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window)
+    private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window, IReadOnlyList<StaticMeshInstance> staticMeshInstances)
     {
         this.device = device;
         this.window = window;
+        this.staticMeshInstances = staticMeshInstances;
         SupportedShaderFormats = SDL_GetGPUShaderFormats(device);
         PreferredShaderFormat = SelectPreferredShaderFormat(SupportedShaderFormats);
     }
@@ -37,14 +39,14 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         }
     }
 
-    public static SdlGpuDevice Create(SdlWindow window)
+    public static SdlGpuDevice Create(SdlWindow window, IReadOnlyList<StaticMeshInstance> staticMeshInstances)
     {
         SDL_GPUDevice* device = SDL_CreateGPUDevice(RequestedShaderFormats, debug_mode: false, name: (byte*)null);
 
         if (device is null)
             throw new InvalidOperationException($"SDL GPU device creation failed: {SDL_GetError()}");
 
-        var gpuDevice = new SdlGpuDevice(device, window);
+        var gpuDevice = new SdlGpuDevice(device, window, staticMeshInstances);
 
         try
         {
@@ -112,7 +114,8 @@ public sealed unsafe class SdlGpuDevice : IDisposable
             staticMeshRenderer ??= new StaticMeshRenderer(
                 Handle,
                 swapchainFormat,
-                PreferredShaderFormat.Value);
+                PreferredShaderFormat.Value,
+                staticMeshInstances);
 
             var colorTarget = new SDL_GPUColorTargetInfo
             {

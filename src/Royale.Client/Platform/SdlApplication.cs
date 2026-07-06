@@ -2,6 +2,7 @@ using SDL;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Royale.Client.Rendering;
+using Royale.Content;
 using Royale.Native;
 using static SDL.SDL3;
 using ZLogger;
@@ -131,6 +132,11 @@ public sealed unsafe class SdlApplication : IDisposable
         initialized = true;
         logger.ZLogInformation($"SDL video subsystem initialized.");
 
+        logger.ZLogInformation($"Loading map {options.MapId}.");
+        GameMap map = MapCatalog.LoadById(options.MapId);
+        IReadOnlyList<StaticMeshInstance> staticMeshInstances = MapStaticMeshScene.CreateInstances(map);
+        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes.");
+
         logger.ZLogInformation($"Creating SDL window.");
         Window = SdlWindow.Create(
             "Royale",
@@ -140,7 +146,7 @@ public sealed unsafe class SdlApplication : IDisposable
         logger.ZLogInformation($"SDL window created.");
 
         logger.ZLogInformation($"Creating SDL GPU device.");
-        gpuDevice = SdlGpuDevice.Create(Window);
+        gpuDevice = SdlGpuDevice.Create(Window, staticMeshInstances);
         logger.ZLogInformation($"SDL GPU device created.");
         imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
     }

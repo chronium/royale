@@ -1,22 +1,24 @@
 using System.Numerics;
 using Royale.Client.Rendering;
+using Royale.Content;
 
 namespace Royale.Client.Tests;
 
 public sealed class StaticMeshRenderingTests
 {
     [Fact]
-    public void GrayBoxPreviewSceneCreatesMultipleMeshInstances()
+    public void MapStaticMeshSceneCreatesOneMeshInstancePerStaticBox()
     {
-        IReadOnlyList<StaticMeshInstance> instances = GrayBoxPreviewScene.CreateInstances();
+        GameMap map = MapCatalog.LoadDefault();
+        IReadOnlyList<StaticMeshInstance> instances = MapStaticMeshScene.CreateInstances(map);
 
-        Assert.True(instances.Count > 1);
+        Assert.Equal(map.StaticBoxes.Count, instances.Count);
     }
 
     [Fact]
-    public void GrayBoxPreviewSceneInstancesHaveIndependentTransforms()
+    public void MapStaticMeshSceneInstancesHaveIndependentTransforms()
     {
-        IReadOnlyList<StaticMeshInstance> instances = GrayBoxPreviewScene.CreateInstances();
+        IReadOnlyList<StaticMeshInstance> instances = MapStaticMeshScene.CreateInstances(MapCatalog.LoadDefault());
 
         for (int left = 0; left < instances.Count; left++)
         {
@@ -38,10 +40,11 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
-    public void GrayBoxPreviewSceneDrawListIsDeterministic()
+    public void MapStaticMeshSceneDrawListIsDeterministic()
     {
-        IReadOnlyList<StaticMeshInstance> first = GrayBoxPreviewScene.CreateInstances();
-        IReadOnlyList<StaticMeshInstance> second = GrayBoxPreviewScene.CreateInstances();
+        GameMap map = MapCatalog.LoadDefault();
+        IReadOnlyList<StaticMeshInstance> first = MapStaticMeshScene.CreateInstances(map);
+        IReadOnlyList<StaticMeshInstance> second = MapStaticMeshScene.CreateInstances(map);
 
         Assert.Equal(first.Count, second.Count);
 
@@ -56,7 +59,7 @@ public sealed class StaticMeshRenderingTests
     public void WorldViewProjectionCanBeCreatedForEveryPreviewInstance()
     {
         DebugCamera camera = DebugCamera.CreateDefault();
-        IReadOnlyList<StaticMeshInstance> instances = GrayBoxPreviewScene.CreateInstances();
+        IReadOnlyList<StaticMeshInstance> instances = MapStaticMeshScene.CreateInstances(MapCatalog.LoadDefault());
 
         foreach (StaticMeshInstance instance in instances)
         {
@@ -64,6 +67,25 @@ public sealed class StaticMeshRenderingTests
 
             AssertFinite(matrix);
         }
+    }
+
+    [Fact]
+    public void StaticBoxTransformsUsePositionSizeAndEulerRotation()
+    {
+        var staticBox = new StaticBoxDefinition
+        {
+            Id = "rotated-box",
+            Position = new MapVector3(1.0f, 2.0f, 3.0f),
+            Size = new MapVector3(2.0f, 4.0f, 6.0f),
+            RotationEuler = new MapVector3(0.0f, 90.0f, 0.0f),
+        };
+
+        Matrix4x4 expected =
+            Matrix4x4.CreateScale(2.0f, 4.0f, 6.0f) *
+            Matrix4x4.CreateFromYawPitchRoll(MathF.PI / 2.0f, 0.0f, 0.0f) *
+            Matrix4x4.CreateTranslation(1.0f, 2.0f, 3.0f);
+
+        Assert.Equal(expected, MapStaticMeshScene.CreateTransform(staticBox));
     }
 
     private static void AssertFinite(Matrix4x4 matrix)

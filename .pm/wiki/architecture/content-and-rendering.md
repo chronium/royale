@@ -1,43 +1,58 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T04:46:17.9839360Z
+modifiedAt: 2026-07-06T04:57:16.7326240Z
 ---
 
 ## Content and Map Data
 
-The first map should use a deliberately simple format.
+Shared map content lives in `Royale.Content`. The default map id is `graybox` via `ContentCatalog.DefaultMapId` and `MapCatalog.DefaultMapId`.
 
-A basic JSON file may define:
+The committed default map file is `src/Royale.Content/Maps/graybox.json`. The content project copies map JSON files to runtime output under `maps/`, so client and server consumers load the same copied file shape from `AppContext.BaseDirectory/maps/<map-id>.json`.
 
-* Static boxes
-* Static mesh references
-* Spawn points
-* Loot points
-* World bounds
-* Initial safe-zone centre
-* Initial safe-zone radius
+`MapCatalog.LoadById()` accepts simple ASCII map ids using letters, digits, `-`, and `_`, then loads and validates the matching JSON file. Missing files fail with a clear `FileNotFoundException`; malformed JSON or invalid map shape fails with `InvalidDataException`.
 
-For example:
+The current minimal schema is:
 
 ```json
 {
-  "name": "test-map",
+  "id": "graybox",
+  "name": "Gray-Box Test Arena",
+  "worldBounds": {
+    "min": { "x": -12.0, "y": -1.0, "z": -12.0 },
+    "max": { "x": 12.0, "y": 5.0, "z": 12.0 }
+  },
+  "safeZone": {
+    "center": { "x": 0.0, "y": 0.0, "z": 0.0 },
+    "radius": 10.0
+  },
   "spawnPoints": [
-    { "position": [0, 2, 0], "rotation": 0 },
-    { "position": [20, 2, 20], "rotation": 180 }
+    {
+      "id": "spawn-north-west",
+      "position": { "x": -4.5, "y": 0.2, "z": -4.5 },
+      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+    }
+  ],
+  "lootPoints": [
+    {
+      "id": "loot-center",
+      "position": { "x": 0.0, "y": 0.35, "z": 0.0 }
+    }
   ],
   "staticBoxes": [
     {
-      "position": [0, -0.5, 0],
-      "size": [100, 1, 100]
+      "id": "ground-main",
+      "position": { "x": 0.0, "y": -0.12, "z": 0.0 },
+      "size": { "x": 10.0, "y": 0.24, "z": 10.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     }
-  ],
-  "lootPoints": []
+  ]
 }
 ```
 
-Client and server should load the same gameplay-relevant map data.
+Static boxes currently define copied shared map data and client-rendered gray-box geometry only. Their `position`, `size`, and human-editable `rotationEuler` values are converted by the client into unit-box world transforms. Spawn points, loot points, world bounds, and safe-zone fields are placeholders in this task and do not yet drive gameplay behavior.
+
+`GAME-002` owns creating Box3D static collision from map static boxes. Until that task lands, map loading must not be treated as authoritative collision, spawn selection, loot placement, safe-zone simulation, or protocol compatibility behavior.
 
 Rendering-only data may remain client-specific.
 
@@ -60,9 +75,7 @@ Initial responsibilities include:
 * Debug geometry
 * ImGui rendering
 
-The current static mesh renderer is a procedural client preview path. It owns one SDL GPU pipeline and shader pair, uploads a built-in unit box mesh once, and draws a deterministic gray-box preview scene by pushing one world-view-projection matrix per static mesh instance. The preview scene is intentionally client-only and contains floor, wall, cover, and ramp-visual box instances centered near the origin for the debug camera. It is not a scene graph, ECS, material system, mesh asset loader, map loader, culling system, batching system, or instancing API.
-
-Committed static mesh asset formats and gameplay-relevant map/content loading remain deferred to GAME-001. Until that work lands, this preview renderer should stay procedural and should not define server gameplay collision, spawn, loot, safe-zone, or protocol contracts.
+The current static mesh renderer owns one SDL GPU pipeline and shader pair, uploads a built-in unit box mesh once, and draws static map geometry by pushing one world-view-projection matrix per `StaticMeshInstance`. The client loads the selected map id from `ClientLaunchOptions.MapId`, reads the copied JSON through `MapCatalog`, and converts each `staticBoxes` entry into a render instance. It is not a scene graph, ECS, material system, mesh asset loader, culling system, batching system, or instancing API.
 
 The current scene camera is an FPS-style free-fly debug camera owned by the client presentation loop. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses a 60 degree vertical field of view, a 0.1 near plane, and a 100.0 far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
 

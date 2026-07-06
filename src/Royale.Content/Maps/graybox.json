@@ -1,0 +1,117 @@
+{
+  "id": "graybox",
+  "name": "Gray-Box Test Arena",
+  "worldBounds": {
+    "min": { "x": -12.0, "y": -1.0, "z": -12.0 },
+    "max": { "x": 12.0, "y": 5.0, "z": 12.0 }
+  },
+  "safeZone": {
+    "center": { "x": 0.0, "y": 0.0, "z": 0.0 },
+    "radius": 10.0
+  },
+  "spawnPoints": [
+    {
+      "id": "spawn-north-west",
+      "position": { "x": -4.5, "y": 0.2, "z": -4.5 },
+      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+    },
+    {
+      "id": "spawn-south-east",
+      "position": { "x": 4.5, "y": 0.2, "z": 4.5 },
+      "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
+    },
+    {
+      "id": "spawn-west",
+      "position": { "x": -5.0, "y": 0.2, "z": 2.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 }
+    }
+  ],
+  "lootPoints": [
+    {
+      "id": "loot-center",
+      "position": { "x": 0.0, "y": 0.35, "z": 0.0 }
+    },
+    {
+      "id": "loot-platform",
+      "position": { "x": -2.8, "y": 1.1, "z": 2.2 }
+    },
+    {
+      "id": "loot-cover",
+      "position": { "x": 2.5, "y": 0.7, "z": -1.7 }
+    }
+  ],
+  "staticBoxes": [
+    {
+      "id": "ground-main",
+      "position": { "x": 0.0, "y": -0.12, "z": 0.0 },
+      "size": { "x": 10.0, "y": 0.24, "z": 10.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "boundary-north-wall",
+      "position": { "x": 0.0, "y": 0.85, "z": -4.9 },
+      "size": { "x": 10.0, "y": 1.7, "z": 0.28 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "boundary-south-wall",
+      "position": { "x": 0.0, "y": 0.85, "z": 4.9 },
+      "size": { "x": 10.0, "y": 1.7, "z": 0.28 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "boundary-west-wall",
+      "position": { "x": -4.9, "y": 0.85, "z": 0.0 },
+      "size": { "x": 0.28, "y": 1.7, "z": 10.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "boundary-east-wall",
+      "position": { "x": 4.9, "y": 0.85, "z": 0.0 },
+      "size": { "x": 0.28, "y": 1.7, "z": 10.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "wall-center-long",
+      "position": { "x": -0.25, "y": 0.55, "z": -1.85 },
+      "size": { "x": 3.8, "y": 1.1, "z": 0.34 },
+      "rotationEuler": { "x": 0.0, "y": 10.0, "z": 0.0 }
+    },
+    {
+      "id": "step-low",
+      "position": { "x": -3.05, "y": 0.2, "z": 0.85 },
+      "size": { "x": 1.7, "y": 0.4, "z": 0.9 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "platform-high",
+      "position": { "x": -3.05, "y": 0.72, "z": 2.45 },
+      "size": { "x": 2.1, "y": 0.4, "z": 1.7 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "ramp-platform-approach",
+      "position": { "x": -3.05, "y": 0.46, "z": 1.55 },
+      "size": { "x": 1.7, "y": 0.22, "z": 1.6 },
+      "rotationEuler": { "x": -18.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "cover-center-block",
+      "position": { "x": 0.35, "y": 0.38, "z": 0.35 },
+      "size": { "x": 1.0, "y": 0.76, "z": 1.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "cover-east-tall",
+      "position": { "x": 2.55, "y": 0.55, "z": -1.4 },
+      "size": { "x": 0.75, "y": 1.1, "z": 1.5 },
+      "rotationEuler": { "x": 0.0, "y": -12.0, "z": 0.0 }
+    },
+    {
+      "id": "cover-south-low",
+      "position": { "x": 1.85, "y": 0.28, "z": 2.7 },
+      "size": { "x": 2.1, "y": 0.56, "z": 0.6 },
+      "rotationEuler": { "x": 0.0, "y": -10.0, "z": 0.0 }
+    }
+  ]
+}

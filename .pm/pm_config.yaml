@@ -20,6 +20,7 @@ tracks:
   LOOT: Minimal loot loop
   PORT: Packaging and platform delivery
   TEST: Automated gameplay testing
+  BUG: Bugs
 milestones:
   M0: Cross-platform technical skeleton
   M1: Gray-box physics sandbox

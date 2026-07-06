@@ -6,7 +6,7 @@ milestone: M3
 dependsOn:
 - COMBAT-004
 createdAt: 2026-07-04T09:21:58.7310200Z
-modifiedAt: 2026-07-06T08:28:00.6353370Z
+modifiedAt: 2026-07-06T14:44:40.6850030Z
 ---
 
 Disable movement on death, switch to a spectator or free camera, and allow debug respawning.
@@ -19,3 +19,4 @@ Disable movement on death, switch to a spectator or free camera, and allow debug
 - Added an ImGui `Player` diagnostics window showing health/alive state with `Kill Player` and `Respawn Player` buttons. These controls call debug methods and are not gameplay input, server match elimination, respawn timers, final HUD, animation, audio, networking, or player-vs-player damage.
 - Updated `architecture/physics-and-combat` with the COMBAT-005 local debug death/respawn contract.
 - Validation: `dotnet build Royale.slnx -m:1 --no-restore` passed with the existing ImGui.Net `NU1510` warning; `dotnet test Royale.slnx -m:1 --no-restore` passed with the same warning.
+- 2026-07-06 14:44 UTC - Project owner completed manual human validation after implementation. The local debug death/respawn flow was verified interactively: killing the player, freecam transition, disabled dead-player gameplay control, and debug respawn behavior worked as expected.

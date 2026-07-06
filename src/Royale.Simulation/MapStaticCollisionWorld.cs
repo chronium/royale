@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Royale.Box3D;
 using Royale.Box3D.Bindings;
 using Royale.Content;
 
@@ -11,14 +12,15 @@ public sealed class MapStaticCollisionWorld : IDisposable
 
     private readonly Dictionary<B3ShapeId, MapStaticCollider> collidersByShape = [];
     private readonly List<MapStaticCollider> colliders = [];
+    private readonly Box3DWorld world;
     private bool disposed;
 
-    private MapStaticCollisionWorld(B3WorldId worldId)
+    private MapStaticCollisionWorld(Box3DWorld world)
     {
-        WorldId = worldId;
+        this.world = world;
     }
 
-    public B3WorldId WorldId { get; }
+    public B3WorldId WorldId => world.Id;
 
     public IReadOnlyList<MapStaticCollider> Colliders => colliders;
 
@@ -32,14 +34,14 @@ public sealed class MapStaticCollisionWorld : IDisposable
 
         B3WorldDef worldDef = Box3DBindingSurface.b3DefaultWorldDef();
         worldDef.Gravity = ToB3Vector(Vector3.Zero);
-        B3WorldId worldId = Box3DBindingSurface.b3CreateWorld(in worldDef);
+        Box3DWorld world = Box3DWorld.Create(in worldDef);
 
         try
         {
-            if (!Box3DBindingSurface.b3World_IsValid(worldId))
+            if (!world.IsValid)
                 throw new InvalidOperationException("Box3D did not create a valid map collision world.");
 
-            var collisionWorld = new MapStaticCollisionWorld(worldId);
+            var collisionWorld = new MapStaticCollisionWorld(world);
 
             foreach (StaticBoxDefinition staticBox in map.StaticBoxes)
                 collisionWorld.CreateStaticBoxCollider(staticBox);
@@ -48,8 +50,7 @@ public sealed class MapStaticCollisionWorld : IDisposable
         }
         catch
         {
-            if (Box3DBindingSurface.b3World_IsValid(worldId))
-                Box3DBindingSurface.b3DestroyWorld(worldId);
+            world.Dispose();
 
             throw;
         }
@@ -100,8 +101,7 @@ public sealed class MapStaticCollisionWorld : IDisposable
         if (disposed)
             return;
 
-        if (Box3DBindingSurface.b3World_IsValid(WorldId))
-            Box3DBindingSurface.b3DestroyWorld(WorldId);
+        world.Dispose();
 
         disposed = true;
     }
@@ -113,8 +113,8 @@ public sealed class MapStaticCollisionWorld : IDisposable
         bodyDef.Position = ToB3Position(staticBox.Position);
         bodyDef.Rotation = ToB3Quaternion(MapStaticBoxTransforms.CreateRotation(staticBox));
 
-        B3BodyId bodyId = Box3DBindingSurface.b3CreateBody(WorldId, in bodyDef);
-        if (!Box3DBindingSurface.b3Body_IsValid(bodyId))
+        Box3DBody body = world.CreateBody(in bodyDef);
+        if (!body.IsValid)
             throw new InvalidOperationException($"Box3D did not create a valid static body for map box '{staticBox.Id}'.");
 
         B3ShapeDef shapeDef = Box3DBindingSurface.b3DefaultShapeDef();
@@ -122,13 +122,13 @@ public sealed class MapStaticCollisionWorld : IDisposable
             staticBox.Size.X * 0.5f,
             staticBox.Size.Y * 0.5f,
             staticBox.Size.Z * 0.5f);
-        B3ShapeId shapeId = Box3DBindingSurface.b3CreateHullShape(bodyId, in shapeDef, in box.Base);
-        if (!Box3DBindingSurface.b3Shape_IsValid(shapeId))
+        Box3DShape shape = body.CreateHullShape(in shapeDef, in box.Base);
+        if (!shape.IsValid)
             throw new InvalidOperationException($"Box3D did not create a valid hull shape for map box '{staticBox.Id}'.");
 
-        var collider = new MapStaticCollider(staticBox.Id, bodyId, shapeId);
+        var collider = new MapStaticCollider(staticBox.Id, body.Id, shape.Id);
         colliders.Add(collider);
-        collidersByShape.Add(shapeId, collider);
+        collidersByShape.Add(shape.Id, collider);
     }
 
     private void ThrowIfDisposed()

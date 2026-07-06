@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T05:06:52.3911000Z
+modifiedAt: 2026-07-06T05:20:07.9258340Z
 ---
 
 ## Physics Architecture
@@ -103,7 +103,9 @@ Primitive shape bindings include:
 
 Supporting value bindings for that subset include `b3MotionLocks`, `b3BodyDef`, `b3SurfaceMaterial`, `b3ShapeDef`, `b3Filter`, `b3QueryFilter`, `b3Capsule`, `b3ShapeProxy`, `b3RayResult`, `b3TreeStats`, `b3PlaneResult`, `b3HullData`, and the embedded box hull storage used by `b3BoxHull`.
 
-This remains a low-level P/Invoke surface. Managed world, body, shape, and query ownership wrappers; body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; material mutation; event toggles; mesh, height-field, compound, and sphere shape APIs; body-specific query APIs; runtime native-library resolution; and debug draw are deferred to their owning tasks.
+This remains a low-level P/Invoke surface. Body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; material mutation; event toggles; mesh, height-field, compound, and sphere shape APIs; body-specific query APIs; runtime native-library resolution; and debug draw are deferred to their owning tasks.
+
+PHYS-009 introduced a focused managed ownership layer in `Royale.Box3D` over the currently bound world, body, and shape APIs. `Box3DWorld`, `Box3DBody`, and `Box3DShape` expose their native IDs for low-level binding calls, make `Dispose()` idempotent, and throw `ObjectDisposedException` from wrapper operations after disposal. Ownership is recursive: worlds track bodies, bodies track shapes, disposing a shape leaves its body and world valid, disposing a body invalidates attached shape wrappers, and disposing a world invalidates all body and shape wrappers. Query wrappers remain deferred; callers should keep using the low-level query bindings with wrapper IDs until a query-specific task adds a managed API.
 
 The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
 
@@ -117,7 +119,7 @@ Native Box3D tests currently require the macOS ARM64 artifact at `thirdparty/art
 
 Static box collision uses the same shared `position`, `size`, and yaw/pitch/roll `rotationEuler` transform convention as client rendering. Box hull half-extents are `size / 2`, matching the centered unit-box render mesh.
 
-This type exists to build and query gray-box map collision for gameplay systems. It is not the general managed Box3D world/body/shape wrapper layer; runtime ownership wrappers remain deferred to `PHYS-009`.
+This type exists to build and query gray-box map collision for gameplay systems. Internally it owns its Box3D world, static bodies, and static shapes through the PHYS-009 wrappers while preserving its public raw ID and query behavior. Cast and overlap calls still use the low-level query bindings with `world.Id` and hit shape IDs because managed query wrappers are not part of PHYS-009.
 
 ## Player Controller
 

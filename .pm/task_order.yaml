@@ -1,0 +1,11 @@
+orders:
+- track: COMBAT
+  state: todo
+  milestone: M3
+  taskIds:
+  - COMBAT-001
+  - COMBAT-002
+  - COMBAT-003
+  - COMBAT-004
+  - COMBAT-005
+  - COMBAT-006

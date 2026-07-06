@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T15:35:46.2570390Z
+modifiedAt: 2026-07-06T15:51:55.1458580Z
 ---
 
 ## Content and Map Data
@@ -126,6 +126,10 @@ The initial debug overlay window is titled `Royale` and shows frame delta/FPS, f
 
 The current smoke draw is a fixed `Royale BlurgText` label at the top-left of the frame, drawn through BlurgText and SDL GPU before ImGui. It is intentionally not a retained UI framework, HUD layout system, world-space billboard system, health bar implementation, bundled font asset, or server dependency. ImGui remains diagnostics-only development tooling.
 
+`RENDER-009` extends the Blurg text path with rendering-owned world-space text billboards. `WorldTextBillboard` values carry text, world position, world-unit height, anchor, foreground and shadow colors, and either camera-facing or fixed-facing mode. Camera-facing labels derive their right/up basis from the active `RenderCamera`; fixed-facing labels preserve an authored world basis supplied by the caller.
+
+World text remains client/rendering presentation state. It is projected on the CPU from Blurg glyph rectangles into arbitrary screen-space textured quads, then batched through the existing `TextQuadRenderer`. The pass is color-only with no depth testing or depth writes, so labels render as readable overlays after world/debug geometry and before ImGui. Depth-tested, raycast-occluded, replicated player-name, health-bar, loot UI, HUD-layout, and server-owned label behavior are intentionally deferred.
+
 ## Shader Build Pipeline
 
 Client shader sources live under `src/Royale.Client/Shaders/` as HLSL files using stage suffixes:
@@ -148,7 +152,7 @@ A simple render sequence is sufficient:
 4. Draw players and pickups.
 5. Draw debug geometry.
 6. End the main pass.
-7. Draw BlurgText screen-space text in a color-only pass with the swapchain texture loaded.
+7. Draw BlurgText screen-space and world-positioned text in a color-only pass with the swapchain texture loaded.
 8. Render ImGui to produce draw data.
 9. Prepare ImGui draw data for SDL_GPU.
 10. Begin the ImGui render pass with the swapchain texture loaded.

@@ -92,6 +92,141 @@ public sealed class TextRenderingTests
     }
 
     [Fact]
+    public void ProjectedQuadBuilderPreservesArbitraryCornersAndGroupsTextureRuns()
+    {
+        TextQuadBatch batch = TextQuadBatchBuilder.CreateProjected(
+            [
+                new TextProjectedQuadSource(
+                    new IntPtr(1),
+                    new Vector2(1.25f, 2.5f),
+                    new Vector2(9.75f, 3.5f),
+                    new Vector2(2.25f, 12.5f),
+                    new Vector2(10.75f, 13.5f),
+                    0.0f,
+                    0.0f,
+                    0.5f,
+                    0.5f,
+                    BlurgColor.White),
+                new TextProjectedQuadSource(
+                    new IntPtr(1),
+                    new Vector2(20.0f, 2.0f),
+                    new Vector2(28.0f, 2.0f),
+                    new Vector2(20.0f, 10.0f),
+                    new Vector2(28.0f, 10.0f),
+                    0.0f,
+                    0.0f,
+                    0.5f,
+                    0.5f,
+                    BlurgColor.White),
+                new TextProjectedQuadSource(
+                    new IntPtr(2),
+                    new Vector2(40.0f, 2.0f),
+                    new Vector2(48.0f, 2.0f),
+                    new Vector2(40.0f, 10.0f),
+                    new Vector2(48.0f, 10.0f),
+                    0.0f,
+                    0.0f,
+                    0.5f,
+                    0.5f,
+                    BlurgColor.White),
+            ]);
+
+        Assert.Equal(12, batch.Vertices.Count);
+        Assert.Equal(new Vector2(1.25f, 2.5f), batch.Vertices[0].Position);
+        Assert.Equal(new Vector2(10.75f, 13.5f), batch.Vertices[3].Position);
+        Assert.Equal([0, 1, 2, 2, 1, 3], batch.Indices.Take(6).ToArray());
+        Assert.Equal(2, batch.DrawCommands.Count);
+        Assert.Equal(new TextDrawCommand(new IntPtr(1), 0, 12), batch.DrawCommands[0]);
+        Assert.Equal(new TextDrawCommand(new IntPtr(2), 12, 6), batch.DrawCommands[1]);
+    }
+
+    [Fact]
+    public void WorldPointProjectionMapsCameraForwardToScreenCenter()
+    {
+        var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
+
+        bool projected = WorldTextProjector.TryProjectPoint(new Vector3(0.0f, 0.0f, -5.0f), camera, 1920, 1080, out Vector2 screen);
+
+        Assert.True(projected);
+        Assert.Equal(960.0f, screen.X, precision: 3);
+        Assert.Equal(540.0f, screen.Y, precision: 3);
+    }
+
+    [Fact]
+    public void CameraFacingBasisUsesRenderCameraRightAndUp()
+    {
+        var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
+
+        WorldTextBasis basis = WorldTextProjector.CreateCameraFacingBasis(camera);
+
+        AssertVector(Vector3.UnitX, basis.Right);
+        AssertVector(Vector3.UnitY, basis.Up);
+    }
+
+    [Fact]
+    public void FixedFacingBasisPreservesAuthoredDirections()
+    {
+        WorldTextBillboard billboard = WorldTextBillboard.FixedFacing(
+            "Fixed",
+            new Vector3(0.0f, 0.0f, -5.0f),
+            1.0f,
+            Vector2.Zero,
+            new WorldTextBasis(new Vector3(2.0f, 0.0f, 0.0f), new Vector3(0.0f, 3.0f, 0.0f)),
+            BlurgColor.White,
+            new BlurgColor(0, 0, 0, 180),
+            Vector2.One);
+
+        bool resolved = WorldTextProjector.TryResolveBasis(billboard, new RenderCamera(Vector3.Zero, 0.0f, 0.0f), out WorldTextBasis basis);
+
+        Assert.True(resolved);
+        AssertVector(Vector3.UnitX, basis.Right);
+        AssertVector(Vector3.UnitY, basis.Up);
+    }
+
+    [Fact]
+    public void WorldHeightScalesProjectedTextQuads()
+    {
+        var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
+        TextQuadSource glyph = new(new IntPtr(1), 0, 0, 100, 50, 0.0f, 0.0f, 1.0f, 1.0f, BlurgColor.White);
+
+        WorldTextBillboard small = FixedLabel(worldHeight: 1.0f);
+        WorldTextBillboard large = FixedLabel(worldHeight: 2.0f);
+
+        TextProjectedQuadSource smallQuad = Assert.Single(WorldTextProjector.CreateProjectedQuads(small, [glyph], new Vector2(100.0f, 50.0f), camera, 1920, 1080));
+        TextProjectedQuadSource largeQuad = Assert.Single(WorldTextProjector.CreateProjectedQuads(large, [glyph], new Vector2(100.0f, 50.0f), camera, 1920, 1080));
+
+        float smallHeight = Vector2.Distance(smallQuad.TopLeft, smallQuad.BottomLeft);
+        float largeHeight = Vector2.Distance(largeQuad.TopLeft, largeQuad.BottomLeft);
+        Assert.InRange(largeHeight / smallHeight, 1.99f, 2.01f);
+    }
+
+    [Fact]
+    public void WorldTextBehindCameraIsCulled()
+    {
+        var camera = new RenderCamera(Vector3.Zero, 0.0f, 0.0f);
+        TextQuadSource glyph = new(new IntPtr(1), 0, 0, 100, 50, 0.0f, 0.0f, 1.0f, 1.0f, BlurgColor.White);
+        WorldTextBillboard billboard = WorldTextBillboard.FixedFacing(
+            "Behind",
+            new Vector3(0.0f, 0.0f, 1.0f),
+            1.0f,
+            Vector2.Zero,
+            WorldTextBasis.Identity,
+            BlurgColor.White,
+            new BlurgColor(0, 0, 0, 180),
+            Vector2.One);
+
+        IReadOnlyList<TextProjectedQuadSource> quads = WorldTextProjector.CreateProjectedQuads(
+            billboard,
+            [glyph],
+            new Vector2(100.0f, 50.0f),
+            camera,
+            1920,
+            1080);
+
+        Assert.Empty(quads);
+    }
+
+    [Fact]
     public void SmokeLabelStateExposesExpectedTextAndPlacement()
     {
         TextSmokeLabelState state = TextSmokeLabelState.CreateDefault();
@@ -101,5 +236,33 @@ public sealed class TextRenderingTests
         Assert.Equal(new Vector2(1.0f, 1.0f), state.ShadowOffset);
         Assert.Equal(24.0f, state.FontSize);
         Assert.Equal(BlurgColor.White.Value, state.Foreground.Value);
+    }
+
+    [Fact]
+    public void WorldSmokeLabelStateContainsCameraAndFixedFacingLabels()
+    {
+        WorldTextSmokeLabelState state = WorldTextSmokeLabelState.CreateDefault(Vector3.Zero, 1.8f);
+
+        Assert.Equal(2, state.Labels.Count);
+        Assert.Contains(state.Labels, label => label.Mode == WorldTextBillboardMode.CameraFacing && label.Text == "Training Dummy");
+        Assert.Contains(state.Labels, label => label.Mode == WorldTextBillboardMode.FixedFacing && label.Text == "Fixed Label");
+    }
+
+    private static WorldTextBillboard FixedLabel(float worldHeight) =>
+        WorldTextBillboard.FixedFacing(
+            "Scale",
+            new Vector3(0.0f, 0.0f, -5.0f),
+            worldHeight,
+            Vector2.Zero,
+            WorldTextBasis.Identity,
+            BlurgColor.White,
+            new BlurgColor(0, 0, 0, 180),
+            Vector2.One);
+
+    private static void AssertVector(Vector3 expected, Vector3 actual)
+    {
+        Assert.InRange(actual.X, expected.X - 0.0001f, expected.X + 0.0001f);
+        Assert.InRange(actual.Y, expected.Y - 0.0001f, expected.Y + 0.0001f);
+        Assert.InRange(actual.Z, expected.Z - 0.0001f, expected.Z + 0.0001f);
     }
 }

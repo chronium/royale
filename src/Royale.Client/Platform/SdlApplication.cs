@@ -151,7 +151,18 @@ public sealed unsafe class SdlApplication : IDisposable
             ? null
             : DebugSceneBuilder.Build(loadedMap, localPlayer);
 
-        gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, renderViewMode.Mode, debugPrimitives, imguiBackend, screenshotPath);
+        IReadOnlyList<WorldTextBillboard>? worldTextBillboards = localPlayer is null
+            ? null
+            : WorldTextSmokeLabelState.CreateDefault(localPlayer.TrainingDummy.FeetPosition, localPlayer.TrainingDummy.Height).Labels;
+
+        gpuDevice?.PresentFrame(
+            time.DeltaSeconds,
+            renderCamera,
+            renderViewMode.Mode,
+            debugPrimitives,
+            worldTextBillboards,
+            imguiBackend,
+            screenshotPath);
 
         localPlayer?.WeaponFeedback.Update(time.DeltaSeconds);
 

@@ -24,6 +24,8 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
     private readonly BlurgFont defaultFont;
     private readonly TextQuadRenderer quadRenderer;
     private readonly List<TextQuadSource> queuedSources = [];
+    private readonly List<TextQuadSource> worldSourceScratch = [];
+    private readonly List<TextProjectedQuadSource> queuedProjectedSources = [];
     private readonly List<TextAtlasUpdate> pendingAtlasUpdates = [];
     private readonly List<IntPtr> atlasTextures = [];
     private bool disposed;
@@ -56,14 +58,27 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
 
     public void RenderSmokeLabel(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUTexture* swapchainTexture, uint width, uint height)
     {
+        RenderLabels(commandBuffer, swapchainTexture, width, height, default, null);
+    }
+
+    public void RenderLabels(
+        SDL_GPUCommandBuffer* commandBuffer,
+        SDL_GPUTexture* swapchainTexture,
+        uint width,
+        uint height,
+        RenderCamera camera,
+        IReadOnlyList<WorldTextBillboard>? worldBillboards)
+    {
         ThrowIfDisposed();
 
         queuedSources.Clear();
+        queuedProjectedSources.Clear();
         QueueSmokeLabel();
+        QueueWorldLabels(camera, width, height, worldBillboards);
 
         FlushAtlasUpdates(commandBuffer);
 
-        TextQuadBatch batch = TextQuadBatchBuilder.Create(queuedSources, Vector2.Zero);
+        TextQuadBatch batch = TextQuadBatchBuilder.CreateCombined(queuedSources, Vector2.Zero, queuedProjectedSources);
         if (batch.IsEmpty)
             return;
 
@@ -128,6 +143,68 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
                 rect.V1,
                 rect.Color));
         }
+    }
+
+    private void QueueWorldLabels(
+        RenderCamera camera,
+        uint width,
+        uint height,
+        IReadOnlyList<WorldTextBillboard>? worldBillboards)
+    {
+        if (worldBillboards is null || worldBillboards.Count == 0)
+            return;
+
+        foreach (WorldTextBillboard billboard in worldBillboards)
+        {
+            if (string.IsNullOrWhiteSpace(billboard.Text))
+                continue;
+
+            Vector2 textPixelSize = blurg.MeasureString(defaultFont, WorldTextBillboard.DefaultFontSize, billboard.Text);
+            QueueWorldString(billboard, billboard.ShadowOffsetPixels, billboard.Shadow, textPixelSize, camera, width, height);
+            QueueWorldString(billboard, Vector2.Zero, billboard.Foreground, textPixelSize, camera, width, height);
+        }
+    }
+
+    private void QueueWorldString(
+        WorldTextBillboard billboard,
+        Vector2 offsetPixels,
+        BlurgColor color,
+        Vector2 textPixelSize,
+        RenderCamera camera,
+        uint width,
+        uint height)
+    {
+        if (string.IsNullOrWhiteSpace(billboard.Text))
+            return;
+
+        worldSourceScratch.Clear();
+        using BlurgResult result = blurg.BuildString(defaultFont, WorldTextBillboard.DefaultFontSize, color, billboard.Text);
+        for (int index = 0; index < result.Count; index++)
+        {
+            BlurgRect rect = result[index];
+            worldSourceScratch.Add(new TextQuadSource(
+                rect.UserData,
+                (int)MathF.Round(offsetPixels.X + rect.X),
+                (int)MathF.Round(offsetPixels.Y + rect.Y),
+                rect.Width,
+                rect.Height,
+                rect.U0,
+                rect.V0,
+                rect.U1,
+                rect.V1,
+                rect.Color));
+        }
+
+        IReadOnlyList<TextProjectedQuadSource> projectedSources = WorldTextProjector.CreateProjectedQuads(
+            billboard,
+            worldSourceScratch,
+            textPixelSize,
+            camera,
+            width,
+            height);
+
+        foreach (TextProjectedQuadSource source in projectedSources)
+            queuedProjectedSources.Add(source);
     }
 
     private IntPtr AllocateAtlasTexture(int width, int height)

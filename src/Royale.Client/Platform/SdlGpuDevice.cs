@@ -87,6 +87,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         RenderCamera camera,
         RenderViewMode renderViewMode,
         DebugPrimitiveList? debugPrimitives = null,
+        IReadOnlyList<WorldTextBillboard>? worldTextBillboards = null,
         ImGuiBackend? imguiBackend = null,
         string? screenshotPath = null)
     {
@@ -161,7 +162,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 debugLineRenderer?.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
             SDL_EndGPURenderPass(renderPass);
 
-            blurgTextRenderer.RenderSmokeLabel(commandBuffer, swapchainTexture, swapchainWidth, swapchainHeight);
+            blurgTextRenderer.RenderLabels(commandBuffer, swapchainTexture, swapchainWidth, swapchainHeight, camera, worldTextBillboards);
 
             imguiBackend?.Render(commandBuffer, swapchainTexture);
 

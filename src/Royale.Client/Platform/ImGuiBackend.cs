@@ -101,12 +101,14 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         ThrowIfDisposed();
         ImguiNative.igSetCurrentContext(context);
 
+        ImguiNative.igSetNextWindowSize(new Vector2(300.0f, 156.0f), ImGuiCond.Always);
         if (ImguiNative.igBegin("Royale", null, ImGuiWindowFlags.None))
         {
             ImguiNative.igText(state.FrameTimingText);
             ImguiNative.igText(state.FixedTicksText);
             ImguiNative.igText(state.TotalFixedTickText);
             ImguiNative.igText(state.MouseCaptureText);
+            ImguiNative.igText(state.RenderViewModeText);
         }
 
         ImguiNative.igEnd();

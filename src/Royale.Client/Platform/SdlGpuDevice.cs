@@ -84,6 +84,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
     internal void PresentFrame(
         double deltaSeconds,
         RenderCamera camera,
+        RenderViewMode renderViewMode,
         DebugPrimitiveList? debugPrimitives = null,
         ImGuiBackend? imguiBackend = null,
         string? screenshotPath = null)
@@ -118,12 +119,15 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 swapchainFormat,
                 PreferredShaderFormat.Value,
                 staticMeshInstances);
-            debugLineRenderer ??= new DebugLineRenderer(
-                Handle,
-                swapchainFormat,
-                PreferredShaderFormat.Value,
-                StaticMeshRenderer.DepthFormat);
-            debugLineRenderer.Upload(commandBuffer, debugPrimitives ?? new DebugPrimitiveList());
+            if (renderViewMode.ShouldRenderDebugWireframes())
+            {
+                debugLineRenderer ??= new DebugLineRenderer(
+                    Handle,
+                    swapchainFormat,
+                    PreferredShaderFormat.Value,
+                    StaticMeshRenderer.DepthFormat);
+                debugLineRenderer.Upload(commandBuffer, debugPrimitives ?? new DebugPrimitiveList());
+            }
 
             var colorTarget = new SDL_GPUColorTargetInfo
             {
@@ -145,8 +149,11 @@ public sealed unsafe class SdlGpuDevice : IDisposable
             if (renderPass is null)
                 throw new InvalidOperationException($"SDL GPU render pass creation failed: {SDL_GetError()}");
 
-            staticMeshRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
-            debugLineRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
+            if (renderViewMode.ShouldRenderWorldSolids() || renderViewMode.ShouldRenderCollisionSolids())
+                staticMeshRenderer.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
+
+            if (renderViewMode.ShouldRenderDebugWireframes())
+                debugLineRenderer?.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
             SDL_EndGPURenderPass(renderPass);
 
             imguiBackend?.Render(commandBuffer, swapchainTexture);

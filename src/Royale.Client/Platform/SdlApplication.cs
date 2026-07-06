@@ -26,6 +26,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private readonly DebugCamera freeCamera = DebugCamera.CreateDefault();
     private readonly GameplayView gameplayView = GameplayView.CreateDefault();
     private readonly ClientCameraModeController cameraMode = new();
+    private readonly RenderViewModeController renderViewMode = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
     private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
@@ -62,6 +63,8 @@ public sealed unsafe class SdlApplication : IDisposable
     public InputState Input => input;
 
     public ClientCameraMode CameraMode => cameraMode.Mode;
+
+    public RenderViewMode RenderViewMode => renderViewMode.Mode;
 
     public PlayerInputSample LastGameplayInput => lastGameplayInput;
 
@@ -106,7 +109,8 @@ public sealed unsafe class SdlApplication : IDisposable
                 frameTime.DeltaSeconds,
                 lastFixedTicksThisFrame,
                 fixedTime.TotalFixedTicks,
-                Window?.RelativeMouseMode.Enabled == true));
+                Window?.RelativeMouseMode.Enabled == true,
+                renderViewMode.Mode));
             Render(frameTime);
             UpdateWindowTitle(frameTime);
 
@@ -135,7 +139,7 @@ public sealed unsafe class SdlApplication : IDisposable
             ? null
             : DebugSceneBuilder.Build(loadedMap, localPlayer);
 
-        gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, debugPrimitives, imguiBackend, screenshotPath);
+        gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, renderViewMode.Mode, debugPrimitives, imguiBackend, screenshotPath);
 
         if (screenshotPath is not null)
             running = false;
@@ -248,6 +252,13 @@ public sealed unsafe class SdlApplication : IDisposable
                 cameraMode.Toggle();
                 break;
 
+            case SDL_Keycode.SDLK_F5:
+            case SDL_Keycode.SDLK_F6:
+            case SDL_Keycode.SDLK_F7:
+            case SDL_Keycode.SDLK_F8:
+                renderViewMode.HandleKeyDown(key);
+                break;
+
             case SDL_Keycode.SDLK_ESCAPE when Window?.RelativeMouseMode.Enabled == true:
                 Window.RelativeMouseMode.SetEnabled(false);
                 break;
@@ -258,7 +269,14 @@ public sealed unsafe class SdlApplication : IDisposable
         }
     }
 
-    private static bool IsGlobalControl(SDL_Keycode key) => key is SDL_Keycode.SDLK_F1 or SDL_Keycode.SDLK_F2 or SDL_Keycode.SDLK_ESCAPE;
+    public static bool IsGlobalControl(SDL_Keycode key) =>
+        key is SDL_Keycode.SDLK_F1
+            or SDL_Keycode.SDLK_F2
+            or SDL_Keycode.SDLK_F5
+            or SDL_Keycode.SDLK_F6
+            or SDL_Keycode.SDLK_F7
+            or SDL_Keycode.SDLK_F8
+            or SDL_Keycode.SDLK_ESCAPE;
 
     private void UpdateCamera(FrameTime frameTime)
     {
@@ -286,7 +304,7 @@ public sealed unsafe class SdlApplication : IDisposable
 
         double fps = framesSinceTitleUpdate / secondsSinceTitleUpdate;
         Window.SetTitle(
-            $"Royale - {fps:0} FPS - fixed {lastFixedTicksThisFrame} ticks/frame - tick {fixedTime.TotalFixedTicks} - mouse {(Window.RelativeMouseMode.Enabled ? "captured" : "free")}");
+            $"Royale - {fps:0} FPS - fixed {lastFixedTicksThisFrame} ticks/frame - tick {fixedTime.TotalFixedTicks} - mouse {(Window.RelativeMouseMode.Enabled ? "captured" : "free")} - view {renderViewMode.Mode}");
 
         framesSinceTitleUpdate = 0;
         secondsSinceTitleUpdate = 0;

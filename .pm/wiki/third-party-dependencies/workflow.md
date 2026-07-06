@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-06T15:36:14.9947290Z
+modifiedAt: 2026-07-06T18:53:06.8279800Z
 ---
 
 ## Fetch Scripts
@@ -19,6 +19,7 @@ sh thirdparty/fetch-sdl3-cs.sh
 sh thirdparty/fetch-box3d.sh
 sh thirdparty/fetch-imgui-net.sh
 sh thirdparty/fetch-blurgtext.sh
+sh thirdparty/fetch-simplemesh.sh
 ```
 
 Each fetch script is deterministic and safe to rerun:
@@ -37,6 +38,8 @@ The scripts should fail clearly if the pinned commit cannot be fetched, a requir
 
 `fetch-blurgtext.sh` initializes the upstream submodules needed by BlurgText's committed source tree: `deps/libraqm`, `deps/SheenBidi`, `deps/libunibreak`, `deps/plutosvg`, and nested `deps/plutosvg/plutovg`.
 
+`fetch-simplemesh.sh` has no submodule or native build steps at the pinned revision.
+
 ## Restore and Build Notes
 
 SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`.
@@ -45,7 +48,9 @@ ImGui.Net is consumed from the fetched source project at `thirdparty/repos/ImGui
 
 BlurgText is consumed by `Royale.Client` from the fetched managed project at `thirdparty/repos/blurgtext/dotnet/BlurgText/BlurgText.csproj` with `TargetFramework=net8.0`. This is client/rendering-only; the dedicated server must not reference BlurgText or receive Blurg native artifacts.
 
-For a fresh checkout after fetching SDL3-CS, ImGui.Net, or BlurgText, restore the solution with the binding's desktop-target property:
+SimpleMesh is fetched to `thirdparty/repos/SimpleMesh` as managed-only source. It is Apache-2.0 licensed, targets `net8.0`, supports OBJ, Collada, and embedded-buffer glTF/glb import, and imports Y-up geometry. `RENDER-010` owns adding any future project reference or mesh loading/rendering code.
+
+For a fresh checkout after fetching SDL3-CS, ImGui.Net, BlurgText, or SimpleMesh, restore the solution with the binding's desktop-target property:
 
 ```sh
 dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
@@ -212,7 +217,7 @@ Keep patches focused. If a patch contains unrelated changes, split it before com
 
 When updating a dependency commit, re-apply the patch series and refresh patches only when needed.
 
-No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, or BlurgText.
+No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, BlurgText, or SimpleMesh.
 
 ## Updating a Third-Party Dependency
 

@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Layout
 createdAt: 2026-07-05T16:14:33.2369430Z
-modifiedAt: 2026-07-06T15:36:59.3809570Z
+modifiedAt: 2026-07-06T18:52:44.2763790Z
 ---
 
 ## Directory Layout
@@ -24,6 +24,7 @@ thirdparty/
   fetch-box3d.sh
   fetch-imgui-net.sh
   fetch-blurgtext.sh
+  fetch-simplemesh.sh
   royale_imgui/          # committed project-owned C ABI shim source
   repos/                 # ignored clones, created by scripts
   build/                 # ignored generated native build output
@@ -36,6 +37,8 @@ thirdparty/
     ImGui.Net/
       README.md
     blurgtext/
+      README.md
+    SimpleMesh/
       README.md
 ```
 

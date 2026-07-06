@@ -293,6 +293,29 @@ public struct B3QueryFilter
     public nint Name;
 }
 
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.I1)]
+public delegate bool B3OverlapResultFcn(B3ShapeId shapeId, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate float B3CastResultFcn(
+    B3ShapeId shapeId,
+    B3Pos point,
+    B3Vec3 normal,
+    float fraction,
+    ulong userMaterialId,
+    int triangleIndex,
+    int childIndex,
+    nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.I1)]
+public delegate bool B3MoverFilterFcn(B3ShapeId shapeId, nint context);
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+[return: MarshalAs(UnmanagedType.I1)]
+public unsafe delegate bool B3PlaneResultFcn(B3ShapeId shapeId, B3PlaneResult* planes, int planeCount, nint context);
+
 [StructLayout(LayoutKind.Sequential)]
 public struct B3Profile
 {

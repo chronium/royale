@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T04:23:04.7764190Z
+modifiedAt: 2026-07-06T04:31:33.9100270Z
 ---
 
 ## Physics Architecture
@@ -31,7 +31,7 @@ This keeps state ownership and replication straightforward.
 
 ## Box3D Binding Scope
 
-The current Box3D binding surface includes foundational native value types, the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world, the low-level body lifecycle, type, transform, and linear velocity APIs from PHYS-006, and the primitive shape APIs from PHYS-007 needed for gray-box static map collision and future capsule controller work.
+The current Box3D binding surface includes foundational native value types, the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world, the low-level body lifecycle, type, transform, and linear velocity APIs from PHYS-006, the primitive shape APIs from PHYS-007 needed for gray-box static map collision and future capsule controller work, and the low-level world query APIs from PHYS-008 needed for raycasts, overlaps, shape casts, and capsule mover casts.
 
 Foundational bindings include:
 
@@ -51,6 +51,24 @@ World lifecycle bindings include:
 * `b3GetMaxWorldCount`
 * `b3World_IsValid`
 * `b3World_Step`
+
+World query bindings include:
+
+* `b3DefaultQueryFilter`
+* `b3World_CastRayClosest`
+* `b3World_CastRay`
+* `b3World_OverlapAABB`
+* `b3World_OverlapShape`
+* `b3World_CastShape`
+* `b3World_CastMover`
+* `b3World_CollideMover`
+
+Query callback delegates include:
+
+* `B3OverlapResultFcn`
+* `B3CastResultFcn`
+* `B3MoverFilterFcn`
+* `B3PlaneResultFcn`
 
 Body bindings include:
 
@@ -83,9 +101,9 @@ Primitive shape bindings include:
 * `b3Shape_GetFilter`
 * `b3Shape_SetFilter`
 
-Supporting value bindings for that subset include `b3MotionLocks`, `b3BodyDef`, `b3SurfaceMaterial`, `b3ShapeDef`, `b3Filter`, `b3Capsule`, `b3HullData`, and the embedded box hull storage used by `b3BoxHull`.
+Supporting value bindings for that subset include `b3MotionLocks`, `b3BodyDef`, `b3SurfaceMaterial`, `b3ShapeDef`, `b3Filter`, `b3QueryFilter`, `b3Capsule`, `b3ShapeProxy`, `b3RayResult`, `b3TreeStats`, `b3PlaneResult`, `b3HullData`, and the embedded box hull storage used by `b3BoxHull`.
 
-This remains a low-level P/Invoke surface. Managed world, body, and shape ownership wrappers; body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; material mutation; event toggles; mesh, height-field, compound, and sphere shape APIs; runtime native-library resolution; queries; debug draw; and gameplay-specific physics systems are deferred to their owning tasks.
+This remains a low-level P/Invoke surface. Managed world, body, shape, and query ownership wrappers; body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; material mutation; event toggles; mesh, height-field, compound, and sphere shape APIs; body-specific query APIs; runtime native-library resolution; debug draw; and gameplay-specific physics systems are deferred to their owning tasks.
 
 The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
 

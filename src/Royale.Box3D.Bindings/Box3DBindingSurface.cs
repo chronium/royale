@@ -34,6 +34,71 @@ public static class Box3DBindingSurface
     [DllImport(NativeLibraryName, EntryPoint = "b3World_Step", CallingConvention = CallingConvention.Cdecl)]
     public static extern void b3World_Step(B3WorldId worldId, float timeStep, int subStepCount);
 
+    [DllImport(NativeLibraryName, EntryPoint = "b3DefaultQueryFilter", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3QueryFilter b3DefaultQueryFilter();
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_OverlapAABB", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3TreeStats b3World_OverlapAABB(
+        B3WorldId worldId,
+        B3Aabb aabb,
+        B3QueryFilter filter,
+        [MarshalAs(UnmanagedType.FunctionPtr)] B3OverlapResultFcn fcn,
+        nint context);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_OverlapShape", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3TreeStats b3World_OverlapShape(
+        B3WorldId worldId,
+        B3Pos origin,
+        in B3ShapeProxy proxy,
+        B3QueryFilter filter,
+        [MarshalAs(UnmanagedType.FunctionPtr)] B3OverlapResultFcn fcn,
+        nint context);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_CastRay", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3TreeStats b3World_CastRay(
+        B3WorldId worldId,
+        B3Pos origin,
+        B3Vec3 translation,
+        B3QueryFilter filter,
+        [MarshalAs(UnmanagedType.FunctionPtr)] B3CastResultFcn fcn,
+        nint context);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_CastRayClosest", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3RayResult b3World_CastRayClosest(
+        B3WorldId worldId,
+        B3Pos origin,
+        B3Vec3 translation,
+        B3QueryFilter filter);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_CastShape", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3TreeStats b3World_CastShape(
+        B3WorldId worldId,
+        B3Pos origin,
+        in B3ShapeProxy proxy,
+        B3Vec3 translation,
+        B3QueryFilter filter,
+        [MarshalAs(UnmanagedType.FunctionPtr)] B3CastResultFcn fcn,
+        nint context);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_CastMover", CallingConvention = CallingConvention.Cdecl)]
+    public static extern float b3World_CastMover(
+        B3WorldId worldId,
+        B3Pos origin,
+        in B3Capsule mover,
+        B3Vec3 translation,
+        B3QueryFilter filter,
+        [MarshalAs(UnmanagedType.FunctionPtr)] B3MoverFilterFcn? fcn,
+        nint context);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3World_CollideMover", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3World_CollideMover(
+        B3WorldId worldId,
+        B3Pos origin,
+        in B3Capsule mover,
+        B3QueryFilter filter,
+        [MarshalAs(UnmanagedType.FunctionPtr)] B3PlaneResultFcn fcn,
+        nint context);
+
     [DllImport(NativeLibraryName, EntryPoint = "b3DefaultBodyDef", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3BodyDef b3DefaultBodyDef();
 

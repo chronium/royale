@@ -6,9 +6,10 @@ using Royale.Content;
 
 namespace Royale.Simulation;
 
-public sealed class MapStaticCollisionWorld : IDisposable
+public sealed unsafe class MapStaticCollisionWorld : IDisposable
 {
     private static readonly B3OverlapResultFcn OverlapCallback = OnOverlapResult;
+    private static readonly B3PlaneResultFcn PlaneCallback = OnPlaneResult;
 
     private readonly Dictionary<B3ShapeId, MapStaticCollider> collidersByShape = [];
     private readonly List<MapStaticCollider> colliders = [];
@@ -90,6 +91,42 @@ public sealed class MapStaticCollisionWorld : IDisposable
             .ToArray();
     }
 
+    public MapStaticCapsuleCast CastCapsuleMover(Vector3 feetPosition, float radius, float height, Vector3 translation)
+    {
+        ThrowIfDisposed();
+        ValidateCapsuleDimensions(radius, height);
+
+        float fraction = Box3DBindingSurface.b3World_CastMover(
+            WorldId,
+            new B3Pos(),
+            CreateFeetAnchoredCapsule(feetPosition, radius, height),
+            ToB3Vector(translation),
+            Box3DBindingSurface.b3DefaultQueryFilter(),
+            fcn: null,
+            context: nint.Zero);
+
+        return new MapStaticCapsuleCast(Math.Clamp(fraction, 0.0f, 1.0f));
+    }
+
+    public IReadOnlyList<MapStaticCollisionPlane> CollectCapsuleCollisionPlanes(Vector3 feetPosition, float radius, float height)
+    {
+        ThrowIfDisposed();
+        ValidateCapsuleDimensions(radius, height);
+
+        var context = new PlaneQueryContext(this);
+        using CallbackHandle handle = new(context);
+
+        Box3DBindingSurface.b3World_CollideMover(
+            WorldId,
+            new B3Pos(),
+            CreateFeetAnchoredCapsule(feetPosition, radius, height),
+            Box3DBindingSurface.b3DefaultQueryFilter(),
+            PlaneCallback,
+            handle.Pointer);
+
+        return context.Planes.ToArray();
+    }
+
     public bool TryGetCollider(B3ShapeId shapeId, out MapStaticCollider? collider)
     {
         ThrowIfDisposed();
@@ -143,6 +180,43 @@ public sealed class MapStaticCollisionWorld : IDisposable
         return true;
     }
 
+    private static unsafe bool OnPlaneResult(B3ShapeId shapeId, B3PlaneResult* planes, int planeCount, nint context)
+    {
+        var callbackContext = (PlaneQueryContext)GCHandle.FromIntPtr(context).Target!;
+        callbackContext.World.TryGetCollider(shapeId, out MapStaticCollider? collider);
+
+        for (int i = 0; i < planeCount; i++)
+        {
+            B3PlaneResult plane = planes[i];
+            callbackContext.Planes.Add(new MapStaticCollisionPlane(
+                collider,
+                ToVector3(plane.Plane.Normal),
+                ToVector3(plane.Point),
+                plane.Plane.Offset));
+        }
+
+        return true;
+    }
+
+    private static B3Capsule CreateFeetAnchoredCapsule(Vector3 feetPosition, float radius, float height)
+    {
+        return new B3Capsule
+        {
+            Center1 = ToB3Vector(feetPosition + new Vector3(0.0f, radius, 0.0f)),
+            Center2 = ToB3Vector(feetPosition + new Vector3(0.0f, height - radius, 0.0f)),
+            Radius = radius,
+        };
+    }
+
+    private static void ValidateCapsuleDimensions(float radius, float height)
+    {
+        if (!float.IsFinite(radius) || radius <= 0.0f)
+            throw new ArgumentOutOfRangeException(nameof(radius), "Capsule radius must be finite and positive.");
+
+        if (!float.IsFinite(height) || height < radius * 2.0f)
+            throw new ArgumentOutOfRangeException(nameof(height), "Capsule height must be finite and at least twice the radius.");
+    }
+
     private static B3Pos ToB3Position(MapVector3 vector) => new()
     {
         X = vector.X,
@@ -164,6 +238,8 @@ public sealed class MapStaticCollisionWorld : IDisposable
         Z = vector.Z,
     };
 
+    private static Vector3 ToVector3(B3Vec3 vector) => new(vector.X, vector.Y, vector.Z);
+
     private static B3Quat ToB3Quaternion(Quaternion quaternion)
     {
         Quaternion normalized = Quaternion.Normalize(quaternion);
@@ -183,6 +259,13 @@ public sealed class MapStaticCollisionWorld : IDisposable
     private sealed class OverlapQueryContext
     {
         public List<B3ShapeId> ShapeIds { get; } = [];
+    }
+
+    private sealed class PlaneQueryContext(MapStaticCollisionWorld world)
+    {
+        public MapStaticCollisionWorld World { get; } = world;
+
+        public List<MapStaticCollisionPlane> Planes { get; } = [];
     }
 
     private sealed class CallbackHandle : IDisposable

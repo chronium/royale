@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T05:56:24.8886700Z
+modifiedAt: 2026-07-06T06:37:39.6478610Z
 ---
 
 ## Physics Architecture
@@ -123,38 +123,41 @@ This type exists to build and query gray-box map collision for gameplay systems.
 
 `GAME-007` adds reusable spawn selection on top of static overlap queries. `MapSpawnPoint.Position` is the player feet anchor, and `MapSpawnSelector.CreateReservation()` builds a standing clearance AABB above that point using the default player radius `0.35`, height `1.8`, and ground clearance `0.05`. `TrySelectSpawn()` scans spawn points in map order and returns the first candidate whose clearance AABB does not overlap static map collision or caller-provided `SpawnReservation` AABBs. AABB touching without positive overlap is allowed. The selector is deterministic and does not randomize; battle-royale spawn randomization belongs to later match-flow work.
 
+`GAME-004` adds focused capsule query helpers to `MapStaticCollisionWorld` for simulation movement. `CastCapsuleMover()` wraps `b3World_CastMover` for a feet-anchored vertical capsule, and `CollectCapsuleCollisionPlanes()` wraps `b3World_CollideMover` to return contact planes with optional source collider metadata. These helpers are intentionally game-specific wrappers over the low-level Box3D query API, not a general managed query abstraction.
+
 ## Player Controller
 
 The player is represented as a kinematic capsule rather than a freely simulated dynamic rigid body.
 
-Movement is controlled explicitly using shape casts, overlap tests, and position correction.
+`KinematicCharacterController` in `Royale.Simulation` is the shared movement implementation for server authority and future client prediction. It takes fixed-timestep `KinematicCharacterInput` values and returns a new `KinematicCharacterState` through `KinematicCharacterStepResult`.
 
-The controller is responsible for:
+`KinematicCharacterState.Position` is the player feet anchor. The capsule is vertical, with its lower sphere center at `Position.Y + Radius` and upper sphere center at `Position.Y + Height - Radius`.
 
-* Horizontal movement
-* Gravity
-* Jumping
-* Ground detection
-* Slope handling
-* Wall sliding
-* Step handling
-* Ceiling collision
-* Penetration recovery
+Default controller tuning is:
 
-A conceptual update may be:
+* Radius: `0.35`
+* Height: `1.8`
+* Walk speed: `4.5 m/s`
+* Jump apex height: `1.1 m`
+* Gravity: `20 m/s^2`
+* Max step height: `0.35 m`
+* Slope limit: `45 degrees`
 
-1. Read desired movement input.
-2. Apply acceleration or target velocity.
-3. Apply gravity.
-4. Test ground state.
-5. Attempt horizontal capsule movement.
-6. Slide along blocking geometry.
-7. Attempt step movement where appropriate.
-8. Apply vertical movement.
-9. Resolve remaining penetration.
-10. Update grounded state and velocity.
+Movement behavior is intentionally direct and inspectable for the MVP:
 
-The same controller logic should be used by the server and client prediction.
+1. Probe and settle walkable ground using a short downward capsule mover cast.
+2. Convert normalized 2D movement input directly to horizontal target velocity.
+3. Accept jump only when grounded.
+4. Apply gravity while airborne.
+5. Move horizontally with capsule mover casts and slide remaining motion along collision planes.
+6. When grounded and blocked horizontally, attempt a basic step by moving up, moving horizontally, then settling down.
+7. Move vertically, stopping upward motion on ceiling collision and downward motion on walkable ground.
+8. Recover small penetrations by nudging along collision plane normals.
+9. Reprobe ground and return the updated state.
+
+Slope checks use collision plane normals and treat normals with `Y >= cos(45 degrees)` as walkable. Steeper planes are blocking or airborne contacts, not ground. The first implementation prioritizes deterministic, testable behavior over polished feel; more exhaustive collision edge cases remain in the GAME-006 collision test task.
+
+The controller is simulation-only. It does not integrate with client input devices, camera attachment, networking, server match state, animation, audio, or combat.
 
 ## Combat Flow
 

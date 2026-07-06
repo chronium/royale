@@ -21,6 +21,8 @@ public sealed unsafe class SdlApplication : IDisposable
     private const double FixedDeltaSeconds = 1.0 / 60.0;
     private const int MaxFixedTicksPerFrame = 4;
     private const int TitleUpdateIntervalMilliseconds = 500;
+    private const int DefaultWindowWidth = 1920;
+    private const int DefaultWindowHeight = 1080;
 
     private readonly InputState input = new();
     private readonly DebugCamera freeCamera = DebugCamera.CreateDefault();
@@ -170,8 +172,8 @@ public sealed unsafe class SdlApplication : IDisposable
         logger.ZLogInformation($"Creating SDL window.");
         Window = SdlWindow.Create(
             "Royale",
-            1280,
-            720,
+            DefaultWindowWidth,
+            DefaultWindowHeight,
             SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY);
         logger.ZLogInformation($"SDL window created.");
 

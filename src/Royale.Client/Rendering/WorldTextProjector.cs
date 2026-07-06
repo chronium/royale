@@ -91,8 +91,7 @@ public static class WorldTextProjector
             !IsFinite(textPixelSize) ||
             textPixelSize.X <= 0.0f ||
             textPixelSize.Y <= 0.0f ||
-            !TryResolveBasis(billboard, camera, out WorldTextBasis basis) ||
-            !TryProjectPoint(billboard.Position, camera, renderWidth, renderHeight, out _))
+            !TryResolveBasis(billboard, camera, out WorldTextBasis basis))
         {
             return [];
         }
@@ -101,6 +100,25 @@ public static class WorldTextProjector
         if (!float.IsFinite(worldUnitsPerPixel) || worldUnitsPerPixel <= 0.0f)
             return [];
 
+        Vector3 worldRight = basis.Right * (textPixelSize.X * worldUnitsPerPixel);
+        Vector3 worldUp = basis.Up * billboard.WorldHeight;
+        if (!TryProjectPoint(billboard.Position, camera, renderWidth, renderHeight, out Vector2 anchorScreen) ||
+            !TryProjectPoint(billboard.Position + worldRight, camera, renderWidth, renderHeight, out Vector2 rightScreen) ||
+            !TryProjectPoint(billboard.Position + worldUp, camera, renderWidth, renderHeight, out Vector2 upScreen))
+        {
+            return [];
+        }
+
+        Vector2 screenRightPerPixel = (rightScreen - anchorScreen) / textPixelSize.X;
+        Vector2 screenUpPerPixel = (upScreen - anchorScreen) / textPixelSize.Y;
+        if (!IsFinite(screenRightPerPixel) ||
+            !IsFinite(screenUpPerPixel) ||
+            screenRightPerPixel.LengthSquared() < 0.000001f ||
+            screenUpPerPixel.LengthSquared() < 0.000001f)
+        {
+            return [];
+        }
+
         Vector2 anchorPixels = new(textPixelSize.X * billboard.Anchor.X, textPixelSize.Y * billboard.Anchor.Y);
         var projectedSources = new List<TextProjectedQuadSource>(sources.Count);
 
@@ -108,13 +126,10 @@ public static class WorldTextProjector
         {
             if (!TryCreateProjectedQuad(
                 source,
-                billboard.Position,
-                basis,
+                anchorScreen,
+                screenRightPerPixel,
+                screenUpPerPixel,
                 anchorPixels,
-                worldUnitsPerPixel,
-                camera,
-                renderWidth,
-                renderHeight,
                 out TextProjectedQuadSource projected))
             {
                 continue;
@@ -128,13 +143,10 @@ public static class WorldTextProjector
 
     private static bool TryCreateProjectedQuad(
         TextQuadSource source,
-        Vector3 origin,
-        WorldTextBasis basis,
+        Vector2 anchorScreen,
+        Vector2 screenRightPerPixel,
+        Vector2 screenUpPerPixel,
         Vector2 anchorPixels,
-        float worldUnitsPerPixel,
-        RenderCamera camera,
-        uint renderWidth,
-        uint renderHeight,
         out TextProjectedQuadSource projected)
     {
         projected = default;
@@ -147,18 +159,10 @@ public static class WorldTextProjector
         float x1 = x0 + source.Width;
         float y1 = y0 + source.Height;
 
-        Vector3 topLeftWorld = ToWorld(origin, basis, x0, y0, worldUnitsPerPixel);
-        Vector3 topRightWorld = ToWorld(origin, basis, x1, y0, worldUnitsPerPixel);
-        Vector3 bottomLeftWorld = ToWorld(origin, basis, x0, y1, worldUnitsPerPixel);
-        Vector3 bottomRightWorld = ToWorld(origin, basis, x1, y1, worldUnitsPerPixel);
-
-        if (!TryProjectPoint(topLeftWorld, camera, renderWidth, renderHeight, out Vector2 topLeft) ||
-            !TryProjectPoint(topRightWorld, camera, renderWidth, renderHeight, out Vector2 topRight) ||
-            !TryProjectPoint(bottomLeftWorld, camera, renderWidth, renderHeight, out Vector2 bottomLeft) ||
-            !TryProjectPoint(bottomRightWorld, camera, renderWidth, renderHeight, out Vector2 bottomRight))
-        {
-            return false;
-        }
+        Vector2 topLeft = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x0, y0);
+        Vector2 topRight = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x1, y0);
+        Vector2 bottomLeft = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x0, y1);
+        Vector2 bottomRight = ToScreen(anchorScreen, screenRightPerPixel, screenUpPerPixel, x1, y1);
 
         projected = new TextProjectedQuadSource(
             source.TextureUserData,
@@ -174,8 +178,8 @@ public static class WorldTextProjector
         return true;
     }
 
-    private static Vector3 ToWorld(Vector3 origin, WorldTextBasis basis, float x, float y, float scale) =>
-        origin + (basis.Right * (x * scale)) - (basis.Up * (y * scale));
+    private static Vector2 ToScreen(Vector2 anchor, Vector2 rightPerPixel, Vector2 upPerPixel, float x, float y) =>
+        anchor + (rightPerPixel * x) - (upPerPixel * y);
 
     private static bool IsFiniteCamera(RenderCamera camera) =>
         IsFinite(camera.Position) &&

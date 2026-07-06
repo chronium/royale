@@ -9,6 +9,8 @@ namespace Royale.Client.Rendering;
 
 internal sealed unsafe class BlurgTextRenderer : IDisposable
 {
+    internal const SDL_GPUTextureFormat AtlasTextureFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
+
     private static readonly string[] DefaultFontFamilies =
     [
         "SF Pro",
@@ -215,7 +217,7 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
         var createInfo = new SDL_GPUTextureCreateInfo
         {
             type = SDL_GPUTextureType.SDL_GPU_TEXTURETYPE_2D,
-            format = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            format = AtlasTextureFormat,
             usage = SDL_GPUTextureUsageFlags.SDL_GPU_TEXTUREUSAGE_SAMPLER,
             width = checked((uint)width),
             height = checked((uint)height),

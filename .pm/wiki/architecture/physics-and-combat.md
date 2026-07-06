@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T08:49:43.0152610Z
+modifiedAt: 2026-07-06T12:43:45.8815090Z
 ---
 
 ## Physics Architecture
@@ -199,6 +199,23 @@ The client may immediately show:
 * Firing animation
 
 The client must wait for authoritative confirmation before treating another player as damaged or dead.
+
+### Rifle Definition
+
+`COMBAT-001` defines the first shared weapon entry in `Royale.Content` as code-backed catalog data, not JSON content. The stable weapon id is `rifle`, exposed through `ContentCatalog.DefaultWeaponId`, `WeaponCatalog.DefaultWeaponId`, and `WeaponCatalog.DefaultRifle`.
+
+Canonical rifle tuning is:
+
+* Fire model: hitscan
+* Automatic: true
+* Damage: `25`
+* Magazine size: `30`
+* Fire rate: `10 shots/sec`
+* Fire interval: `0.1 seconds`
+* Reload time: `2.0 seconds`
+* Range: `120 meters`
+
+The definition is data only. Fire cadence enforcement, ammunition mutation, raycasts, damage application, reload state, pickups, inventory, networking, and UI remain deferred to later combat tasks.
 
 ## Match State Machine
 

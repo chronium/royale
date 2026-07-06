@@ -3,7 +3,6 @@ orders:
   state: todo
   milestone: M3
   taskIds:
-  - COMBAT-001
   - COMBAT-002
   - COMBAT-003
   - COMBAT-004

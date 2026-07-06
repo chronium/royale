@@ -8,7 +8,7 @@ dependsOn:
 - COMBAT-004
 - UI-002
 createdAt: 2026-07-06T12:58:02.3915820Z
-modifiedAt: 2026-07-06T12:58:12.0360440Z
+modifiedAt: 2026-07-06T14:29:22.2960160Z
 ---
 
 Add a static offline training dummy that can receive weapon damage through the combat pipeline and expose health plus recent damage history in an ImGui diagnostics window for validating weapon behavior.
@@ -48,3 +48,4 @@ Ask the project owner to play a short combat loop and validate that the dummy di
 - Added debug primitive capsule rendering for the dummy so F6/F7 modes expose the target location.
 - Updated `architecture/physics-and-combat` with the offline dummy behavior, damage history, reset exception, and debug visualization.
 - Validation: `dotnet build Royale.slnx -m:1 --no-restore` passed with the existing ImGui.Net `NU1510` warning; `dotnet test Royale.slnx -m:1 --no-restore` passed with the same warning; `dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build -- --screenshot /tmp/royale-training-dummy.bmp --screenshot-after-frames 2` passed and the converted PNG showed the `Training Dummy` ImGui window with health, reset, and empty recent-damage state; PM project validation passed.
+- 2026-07-06 14:29 UTC - Project owner completed manual human validation after implementation. The training dummy diagnostics were played interactively and confirmed to work as expected for observing weapon damage and cadence.

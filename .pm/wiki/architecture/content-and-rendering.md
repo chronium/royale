@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T12:34:55.1580820Z
+modifiedAt: 2026-07-06T15:35:46.2570390Z
 ---
 
 ## Content and Map Data
@@ -122,6 +122,10 @@ The initial debug overlay window is titled `Royale` and shows frame delta/FPS, f
 
 `CollisionSolids` does not derive filled geometry from Box3D debug callbacks. It renders the same `GameMap.StaticBoxes` source data used to create the local `MapStaticCollisionWorld`, preserving the shared `position`, `size`, and yaw/pitch/roll transform convention. The active render view mode is exposed from `SdlApplication`, included in the debug overlay, and appended to the diagnostic window title.
 
+`RENDER-008` adds the first game-facing text path outside ImGui. `BlurgTextRenderer` owns BlurgText lifetime, enables system fonts, resolves a default font from a conservative family list (`SF Pro`, `DejaVu Sans`, `Noto Sans`, `Liberation Sans`, `Segoe UI`, `Arial`), and fails clearly if no default font can be resolved. Blurg atlas allocation/update callbacks create SDL GPU RGBA atlas textures and upload changed atlas rectangles through transfer buffers. `TextQuadRenderer` draws Blurg rectangles as screen-space textured quads with alpha blending, no depth testing, and no depth writes.
+
+The current smoke draw is a fixed `Royale BlurgText` label at the top-left of the frame, drawn through BlurgText and SDL GPU before ImGui. It is intentionally not a retained UI framework, HUD layout system, world-space billboard system, health bar implementation, bundled font asset, or server dependency. ImGui remains diagnostics-only development tooling.
+
 ## Shader Build Pipeline
 
 Client shader sources live under `src/Royale.Client/Shaders/` as HLSL files using stage suffixes:
@@ -144,12 +148,13 @@ A simple render sequence is sufficient:
 4. Draw players and pickups.
 5. Draw debug geometry.
 6. End the main pass.
-7. Render ImGui to produce draw data.
-8. Prepare ImGui draw data for SDL_GPU.
-9. Begin the ImGui render pass with the swapchain texture loaded.
-10. Render ImGui draw data.
-11. End the ImGui render pass.
-12. Submit the command buffer.
+7. Draw BlurgText screen-space text in a color-only pass with the swapchain texture loaded.
+8. Render ImGui to produce draw data.
+9. Prepare ImGui draw data for SDL_GPU.
+10. Begin the ImGui render pass with the swapchain texture loaded.
+11. Render ImGui draw data.
+12. End the ImGui render pass.
+13. Submit the command buffer.
 
 For render validation, the client supports a development screenshot mode:
 
@@ -157,7 +162,7 @@ For render validation, the client supports a development screenshot mode:
 dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
 ```
 
-The screenshot path captures the presented swapchain frame through SDL GPU readback after ImGui rendering, writes a BMP, and exits the client after the requested frame.
+The screenshot path captures the presented swapchain frame through SDL GPU readback after BlurgText and ImGui rendering, writes a BMP, and exits the client after the requested frame.
 
 There is no initial requirement for:
 

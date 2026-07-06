@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-06T15:11:59.9504070Z
+modifiedAt: 2026-07-06T15:36:14.9947290Z
 ---
 
 ## Fetch Scripts
@@ -43,9 +43,9 @@ SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS
 
 ImGui.Net is consumed from the fetched source project at `thirdparty/repos/ImGui.Net/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj`.
 
-BlurgText's managed project is available after fetch at `thirdparty/repos/blurgtext/dotnet/BlurgText/BlurgText.csproj`. `BUILD-010` does not add a Royale project reference to BlurgText; client text rendering integration is deferred.
+BlurgText is consumed by `Royale.Client` from the fetched managed project at `thirdparty/repos/blurgtext/dotnet/BlurgText/BlurgText.csproj` with `TargetFramework=net8.0`. This is client/rendering-only; the dedicated server must not reference BlurgText or receive Blurg native artifacts.
 
-For a fresh checkout after fetching SDL3-CS or ImGui.Net, restore the solution with the binding's desktop-target property:
+For a fresh checkout after fetching SDL3-CS, ImGui.Net, or BlurgText, restore the solution with the binding's desktop-target property:
 
 ```sh
 dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
@@ -60,7 +60,15 @@ dotnet test Royale.slnx -m:1 --no-restore
 
 When a client project consumes SDL3-CS from source by project reference, it must explicitly copy the runtime-native SDL library from `thirdparty/repos/SDL3-CS/native/<rid>/` into the client output. Project references build the managed binding but do not automatically place the native package asset beside the consuming executable.
 
-`Royale.Client` currently copies only `SDL3` itself for macOS ARM64 into `runtimes/osx-arm64/native/libSDL3.dylib`. Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
+`Royale.Client` currently copies SDL3, the project-owned ImGui shim, and BlurgText for macOS ARM64 into `runtimes/osx-arm64/native/`:
+
+```text
+runtimes/osx-arm64/native/libSDL3.dylib
+runtimes/osx-arm64/native/libroyale_imgui.dylib
+runtimes/osx-arm64/native/libblurgtext.dylib
+```
+
+Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
 
 ## ImGui Native Shim Build
 
@@ -151,18 +159,34 @@ Windows Box3D shared-library builds are intentionally deferred until a dedicated
 
 ## BlurgText Native Build Shape
 
-The pinned upstream BlurgText tree provides the native build entry point at `thirdparty/repos/blurgtext/CMakeLists.txt`. The upstream CMake project defines the shared-library target `blurgtext` and requires CMake 3.15 or newer.
+Build the project-owned macOS ARM64 BlurgText shared library from the repository root with:
 
-The expected upstream native library names from the pinned packaging metadata are:
+```sh
+sh thirdparty/build-blurgtext-macos.sh
+```
+
+The script refreshes the pinned upstream source with `thirdparty/fetch-blurgtext.sh`, configures the upstream CMake project for Release macOS ARM64 with `BT_BUILD_DEMO=OFF`, builds the `blurgtext` shared-library target, and copies the generated dylib into:
+
+```text
+thirdparty/artifacts/blurgtext/osx-arm64/lib/libblurgtext.dylib
+```
+
+`Royale.Client` copies that artifact to:
+
+```text
+runtimes/osx-arm64/native/libblurgtext.dylib
+```
+
+`NativeLibraryResolver` maps BlurgText's managed import name `libblurgtext` to `libblurgtext.dylib` for `osx-arm64`. The BlurgText dependency remains client/rendering-only; the dedicated server must not reference BlurgText, SDL GPU, textures, font assets, or UI code.
+
+The pinned upstream BlurgText tree still provides the native build entry point at `thirdparty/repos/blurgtext/CMakeLists.txt`, and the upstream .NET native package projects remain under `thirdparty/repos/blurgtext/dotnet/BlurgText.Native.<rid>/`.
+
+Linux x64 and Windows BlurgText native build/copy support are intentionally deferred to dedicated platform tasks. The expected upstream native library names from the pinned packaging metadata remain:
 
 ```text
 libblurgtext.dylib   # osx-arm64 and osx-x64
 libblurgtext.so      # linux-x64
 ```
-
-The upstream .NET native package projects are present under `thirdparty/repos/blurgtext/dotnet/BlurgText.Native.<rid>/`, including `osx-arm64`, `osx-x64`, `linux-x64`, `win-x64`, and `win-x86` projects.
-
-Project-owned BlurgText native build scripts, runtime copy rules, resolver mappings, and package artifacts are deferred. A later text-rendering or packaging task must define exactly which BlurgText native artifacts Royale builds, where they are installed under `thirdparty/artifacts/`, and which client outputs receive them. The server must not receive BlurgText unless a future server-side text requirement explicitly introduces that dependency.
 
 BlurgText is MIT licensed. Distribution or packaging work must also carry the upstream notices called out by BlurgText's README, including Harfbuzz, SheenBidi, libraqm, and the FreeType credit notice.
 

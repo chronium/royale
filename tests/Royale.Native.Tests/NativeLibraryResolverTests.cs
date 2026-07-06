@@ -9,6 +9,7 @@ public sealed class NativeLibraryResolverTests
     [InlineData("box3d", "libbox3d.dylib")]
     [InlineData("cimgui", "libroyale_imgui.dylib")]
     [InlineData("royale_imgui", "libroyale_imgui.dylib")]
+    [InlineData("libblurgtext", "libblurgtext.dylib")]
     public void MacOSArm64MappingsUseBundledRuntimeNativeLayout(string importName, string fileName)
     {
         string path = NativeLibraryResolver.GetExpectedPath(importName, NativeLibraryResolver.MacOSArm64Rid);

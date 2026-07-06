@@ -76,6 +76,7 @@ public static class NativeLibraryResolver
             (MacOSArm64Rid, "box3d") => "libbox3d.dylib",
             (MacOSArm64Rid, "cimgui") => "libroyale_imgui.dylib",
             (MacOSArm64Rid, "royale_imgui") => "libroyale_imgui.dylib",
+            (MacOSArm64Rid, "libblurgtext") => "libblurgtext.dylib",
             (LinuxX64Rid, "box3d") => "libbox3d.so",
             _ => null,
         };

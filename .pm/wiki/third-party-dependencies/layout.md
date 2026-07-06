@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Layout
 createdAt: 2026-07-05T16:14:33.2369430Z
-modifiedAt: 2026-07-06T15:11:16.0794020Z
+modifiedAt: 2026-07-06T15:36:59.3809570Z
 ---
 
 ## Directory Layout
@@ -19,6 +19,7 @@ thirdparty/
   build-box3d-macos.sh
   build-box3d-linux.sh
   build-imgui-macos.sh
+  build-blurgtext-macos.sh
   fetch-sdl3-cs.sh
   fetch-box3d.sh
   fetch-imgui-net.sh
@@ -99,6 +100,13 @@ thirdparty/build/imgui/osx-arm64/
 thirdparty/artifacts/imgui/osx-arm64/lib/libroyale_imgui.dylib
 ```
 
+The current BlurgText macOS ARM64 shared-library workflow uses:
+
+```text
+thirdparty/build/blurgtext/osx-arm64/
+thirdparty/artifacts/blurgtext/osx-arm64/lib/libblurgtext.dylib
+```
+
 Project packaging tasks may copy selected final native binaries into project-controlled runtime or packaging directories later, but generated third-party build directories should remain ignored.
 
 ## Runtime Native Layout
@@ -109,6 +117,7 @@ Managed projects load bundled native libraries from the standard `.NET` runtime-
 runtimes/osx-arm64/native/libSDL3.dylib
 runtimes/osx-arm64/native/libbox3d.dylib
 runtimes/osx-arm64/native/libroyale_imgui.dylib
+runtimes/osx-arm64/native/libblurgtext.dylib
 runtimes/linux-x64/native/libbox3d.so
 ```
 
@@ -118,6 +127,7 @@ runtimes/linux-x64/native/libbox3d.so
 * `osx-arm64` `box3d` -> `libbox3d.dylib`
 * `osx-arm64` `cimgui` -> `libroyale_imgui.dylib`
 * `osx-arm64` `royale_imgui` -> `libroyale_imgui.dylib`
+* `osx-arm64` `libblurgtext` -> `libblurgtext.dylib`
 * `linux-x64` `box3d` -> `libbox3d.so`
 
-Box3D runtime-native copy rules are centralized in `Royale.Box3D`, so clients, servers, and tests receive Box3D through their project reference. The client output includes SDL3, Box3D, and the ImGui shim. The server output includes Box3D only and must remain free of SDL and ImGui native libraries.
+Box3D runtime-native copy rules are centralized in `Royale.Box3D`, so clients, servers, and tests receive Box3D through their project reference. The client output includes SDL3, Box3D, the ImGui shim, and BlurgText. The server output includes Box3D only and must remain free of SDL, ImGui, BlurgText, textures, shaders, and UI native libraries.

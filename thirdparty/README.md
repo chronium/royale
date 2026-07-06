@@ -17,7 +17,7 @@ This directory contains the committed dependency-management files for native and
 | SDL3-CS | `https://github.com/ppy/SDL3-CS` | `a0a5276a874c0c48db705696ab7e2adc8b5db0a1` | C# bindings and native availability for SDL3. |
 | box3d | `https://github.com/erincatto/box3d` | `540ea387b0c02bf714fbfdcc8fb88c039c35fe6f` | Physics library source for future project-specific native builds and bindings. |
 | ImGui.Net | `https://github.com/EvergineTeam/ImGui.Net` | `1f97beecfc9b83e1549e9782757cf85b1777cb9d` | C# ImGui bindings for client development UI. |
-| BlurgText | `https://github.com/CallumDev/blurgtext` | `ea49c33b27ad55cc811dc8be4c9829ed4367d936` | Future game-facing text outside ImGui. |
+| BlurgText | `https://github.com/CallumDev/blurgtext` | `ea49c33b27ad55cc811dc8be4c9829ed4367d936` | Game-facing text outside ImGui. |
 
 Native SDL3 is not pinned separately yet. Until platform packaging tasks prove a different requirement, SDL3 native availability is expected to come through the selected SDL3-CS source.
 
@@ -31,6 +31,7 @@ thirdparty/
   fetch-box3d.sh
   fetch-imgui-net.sh
   fetch-blurgtext.sh
+  build-blurgtext-macos.sh
   repos/                 # ignored clones created by fetch scripts
   build/                 # ignored native build output
   artifacts/             # ignored generated packages or binaries
@@ -74,7 +75,21 @@ BlurgText's native build entry point is the upstream CMake project at:
 thirdparty/repos/blurgtext/CMakeLists.txt
 ```
 
-The upstream CMake project defines the shared-library target `blurgtext` and the pinned .NET native package metadata expects `libblurgtext.dylib` for macOS RIDs and `libblurgtext.so` for Linux x64. Project-owned BlurgText native build scripts, runtime copy rules, resolver mappings, and packaging artifacts are deferred until a text-rendering or packaging task defines the exact runtime needs.
+The upstream CMake project defines the shared-library target `blurgtext` and the pinned .NET native package metadata expects `libblurgtext.dylib` for macOS RIDs and `libblurgtext.so` for Linux x64.
+
+Build the project-owned macOS ARM64 BlurgText shared library with:
+
+```sh
+sh thirdparty/build-blurgtext-macos.sh
+```
+
+The script installs:
+
+```text
+thirdparty/artifacts/blurgtext/osx-arm64/lib/libblurgtext.dylib
+```
+
+`Royale.Client` copies that artifact to `runtimes/osx-arm64/native/libblurgtext.dylib` and resolves BlurgText's managed import name `libblurgtext` through `Royale.Native`. Linux x64 and Windows BlurgText native build/copy support remain deferred to dedicated platform tasks.
 
 BlurgText is MIT licensed. Distribution or packaging work must also carry the upstream notices called out by BlurgText's README, including Harfbuzz, SheenBidi, libraqm, and FreeType credit.
 

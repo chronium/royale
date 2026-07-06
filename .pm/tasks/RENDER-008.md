@@ -37,3 +37,14 @@ BlurgText is the project text renderer for player-facing and world-space text. I
 ## Human Validation
 
 Ask the project owner to visually validate rendered text quality, alignment, and readability because text appearance cannot be fully validated through automated tests.
+
+## Completion Notes
+
+- Added `thirdparty/build-blurgtext-macos.sh`, which refreshes the pinned BlurgText source, builds the macOS ARM64 Release `blurgtext` shared-library target with the demo disabled, and installs `thirdparty/artifacts/blurgtext/osx-arm64/lib/libblurgtext.dylib`.
+- `Royale.Client` references the managed BlurgText project as `net8.0`, copies the macOS ARM64 Blurg native artifact to `runtimes/osx-arm64/native/libblurgtext.dylib`, and `Royale.Native` maps BlurgText's `libblurgtext` import name for `osx-arm64`.
+- Added `BlurgTextRenderer` and `TextQuadRenderer` for system-font-backed screen-space Blurg rectangles rendered through SDL GPU textured quads with alpha blending and no depth writes.
+- The current smoke label is fixed at the top-left: `Royale BlurgText`, drawn before ImGui and outside ImGui.
+- Added non-GPU unit coverage for text vertex layout, pixel-to-clip math, quad generation, whitespace suppression, draw-command texture runs, and smoke label state.
+- Updated `architecture/content-and-rendering`, `third-party-dependencies/workflow`, and `third-party-dependencies/layout` through PM wiki tools.
+- Visual smoke path captured `/private/tmp/royale-blurgtext.bmp`, converted to `/private/tmp/royale-blurgtext.png`, and the project owner confirmed the screenshot looked correct.
+- Linux x64 and Windows BlurgText native build/copy support, world-space text, health bars, HUD layout, retained UI, and bundled font assets remain out of scope for this task.

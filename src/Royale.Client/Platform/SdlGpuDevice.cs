@@ -16,6 +16,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
     private SDL_GPUDevice* device;
     private StaticMeshRenderer? staticMeshRenderer;
     private DebugLineRenderer? debugLineRenderer;
+    private BlurgTextRenderer? blurgTextRenderer;
     private bool windowClaimed;
 
     private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window, IReadOnlyList<StaticMeshInstance> staticMeshInstances)
@@ -119,6 +120,10 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 swapchainFormat,
                 PreferredShaderFormat.Value,
                 staticMeshInstances);
+            blurgTextRenderer ??= new BlurgTextRenderer(
+                Handle,
+                swapchainFormat,
+                PreferredShaderFormat.Value);
             if (renderViewMode.ShouldRenderDebugWireframes())
             {
                 debugLineRenderer ??= new DebugLineRenderer(
@@ -156,6 +161,8 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 debugLineRenderer?.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, camera);
             SDL_EndGPURenderPass(renderPass);
 
+            blurgTextRenderer.RenderSmokeLabel(commandBuffer, swapchainTexture, swapchainWidth, swapchainHeight);
+
             imguiBackend?.Render(commandBuffer, swapchainTexture);
 
             if (screenshotPath is not null)
@@ -187,6 +194,9 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
         debugLineRenderer?.Dispose();
         debugLineRenderer = null;
+
+        blurgTextRenderer?.Dispose();
+        blurgTextRenderer = null;
 
         if (windowClaimed)
         {

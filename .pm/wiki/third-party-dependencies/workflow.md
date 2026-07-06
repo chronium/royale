@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-06T05:37:57.9124550Z
+modifiedAt: 2026-07-06T15:11:59.9504070Z
 ---
 
 ## Fetch Scripts
@@ -18,6 +18,7 @@ Fetch individual dependencies with:
 sh thirdparty/fetch-sdl3-cs.sh
 sh thirdparty/fetch-box3d.sh
 sh thirdparty/fetch-imgui-net.sh
+sh thirdparty/fetch-blurgtext.sh
 ```
 
 Each fetch script is deterministic and safe to rerun:
@@ -32,13 +33,17 @@ Each fetch script is deterministic and safe to rerun:
 
 The scripts should fail clearly if the pinned commit cannot be fetched, a required submodule cannot be fetched, or a patch cannot be applied.
 
-`fetch-imgui-net.sh` also initializes the pinned native submodule graph required by Evergine's generated binding surface: cimgui, Dear ImGui, cimplot/implot, cimnodes/imnodes, and cimguizmo/ImGuizmo.
+`fetch-imgui-net.sh` initializes the pinned native submodule graph required by Evergine's generated binding surface: cimgui, Dear ImGui, cimplot/implot, cimnodes/imnodes, and cimguizmo/ImGuizmo.
+
+`fetch-blurgtext.sh` initializes the upstream submodules needed by BlurgText's committed source tree: `deps/libraqm`, `deps/SheenBidi`, `deps/libunibreak`, `deps/plutosvg`, and nested `deps/plutosvg/plutovg`.
 
 ## Restore and Build Notes
 
 SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`.
 
 ImGui.Net is consumed from the fetched source project at `thirdparty/repos/ImGui.Net/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj`.
+
+BlurgText's managed project is available after fetch at `thirdparty/repos/blurgtext/dotnet/BlurgText/BlurgText.csproj`. `BUILD-010` does not add a Royale project reference to BlurgText; client text rendering integration is deferred.
 
 For a fresh checkout after fetching SDL3-CS or ImGui.Net, restore the solution with the binding's desktop-target property:
 
@@ -144,6 +149,23 @@ The SDK image may need CMake and C/C++ build tools installed before running `bui
 
 Windows Box3D shared-library builds are intentionally deferred until a dedicated platform task defines and validates that workflow.
 
+## BlurgText Native Build Shape
+
+The pinned upstream BlurgText tree provides the native build entry point at `thirdparty/repos/blurgtext/CMakeLists.txt`. The upstream CMake project defines the shared-library target `blurgtext` and requires CMake 3.15 or newer.
+
+The expected upstream native library names from the pinned packaging metadata are:
+
+```text
+libblurgtext.dylib   # osx-arm64 and osx-x64
+libblurgtext.so      # linux-x64
+```
+
+The upstream .NET native package projects are present under `thirdparty/repos/blurgtext/dotnet/BlurgText.Native.<rid>/`, including `osx-arm64`, `osx-x64`, `linux-x64`, `win-x64`, and `win-x86` projects.
+
+Project-owned BlurgText native build scripts, runtime copy rules, resolver mappings, and package artifacts are deferred. A later text-rendering or packaging task must define exactly which BlurgText native artifacts Royale builds, where they are installed under `thirdparty/artifacts/`, and which client outputs receive them. The server must not receive BlurgText unless a future server-side text requirement explicitly introduces that dependency.
+
+BlurgText is MIT licensed. Distribution or packaging work must also carry the upstream notices called out by BlurgText's README, including Harfbuzz, SheenBidi, libraqm, and the FreeType credit notice.
+
 ## Patch Policy
 
 Project-specific changes to third-party code must be stored as patches under `thirdparty/patches/<dependency>/`.
@@ -166,7 +188,7 @@ Keep patches focused. If a patch contains unrelated changes, split it before com
 
 When updating a dependency commit, re-apply the patch series and refresh patches only when needed.
 
-No project-specific patches are currently required for SDL3-CS, box3d, or ImGui.Net.
+No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, or BlurgText.
 
 ## Updating a Third-Party Dependency
 

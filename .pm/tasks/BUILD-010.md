@@ -24,9 +24,23 @@ BlurgText is the planned text stack for game-facing text outside ImGui, includin
 - Document the BlurgText pin, fetch workflow, build/runtime artifact expectations, and license considerations in the third-party wiki pages.
 - Keep this task focused on dependency acquisition and build/package shape; do not implement Royale text rendering here.
 
+## Implementation Notes
+
+- Added `BLURGTEXT_REPO` and `BLURGTEXT_COMMIT` to `thirdparty/versions.env`.
+- Added `thirdparty/fetch-blurgtext.sh`, which initializes or reuses `thirdparty/repos/blurgtext`, fetches the pinned commit, resets and cleans the checkout, initializes required upstream submodules, and applies optional patches from `thirdparty/patches/blurgtext/*.patch`.
+- Registered BlurgText in `thirdparty/fetch-all.sh`.
+- Added `thirdparty/patches/blurgtext/README.md`; no project-specific patches are currently required.
+- Updated `thirdparty/README.md` and the third-party wiki pages for the pin, fetch workflow, layout, managed project path, native build shape, deferred runtime packaging boundary, and license notice expectations.
+- Kept the change fetch-only: no Royale project reference, native build script, renderer integration, HUD text, or runtime packaging was added.
+
 ## Validation
 
-- Fresh fetch from the script succeeds from a clean checkout state.
-- The BlurgText project or native build entry point needed by Royale is available after fetch.
-- `dotnet build Royale.slnx -m:1 --no-restore` passes after restore state is available.
+- `sh thirdparty/fetch-blurgtext.sh` succeeds and checks out `ea49c33b27ad55cc811dc8be4c9829ed4367d936`.
+- `thirdparty/repos/blurgtext/dotnet/BlurgText/BlurgText.csproj` exists after fetch.
+- Required BlurgText submodules are populated at their pinned commits: `deps/libraqm`, `deps/SheenBidi`, `deps/libunibreak`, `deps/plutosvg`, and `deps/plutosvg/plutovg`.
+- `thirdparty/patches/blurgtext/` contains no `*.patch` files, so no project patches are applied.
+- `sh thirdparty/fetch-all.sh` succeeds with the new BlurgText step included.
+- Initial `dotnet build Royale.slnx -m:1 --no-restore` failed because `fetch-all` removed ignored restore assets under `thirdparty/repos/SDL3-CS/SDL3-CS/obj/`, matching the documented need to restore after deterministic third-party refreshes.
+- `dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1` succeeds, with the existing ImGui.Net `NU1510` warning.
+- `dotnet build Royale.slnx -m:1 --no-restore` succeeds after restore, with the existing ImGui.Net `NU1510` warning.
 - PM project validation passes.

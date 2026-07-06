@@ -114,6 +114,24 @@ public sealed class LocalPlayerControllerTests
     }
 
     [Fact]
+    public void RifleFeedbackEmitsOnlyOnCadenceFireTicks()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateShotMap());
+        PlayerInputSample fireHeld = new(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero);
+
+        player.FixedUpdate(fireHeld, Tick);
+
+        WeaponFeedbackShot firstShot = AssertActiveShot(player);
+        Assert.Equal(HitscanHitType.Static, firstShot.HitType);
+        Assert.Equal("north-wall", firstShot.StaticColliderId);
+
+        player.FixedUpdate(fireHeld, Tick);
+
+        Assert.False(player.LastFireResult.Fired);
+        Assert.Equal(firstShot, player.WeaponFeedback.LastShot);
+    }
+
+    [Fact]
     public void FixedUpdateHitscanUsesCurrentLookDirectionAndDefaultRifleRange()
     {
         using LocalPlayerController player = LocalPlayerController.Create(
@@ -148,6 +166,99 @@ public sealed class LocalPlayerControllerTests
         Assert.Equal(25, player.TrainingDummy.DamageHistory[0].RawDamage);
         Assert.Equal(25, player.TrainingDummy.DamageHistory[0].AppliedDamage);
         Assert.Equal(75, player.TrainingDummy.DamageHistory[0].RemainingHealth);
+    }
+
+    [Fact]
+    public void TargetHitFeedbackRecordsTargetIdAndAppliedDamage()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireOneTick(player);
+
+        WeaponFeedbackShot shot = AssertActiveShot(player);
+        Assert.Equal(HitscanHitType.Target, shot.HitType);
+        Assert.Equal(TrainingDummy.StableId, shot.TargetId);
+        Assert.Null(shot.StaticColliderId);
+        Assert.NotNull(shot.HitPoint);
+        Assert.NotNull(shot.DamageResult);
+        Assert.True(shot.DamageResult.Value.Applied);
+        Assert.Equal(25, shot.AppliedDamage);
+        AssertVector(ToVector3(player.SpawnPoint.Position) + new Vector3(0.0f, PlayerViewSettings.DefaultEyeHeight, 0.0f), shot.Origin);
+        AssertVector(player.LastHitscanResult!.Value.Point, shot.End);
+    }
+
+    [Fact]
+    public void StaticHitFeedbackRecordsStaticColliderIdAndNoTargetDamage()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateShotMap());
+
+        FireOneTick(player);
+
+        WeaponFeedbackShot shot = AssertActiveShot(player);
+        Assert.Equal(HitscanHitType.Static, shot.HitType);
+        Assert.Equal("north-wall", shot.StaticColliderId);
+        Assert.Null(shot.TargetId);
+        Assert.NotNull(shot.HitPoint);
+        Assert.NotNull(shot.DamageResult);
+        Assert.False(shot.DamageResult.Value.Applied);
+        Assert.Equal(0, shot.AppliedDamage);
+        AssertVector(player.LastHitscanResult!.Value.Point, shot.End);
+    }
+
+    [Fact]
+    public void MissFeedbackUsesRangeEndAndNoDamage()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
+
+        FireOneTick(player);
+
+        WeaponFeedbackShot shot = AssertActiveShot(player);
+        Vector3 expectedOrigin = ToVector3(player.SpawnPoint.Position) + new Vector3(0.0f, PlayerViewSettings.DefaultEyeHeight, 0.0f);
+        Vector3 expectedEnd = expectedOrigin + new Vector3(0.0f, 0.0f, -WeaponCatalog.DefaultRifle.RangeMeters);
+        Assert.Equal(HitscanHitType.None, shot.HitType);
+        Assert.Null(shot.HitPoint);
+        Assert.Null(shot.TargetId);
+        Assert.Null(shot.StaticColliderId);
+        Assert.NotNull(shot.DamageResult);
+        Assert.False(shot.DamageResult.Value.Applied);
+        Assert.Equal(0, shot.AppliedDamage);
+        AssertVector(expectedOrigin, shot.Origin);
+        AssertVector(expectedEnd, shot.End);
+    }
+
+    [Fact]
+    public void FeedbackLifetimeExpiresWithPresentationTime()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireOneTick(player);
+        Assert.NotNull(player.WeaponFeedback.ActiveShot);
+
+        player.WeaponFeedback.Update(WeaponFeedbackState.DefaultShotLifetimeSeconds + 0.01f);
+
+        Assert.Null(player.WeaponFeedback.ActiveShot);
+        Assert.NotNull(player.WeaponFeedback.LastShot);
+        Assert.False(player.WeaponFeedback.LastShot.Value.Active);
+        Assert.Equal(0.0f, player.WeaponFeedback.LastShot.Value.RemainingLifetimeSeconds);
+    }
+
+    [Fact]
+    public void RecoilKickIsPresentationOnlyAndDecaysWithoutChangingLookState()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+        PlayerLookState lookBeforeShot = player.LookState;
+
+        FireOneTick(player);
+
+        Assert.Equal(lookBeforeShot, player.LookState);
+        Assert.True(player.WeaponFeedback.RecoilPitchRadians > 0.0f);
+        Assert.Equal(lookBeforeShot.PitchRadians + player.WeaponFeedback.RecoilPitchRadians, player.ToRenderCamera().PitchRadians);
+
+        player.WeaponFeedback.Update(WeaponFeedbackState.DefaultRecoilDecaySeconds + 0.01f);
+
+        Assert.Equal(lookBeforeShot, player.LookState);
+        Assert.Equal(0.0f, player.WeaponFeedback.RecoilPitchRadians);
+        Assert.Equal(lookBeforeShot.PitchRadians, player.ToRenderCamera().PitchRadians);
     }
 
     [Fact]
@@ -293,6 +404,21 @@ public sealed class LocalPlayerControllerTests
     }
 
     [Fact]
+    public void DeadPlayerFixedUpdatesDoNotEmitFeedback()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        player.DebugKill();
+
+        for (int i = 0; i < 20; i++)
+            player.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), Tick);
+
+        Assert.Null(player.WeaponFeedback.ActiveShot);
+        Assert.Null(player.WeaponFeedback.LastShot);
+        Assert.Equal(0.0f, player.WeaponFeedback.RecoilPitchRadians);
+    }
+
+    [Fact]
     public void RespawnRestoresPlayerStateAndLeavesTrainingDummyHistory()
     {
         using LocalPlayerController player = CreatePlayerWithDummyInFront();
@@ -317,6 +443,9 @@ public sealed class LocalPlayerControllerTests
         Assert.Null(player.LastHitscanResult);
         Assert.Null(player.LastTrainingDummyDamageResult);
         Assert.Equal(0, player.TotalShotsFired);
+        Assert.Null(player.WeaponFeedback.ActiveShot);
+        Assert.Null(player.WeaponFeedback.LastShot);
+        Assert.Equal(0.0f, player.WeaponFeedback.RecoilPitchRadians);
         Assert.Equal(75, player.TrainingDummy.Health.CurrentHealth);
         Assert.Single(player.TrainingDummy.DamageHistory);
         AssertVector(
@@ -359,6 +488,14 @@ public sealed class LocalPlayerControllerTests
     {
         for (int i = 0; i < ticks; i++)
             FireOneTick(player);
+    }
+
+    private static WeaponFeedbackShot AssertActiveShot(LocalPlayerController player)
+    {
+        Assert.NotNull(player.WeaponFeedback.ActiveShot);
+        Assert.NotNull(player.WeaponFeedback.LastShot);
+        Assert.Equal(player.WeaponFeedback.ActiveShot, player.WeaponFeedback.LastShot);
+        return player.WeaponFeedback.ActiveShot.Value;
     }
 
     private static HitscanHit TargetHit() => new(

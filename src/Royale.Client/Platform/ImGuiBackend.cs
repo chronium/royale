@@ -132,11 +132,16 @@ internal sealed unsafe class ImGuiBackend : IDisposable
     {
         PlayerDiagnosticsState state = PlayerDiagnosticsState.FromPlayer(localPlayer);
 
-        ImguiNative.igSetNextWindowSize(new Vector2(260.0f, 120.0f), ImGuiCond.FirstUseEver);
+        ImguiNative.igSetNextWindowSize(new Vector2(320.0f, 230.0f), ImGuiCond.FirstUseEver);
         if (ImguiNative.igBegin("Player", null, ImGuiWindowFlags.None))
         {
             ImguiNative.igText(state.HealthText);
             ImguiNative.igText(state.AliveText);
+            ImguiNative.igText(state.LastShotText);
+            ImguiNative.igText(state.HitMarkerText);
+            ImguiNative.igText(state.HitIdentityText);
+            ImguiNative.igText(state.DamageText);
+            ImguiNative.igText(state.FeedbackLifetimeText);
 
             if (ImguiNative.igButton("Kill Player", new Vector2(110.0f, 0.0f)))
             {

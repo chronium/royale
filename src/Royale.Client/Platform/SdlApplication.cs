@@ -153,6 +153,8 @@ public sealed unsafe class SdlApplication : IDisposable
 
         gpuDevice?.PresentFrame(time.DeltaSeconds, renderCamera, renderViewMode.Mode, debugPrimitives, imguiBackend, screenshotPath);
 
+        localPlayer?.WeaponFeedback.Update(time.DeltaSeconds);
+
         if (screenshotPath is not null)
             running = false;
     }

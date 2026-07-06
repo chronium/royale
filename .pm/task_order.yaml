@@ -2,5 +2,4 @@ orders:
 - track: COMBAT
   state: todo
   milestone: M3
-  taskIds:
-  - COMBAT-006
+  taskIds: []

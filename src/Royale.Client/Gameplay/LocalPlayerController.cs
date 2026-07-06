@@ -9,6 +9,7 @@ public sealed class LocalPlayerController : IDisposable
 {
     private readonly MapStaticCollisionWorld collisionWorld;
     private readonly KinematicCharacterController characterController;
+    private readonly WeaponFeedbackState weaponFeedback = new();
     private WeaponFireState weaponFireState;
     private ulong fixedTick;
     private bool disposed;
@@ -70,6 +71,8 @@ public sealed class LocalPlayerController : IDisposable
     public HitscanHit? LastHitscanResult { get; private set; }
 
     public DamageResult? LastTrainingDummyDamageResult { get; private set; }
+
+    public WeaponFeedbackState WeaponFeedback => weaponFeedback;
 
     public int TotalShotsFired { get; private set; }
 
@@ -154,11 +157,13 @@ public sealed class LocalPlayerController : IDisposable
 
         if (LastFireResult.Fired)
         {
+            HitscanRay ray = HitscanResolver.CreatePlayerRay(CharacterState, LookState, ViewSettings, Weapon);
             LastHitscanResult = HitscanResolver.Resolve(
                 collisionWorld,
-                HitscanResolver.CreatePlayerRay(CharacterState, LookState, ViewSettings, Weapon),
+                ray,
                 [TrainingDummy.Target]);
             LastTrainingDummyDamageResult = TrainingDummy.ApplyDamage(Weapon, LastHitscanResult.Value, fixedTick);
+            weaponFeedback.EmitShot(ray, LastHitscanResult.Value, LastTrainingDummyDamageResult);
             TotalShotsFired++;
         }
         else
@@ -207,10 +212,14 @@ public sealed class LocalPlayerController : IDisposable
         LastHitscanResult = null;
         LastTrainingDummyDamageResult = null;
         TotalShotsFired = 0;
+        weaponFeedback.Clear();
     }
 
     public RenderCamera ToRenderCamera() =>
-        GameplayView.CreateRenderCamera(FeetPosition, LookState, ViewSettings);
+        GameplayView.CreateRenderCamera(
+            FeetPosition,
+            LookState with { PitchRadians = LookState.PitchRadians + weaponFeedback.RecoilPitchRadians },
+            ViewSettings);
 
     public static Vector2 ToWorldMovement(Vector2 localMove, float yawRadians)
     {

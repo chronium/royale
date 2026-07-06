@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Royale.Client.Gameplay;
 using Royale.Client.Rendering;
 using Royale.Content;
+using Royale.Simulation;
 
 namespace Royale.Client.Tests;
 
@@ -117,6 +118,41 @@ public sealed class DebugPrimitiveNativeRenderingTests
         DebugPrimitiveList primitives = DebugSceneBuilder.Build(map, localPlayer);
 
         Assert.Equal(107, primitives.LineCount);
+    }
+
+    [Fact]
+    public void DebugSceneBuilderEmitsFiniteWeaponFeedbackLines()
+    {
+        GameMap map = CreateDebugMap();
+        using LocalPlayerController localPlayer = LocalPlayerController.Create(
+            map,
+            trainingDummy: new TrainingDummy(new Vector3(0.0f, 0.0f, -3.0f)));
+
+        localPlayer.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), 1.0 / 60.0);
+
+        DebugPrimitiveList primitives = DebugSceneBuilder.Build(map, localPlayer);
+
+        Assert.Equal(114, primitives.LineCount);
+        foreach (DebugLineVertex vertex in primitives.ToVertices())
+        {
+            AssertFinite(vertex.Position);
+            AssertFinite(vertex.Color);
+        }
+    }
+
+    private static void AssertFinite(Vector3 vector)
+    {
+        Assert.True(float.IsFinite(vector.X));
+        Assert.True(float.IsFinite(vector.Y));
+        Assert.True(float.IsFinite(vector.Z));
+    }
+
+    private static void AssertFinite(Vector4 vector)
+    {
+        Assert.True(float.IsFinite(vector.X));
+        Assert.True(float.IsFinite(vector.Y));
+        Assert.True(float.IsFinite(vector.Z));
+        Assert.True(float.IsFinite(vector.W));
     }
 
     private static GameMap CreateDebugMap() => new()

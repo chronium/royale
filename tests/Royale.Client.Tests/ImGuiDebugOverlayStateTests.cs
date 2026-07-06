@@ -7,6 +7,7 @@ using Royale.Simulation;
 
 namespace Royale.Client.Tests;
 
+[Collection(Box3DNativeTestCollection.Name)]
 public sealed class ImGuiDebugOverlayStateTests
 {
     [Fact]
@@ -74,6 +75,24 @@ public sealed class ImGuiDebugOverlayStateTests
 
         Assert.Equal("Health: 0/100", state.HealthText);
         Assert.Equal("State: dead", state.AliveText);
+    }
+
+    [Fact]
+    public void FormatsWeaponFeedbackDiagnosticsText()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(
+            CreateFloorMap(),
+            trainingDummy: new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f)));
+
+        player.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), 1.0 / 60.0);
+
+        PlayerDiagnosticsState state = PlayerDiagnosticsState.FromPlayer(player);
+
+        Assert.Equal("Last shot: target", state.LastShotText);
+        Assert.Equal("Hit marker: active", state.HitMarkerText);
+        Assert.Equal("Hit id: training-dummy", state.HitIdentityText);
+        Assert.Equal("Damage: 25", state.DamageText);
+        Assert.Equal("Feedback: 0.12s", state.FeedbackLifetimeText);
     }
 
     private static GameMap CreateFloorMap() => new()

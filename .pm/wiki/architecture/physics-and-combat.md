@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T14:38:32.5499510Z
+modifiedAt: 2026-07-06T14:52:21.6590400Z
 ---
 
 ## Physics Architecture
@@ -219,6 +219,16 @@ While the local player is dead, gameplay look updates and gameplay fixed updates
 Debug respawn restores player health, spawn feet position, zero velocity, default look, ready rifle cadence, cleared last fire/hit/damage outputs, and spawn-derived gameplay camera state. It does not reset the training dummy health or damage history.
 
 The ImGui `Player` diagnostics window displays local player health and alive state and exposes `Kill Player` and `Respawn Player` buttons. No kill or respawn hotkeys, networking, server match elimination, respawn timer, final HUD, animation, audio, or player-vs-player damage are part of this contract.
+
+### Weapon Feedback
+
+`COMBAT-006` adds client-only presentation feedback for local offline rifle shots. When `LocalPlayerController.FixedUpdate()` accepts a rifle shot on the existing cadence path, the client records one transient feedback shot containing the hitscan origin, tracer end, hit type, optional target id or static collider id, and optional damage result. Misses use the rifle range end as the tracer end.
+
+The feedback state is presentation data owned by the client player controller. It is updated once per rendered frame by the SDL client, expires by elapsed render time, is cleared by local debug respawn, and is not emitted while the local player is dead. It does not change fire cadence, hitscan direction, damage application, ammo rules, match state, networking, or server authority.
+
+Rifle recoil is also presentation-only. Each accepted local shot adds a small camera pitch kick that decays over a short render-time window. The recoil offset is applied only while creating the render camera; it does not mutate `PlayerLookState` and therefore does not affect aiming, hitscan resolution, or future server-authoritative combat.
+
+F6/F7 debug-line rendering draws the active feedback through existing debug primitives: a yellow muzzle cross at the shot origin, a yellow-orange tracer to the hit point or range end, and an impact cross for target or static hits. The ImGui `Player` diagnostics window reports the last shot result, transient hit-marker state, hit identity, applied damage, and remaining feedback lifetime. These diagnostics are development tooling, not a final player HUD.
 
 ### Hitscan Raycasts
 

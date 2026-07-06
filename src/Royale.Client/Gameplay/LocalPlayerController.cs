@@ -58,6 +58,8 @@ public sealed class LocalPlayerController : IDisposable
 
     public WeaponFireStepResult LastFireResult { get; private set; }
 
+    public HitscanHit? LastHitscanResult { get; private set; }
+
     public int TotalShotsFired { get; private set; }
 
     public Vector3 FeetPosition => CharacterState.Position;
@@ -116,6 +118,12 @@ public sealed class LocalPlayerController : IDisposable
 
         LastFireResult = WeaponFireController.Step(Weapon, weaponFireState, input.Fire, fixedTick);
         weaponFireState = LastFireResult.State;
+
+        LastHitscanResult = LastFireResult.Fired
+            ? HitscanResolver.Resolve(
+                collisionWorld,
+                HitscanResolver.CreatePlayerRay(CharacterState, LookState, ViewSettings, Weapon))
+            : null;
 
         if (LastFireResult.Fired)
             TotalShotsFired++;

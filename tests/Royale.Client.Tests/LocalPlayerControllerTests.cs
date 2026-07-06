@@ -69,6 +69,49 @@ public sealed class LocalPlayerControllerTests
     }
 
     [Fact]
+    public void FixedUpdateRecordsHitscanResultOnlyOnCadenceFireTicks()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateShotMap());
+        PlayerInputSample fireHeld = new(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero);
+
+        player.FixedUpdate(fireHeld, Tick);
+
+        Assert.True(player.LastFireResult.Fired);
+        Assert.NotNull(player.LastHitscanResult);
+        Assert.True(player.LastHitscanResult.Value.IsStatic);
+        Assert.Equal("north-wall", player.LastHitscanResult.Value.StaticColliderId);
+
+        player.FixedUpdate(fireHeld, Tick);
+
+        Assert.False(player.LastFireResult.Fired);
+        Assert.Null(player.LastHitscanResult);
+
+        for (int i = 0; i < 4; i++)
+            player.FixedUpdate(fireHeld, Tick);
+
+        player.FixedUpdate(fireHeld, Tick);
+
+        Assert.True(player.LastFireResult.Fired);
+        Assert.NotNull(player.LastHitscanResult);
+    }
+
+    [Fact]
+    public void FixedUpdateHitscanUsesCurrentLookDirectionAndDefaultRifleRange()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(
+            CreateLongRangeShotMap(),
+            initialLookState: new PlayerLookState(MathF.PI / 2.0f, 0.0f));
+
+        player.FixedUpdate(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: true, Vector2.Zero), Tick);
+
+        Assert.NotNull(player.LastHitscanResult);
+        Assert.True(player.LastHitscanResult.Value.IsStatic);
+        Assert.Equal("east-long-range-wall", player.LastHitscanResult.Value.StaticColliderId);
+        Assert.InRange(player.LastHitscanResult.Value.Distance, 109.0f, 110.0f);
+        Assert.True(WeaponCatalog.DefaultRifle.RangeMeters > 110.0f);
+    }
+
+    [Fact]
     public void FixedUpdatesProduceNoRifleShotsWithoutFireIntent()
     {
         using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
@@ -80,6 +123,7 @@ public sealed class LocalPlayerControllerTests
         Assert.False(player.LastFireResult.Fired);
         Assert.Null(player.WeaponFireState.LastFiredTick);
         Assert.Equal((ulong)0, player.WeaponFireState.NextAllowedFireTick);
+        Assert.Null(player.LastHitscanResult);
     }
 
     private static GameMap CreateFloorMap() => new()
@@ -101,6 +145,58 @@ public sealed class LocalPlayerControllerTests
                 Id = "floor",
                 Position = new MapVector3(0.0f, -0.1f, 0.0f),
                 Size = new MapVector3(20.0f, 0.2f, 20.0f),
+            },
+        ],
+    };
+
+    private static GameMap CreateShotMap() => new()
+    {
+        Id = "shot-map",
+        Name = "Shot Map",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "north-wall",
+                Position = new MapVector3(0.0f, 1.5f, -8.0f),
+                Size = new MapVector3(8.0f, 3.0f, 0.5f),
+            },
+        ],
+    };
+
+    private static GameMap CreateLongRangeShotMap() => new()
+    {
+        Id = "long-range-shot-map",
+        Name = "Long Range Shot Map",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "north-short-wall",
+                Position = new MapVector3(0.0f, 1.5f, -8.0f),
+                Size = new MapVector3(8.0f, 3.0f, 0.5f),
+            },
+            new StaticBoxDefinition
+            {
+                Id = "east-long-range-wall",
+                Position = new MapVector3(110.0f, 1.5f, 0.0f),
+                Size = new MapVector3(0.5f, 3.0f, 8.0f),
             },
         ],
     };

@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T13:27:49.6200130Z
+modifiedAt: 2026-07-06T13:39:11.7216570Z
 ---
 
 ## Physics Architecture
@@ -199,6 +199,14 @@ The client may immediately show:
 * Firing animation
 
 The client must wait for authoritative confirmation before treating another player as damaged or dead.
+
+### Hitscan Raycasts
+
+`COMBAT-003` adds simulation-owned hitscan query types for rifle shots. `HitscanRay.FromPlayerLook()` builds the shot from the player's feet-anchored `KinematicCharacterState.Position` plus `PlayerViewSettings.EyeHeight`; its direction uses the same yaw and pitch convention as `RenderCamera.Forward`, and its length is the weapon `RangeMeters`.
+
+`HitscanResolver` queries static map collision through `MapStaticCollisionWorld.CastRayClosest()` and wraps the closest static hit with point, normal, fraction, distance, and source static collider metadata. Callers may also pass feet-anchored vertical capsule `HitscanTarget` values using the same radius and height convention as the kinematic character controller. The nearest valid hit wins across static geometry and capsule targets, so static geometry blocks farther targets.
+
+This task reports hits only. Damage application, ammunition consumption, authoritative combat events, target ownership, and presentation effects remain deferred to `COMBAT-004` and later combat tasks.
 
 ### Rifle Definition
 

@@ -1,6 +1,11 @@
 using Royale.Client.Platform;
 using Royale.Client.Presentation;
 using Royale.Client.Rendering;
+using Royale.Client.Rendering.Cameras;
+using Royale.Client.Rendering.Debug;
+using Royale.Client.Rendering.Meshes;
+using Royale.Client.Rendering.Screenshots;
+using Royale.Client.Rendering.Text;
 using SDL;
 
 namespace Royale.Client.Tests;

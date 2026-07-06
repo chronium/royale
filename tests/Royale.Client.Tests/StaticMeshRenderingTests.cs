@@ -1,6 +1,11 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Royale.Client.Rendering;
+using Royale.Client.Rendering.Cameras;
+using Royale.Client.Rendering.Debug;
+using Royale.Client.Rendering.Meshes;
+using Royale.Client.Rendering.Screenshots;
+using Royale.Client.Rendering.Text;
 using Royale.Content;
 
 namespace Royale.Client.Tests;

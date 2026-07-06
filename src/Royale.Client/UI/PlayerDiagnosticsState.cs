@@ -1,6 +1,9 @@
 using System.Globalization;
 using Royale.Client.Gameplay;
-using Royale.Simulation;
+using Royale.Simulation.Combat;
+using Royale.Simulation.Debug;
+using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 
 namespace Royale.Client.UI;
 

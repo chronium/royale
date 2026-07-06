@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 createdAt: 2026-07-05T07:34:45.0706070Z
-modifiedAt: 2026-07-06T17:29:28.6596560Z
+modifiedAt: 2026-07-06T17:38:18.2417530Z
 ---
 
 ## Overview
@@ -51,11 +51,22 @@ src/
     Launch/          client command-line options
     Platform/        SDL application, window, GPU device, and mouse-mode glue
     Presentation/    client camera mode and render-view mode controllers
-    Rendering/       render cameras, meshes, debug drawing, text, and shaders
+    Rendering/
+      Cameras/       render cameras, free camera, and gameplay camera view math
+      Debug/         debug primitive lists, debug scene building, and line rendering
+      Meshes/        static mesh geometry, instances, draw constants, and renderer
+      Screenshots/   BMP screenshot writing
+      Shaders/       shader asset selection helpers
+      Text/          Blurg text rendering, screen text, and world text billboards
+    Shaders/         HLSL shader sources compiled by the client build
     Timing/          fixed-update accumulator
     UI/              ImGui backend and diagnostics state
   Royale.Server/
   Royale.Simulation/
+    Combat/          health, damage, weapon fire, hitscan rays, and hit resolution
+    Debug/           simulation-side debug geometry descriptions
+    Movement/        player input samples, look state, view settings, and character controller
+    World/           simulation settings, map collision, spawn selection, and static world queries
   Royale.Protocol/
   Royale.Content/
   Royale.Diagnostics/
@@ -79,7 +90,11 @@ thirdparty/
   artifacts/         ignored generated native artifacts
 ```
 
-`Royale.Client.Platform` should stay focused on SDL/platform boundaries. Client presentation concerns such as input mapping, launch parsing, fixed timing, camera/render mode control, ImGui diagnostics, and rendering live in their own folders and namespaces.
+`Royale.Client.Platform` should stay focused on SDL/platform boundaries. Client presentation concerns such as input mapping, launch parsing, fixed timing, camera/render mode control, ImGui diagnostics, rendering, and screenshots live in their own folders and namespaces.
+
+`Royale.Client.Rendering` is split by rendering responsibility. Shared mode enums can remain at the rendering root, while cameras, debug drawing, meshes, shader helpers, screenshots, and text rendering stay in focused subnamespaces.
+
+`Royale.Simulation` is split by gameplay domain. Combat, movement, world/collision, and simulation debug helpers should remain independent of client presentation code.
 
 Projects should be split when there is a meaningful dependency, testing, or deployment boundary, not merely to create a theoretically clean hierarchy.
 

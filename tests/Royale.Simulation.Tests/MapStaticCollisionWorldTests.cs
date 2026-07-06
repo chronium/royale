@@ -1,6 +1,9 @@
 using Royale.Box3D.Bindings;
 using Royale.Content;
-using Royale.Simulation;
+using Royale.Simulation.Combat;
+using Royale.Simulation.Debug;
+using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 
 namespace Royale.Simulation.Tests;
 

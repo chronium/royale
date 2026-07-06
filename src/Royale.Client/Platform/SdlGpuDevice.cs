@@ -1,5 +1,10 @@
 using SDL;
 using Royale.Client.Rendering;
+using Royale.Client.Rendering.Cameras;
+using Royale.Client.Rendering.Debug;
+using Royale.Client.Rendering.Meshes;
+using Royale.Client.Rendering.Screenshots;
+using Royale.Client.Rendering.Text;
 using Royale.Client.UI;
 using static SDL.SDL3;
 

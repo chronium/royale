@@ -1,5 +1,8 @@
 using System.Numerics;
-using Royale.Simulation;
+using Royale.Simulation.Combat;
+using Royale.Simulation.Debug;
+using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 using SDL;
 
 namespace Royale.Client.Input;

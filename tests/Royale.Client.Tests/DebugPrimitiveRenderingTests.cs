@@ -2,8 +2,16 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Royale.Client.Gameplay;
 using Royale.Client.Rendering;
+using Royale.Client.Rendering.Cameras;
+using Royale.Client.Rendering.Debug;
+using Royale.Client.Rendering.Meshes;
+using Royale.Client.Rendering.Screenshots;
+using Royale.Client.Rendering.Text;
 using Royale.Content;
-using Royale.Simulation;
+using Royale.Simulation.Combat;
+using Royale.Simulation.Debug;
+using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 
 namespace Royale.Client.Tests;
 

@@ -2,7 +2,10 @@ using Microsoft.Extensions.Logging;
 using Royale.Diagnostics;
 using Royale.Protocol;
 using Royale.Server;
-using Royale.Simulation;
+using Royale.Simulation.Combat;
+using Royale.Simulation.Debug;
+using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 using ZLogger;
 
 using ILoggerFactory loggerFactory = RoyaleLogging.CreateConsoleLoggerFactory(LogLevel.Information);

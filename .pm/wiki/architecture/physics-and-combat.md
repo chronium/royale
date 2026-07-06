@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T14:58:36.7668190Z
+modifiedAt: 2026-07-06T15:01:22.0359260Z
 ---
 
 ## Physics Architecture
@@ -228,7 +228,7 @@ The feedback state is presentation data owned by the client player controller. I
 
 Rifle recoil is also presentation-only. Each accepted local shot adds a small camera pitch kick that decays over a short render-time window. The recoil offset is applied only while creating the render camera; it does not mutate `PlayerLookState` and therefore does not affect aiming, hitscan resolution, or future server-authoritative combat.
 
-F6/F7 debug-line rendering draws the active feedback through existing debug primitives: a very small yellow muzzle cross offset `0.35m` forward from the camera-origin shot point, a yellow-orange tracer from that muzzle marker to the hit point or range end, and an impact cross for target or static hits. The ImGui `Player` diagnostics window reports the last shot result, transient hit-marker state, hit identity, applied damage, and remaining feedback lifetime. These diagnostics are development tooling, not a final player HUD.
+F6/F7 debug-line rendering draws the active feedback through existing debug primitives: a small yellow muzzle cross offset `0.35m` forward from the camera-origin shot point, a yellow-orange tracer from that muzzle marker to the hit point or range end, and an impact cross for target or static hits. The muzzle marker size is `0.048m`; the impact marker remains at the ray end. The ImGui `Player` diagnostics window reports the last shot result, transient hit-marker state, hit identity, applied damage, and remaining feedback lifetime. These diagnostics are development tooling, not a final player HUD.
 
 ### Hitscan Raycasts
 

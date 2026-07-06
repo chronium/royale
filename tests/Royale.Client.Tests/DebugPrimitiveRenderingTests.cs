@@ -142,7 +142,7 @@ public sealed class DebugPrimitiveNativeRenderingTests
             .Where(line => Approximately((line.Start + line.End) * 0.5f, expectedMuzzlePosition))
             .ToArray();
         Assert.Equal(3, muzzleLines.Length);
-        Assert.All(muzzleLines, line => Assert.InRange(Vector3.Distance(line.Start, line.End), 0.015f, 0.017f));
+        Assert.All(muzzleLines, line => Assert.InRange(Vector3.Distance(line.Start, line.End), 0.047f, 0.049f));
 
         foreach (DebugLineVertex vertex in primitives.ToVertices())
         {

@@ -24,8 +24,9 @@ Add minimal recoil, muzzle indication, hit markers, and impact visualization.
 
 - Increased inspectable weapon feedback lifetime to `3.0` seconds so hit markers and tracer direction remain visible long enough to inspect.
 - Added explicit shot direction metadata for debug feedback.
-- Moved the debug muzzle marker `0.35m` forward from the camera-origin shot point and reduced it to `0.016m`, one tenth of the prior marker size.
-- The tracer now starts at the forward-offset muzzle marker and remains visible for the same inspectable feedback lifetime.
+- Moved the debug muzzle marker `0.35m` forward from the camera-origin shot point. The muzzle marker is at the tracer start, not the ray end.
+- Set muzzle marker size to `0.048m`; the impact marker remains at the ray end.
+- The tracer starts at the forward-offset muzzle marker and remains visible for the same inspectable feedback lifetime.
 
 ## Validation
 

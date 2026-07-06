@@ -8,7 +8,7 @@ namespace Royale.Client.Rendering;
 public static class DebugSceneBuilder
 {
     private const float MuzzleForwardOffsetMeters = 0.35f;
-    private const float MuzzleMarkerSizeMeters = 0.016f;
+    private const float MuzzleMarkerSizeMeters = 0.048f;
     private const float ImpactMarkerSizeMeters = 0.22f;
 
     private static readonly Vector4 PlayerCapsuleColor = new(0.20f, 0.95f, 0.45f, 1.0f);

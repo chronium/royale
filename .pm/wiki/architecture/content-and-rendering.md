@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T07:40:41.7615530Z
+modifiedAt: 2026-07-06T08:22:29.7285700Z
 ---
 
 ## Content and Map Data
@@ -79,7 +79,9 @@ Initial responsibilities include:
 * Debug geometry
 * ImGui rendering
 
-The current static mesh renderer owns one SDL GPU pipeline and shader pair, uploads a built-in unit box mesh once, and draws static map geometry by pushing one world-view-projection matrix per `StaticMeshInstance`. The client loads the selected map id from `ClientLaunchOptions.MapId`, reads the copied JSON through `MapCatalog`, and converts each `staticBoxes` entry into a render instance. It is not a scene graph, ECS, material system, mesh asset loader, culling system, batching system, or instancing API.
+The current static mesh renderer owns one SDL GPU pipeline and shader pair, uploads a built-in unit box mesh once, and draws static map geometry by pushing per-instance vertex constants for each `StaticMeshInstance`. The vertex constants contain the world-view-projection matrix and world-inverse matrix so static mesh normals can be transformed for world-space lighting. The client loads the selected map id from `ClientLaunchOptions.MapId`, reads the copied JSON through `MapCatalog`, and converts each `staticBoxes` entry into a render instance. It is not a scene graph, ECS, material system, mesh asset loader, culling system, batching system, or instancing API.
+
+The built-in static box mesh stores per-face outward unit normals instead of debug colors. Static gray-box geometry uses a fixed neutral gray albedo and a simple flat lighting model in the basic shader: ambient intensity `0.35` plus one normalized down-diagonal directional diffuse light with intensity `0.65`. The renderer pushes fixed fragment lighting constants for that albedo and light. This is intentionally not a material system, render graph, shadow system, or per-instance lighting API.
 
 Rendering consumes a small `RenderCamera` value containing position, yaw, pitch, field of view, near plane, and far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
 

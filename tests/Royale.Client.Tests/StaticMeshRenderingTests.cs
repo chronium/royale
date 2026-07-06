@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Royale.Client.Rendering;
 using Royale.Content;
 
@@ -40,6 +41,62 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void UnitBoxMeshVerticesHaveFiniteNormalizedNormals()
+    {
+        StaticMeshGeometry mesh = UnitBoxMesh.Create();
+
+        foreach (StaticMeshVertex vertex in mesh.Vertices)
+        {
+            AssertFinite(vertex.Normal);
+            Assert.Equal(1.0f, vertex.Normal.Length(), precision: 5);
+        }
+    }
+
+    [Fact]
+    public void UnitBoxMeshFacesHaveStableOutwardNormals()
+    {
+        StaticMeshGeometry mesh = UnitBoxMesh.Create();
+
+        Assert.Equal(24, mesh.Vertices.Count);
+        Assert.Equal(36, mesh.Indices.Count);
+
+        for (int faceStart = 0; faceStart < mesh.Vertices.Count; faceStart += 4)
+        {
+            Vector3 faceNormal = mesh.Vertices[faceStart].Normal;
+
+            for (int vertexIndex = faceStart; vertexIndex < faceStart + 4; vertexIndex++)
+            {
+                StaticMeshVertex vertex = mesh.Vertices[vertexIndex];
+                Assert.Equal(faceNormal, vertex.Normal);
+                Assert.True(Vector3.Dot(vertex.Position, faceNormal) > 0.0f);
+            }
+        }
+    }
+
+    [Fact]
+    public void StaticMeshVertexLayoutMatchesPositionAndNormal()
+    {
+        Assert.Equal(Marshal.SizeOf<Vector3>() * 2, StaticMeshVertex.Stride);
+        Assert.Equal(0, StaticMeshVertex.PositionOffset);
+        Assert.Equal(Marshal.SizeOf<Vector3>(), StaticMeshVertex.NormalOffset);
+        Assert.Equal(StaticMeshVertex.Stride, Marshal.SizeOf<StaticMeshVertex>());
+    }
+
+    [Fact]
+    public void StaticMeshLightingDefaultsUseNormalizedDirectionalLight()
+    {
+        StaticMeshLightingConstants lighting = StaticMeshLightingConstants.CreateDefault();
+
+        Assert.Equal(new Vector3(0.68f, 0.68f, 0.68f), lighting.Albedo);
+        Assert.Equal(StaticMeshLightingConstants.DefaultAmbientIntensity, lighting.AmbientIntensity);
+        Assert.Equal(StaticMeshLightingConstants.DefaultDiffuseIntensity, lighting.DiffuseIntensity);
+        Assert.Equal(0.35f, lighting.AmbientIntensity);
+        Assert.Equal(0.65f, lighting.DiffuseIntensity);
+        Assert.Equal(1.0f, lighting.LightDirection.Length(), precision: 5);
+        Assert.True(lighting.LightDirection.Y < 0.0f);
+    }
+
+    [Fact]
     public void MapStaticMeshSceneDrawListIsDeterministic()
     {
         GameMap map = MapCatalog.LoadDefault();
@@ -66,6 +123,21 @@ public sealed class StaticMeshRenderingTests
             Matrix4x4 matrix = StaticMeshDraw.CreateTransposedWorldViewProjection(instance, camera, 1280, 720);
 
             AssertFinite(matrix);
+        }
+    }
+
+    [Fact]
+    public void StaticMeshShaderConstantsCanBeCreatedForEveryPreviewInstance()
+    {
+        RenderCamera camera = DebugCamera.CreateDefault().ToRenderCamera();
+        IReadOnlyList<StaticMeshInstance> instances = MapStaticMeshScene.CreateInstances(MapCatalog.LoadDefault());
+
+        foreach (StaticMeshInstance instance in instances)
+        {
+            StaticMeshInstanceShaderConstants constants = StaticMeshDraw.CreateShaderConstants(instance, camera, 1280, 720);
+
+            AssertFinite(constants.WorldViewProjection);
+            AssertFinite(constants.WorldInverse);
         }
     }
 
@@ -106,5 +178,12 @@ public sealed class StaticMeshRenderingTests
         Assert.True(float.IsFinite(matrix.M42));
         Assert.True(float.IsFinite(matrix.M43));
         Assert.True(float.IsFinite(matrix.M44));
+    }
+
+    private static void AssertFinite(Vector3 vector)
+    {
+        Assert.True(float.IsFinite(vector.X));
+        Assert.True(float.IsFinite(vector.Y));
+        Assert.True(float.IsFinite(vector.Z));
     }
 }

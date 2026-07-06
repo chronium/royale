@@ -11,35 +11,35 @@ public static class UnitBoxMesh
 
     private static readonly StaticMeshVertex[] Vertices =
     [
-        new(new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-        new(new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-        new(new Vector3(0.5f, 0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
-        new(new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.90f, 0.16f, 0.15f)),
+        new(new Vector3(-0.5f, -0.5f, -0.5f), -Vector3.UnitZ),
+        new(new Vector3(0.5f, -0.5f, -0.5f), -Vector3.UnitZ),
+        new(new Vector3(0.5f, 0.5f, -0.5f), -Vector3.UnitZ),
+        new(new Vector3(-0.5f, 0.5f, -0.5f), -Vector3.UnitZ),
 
-        new(new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-        new(new Vector3(0.5f, -0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-        new(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
-        new(new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.10f, 0.55f, 0.95f)),
+        new(new Vector3(-0.5f, -0.5f, 0.5f), Vector3.UnitZ),
+        new(new Vector3(0.5f, -0.5f, 0.5f), Vector3.UnitZ),
+        new(new Vector3(0.5f, 0.5f, 0.5f), Vector3.UnitZ),
+        new(new Vector3(-0.5f, 0.5f, 0.5f), Vector3.UnitZ),
 
-        new(new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-        new(new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-        new(new Vector3(0.5f, -0.5f, 0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
-        new(new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.95f, 0.76f, 0.16f)),
+        new(new Vector3(-0.5f, -0.5f, -0.5f), -Vector3.UnitY),
+        new(new Vector3(0.5f, -0.5f, -0.5f), -Vector3.UnitY),
+        new(new Vector3(0.5f, -0.5f, 0.5f), -Vector3.UnitY),
+        new(new Vector3(-0.5f, -0.5f, 0.5f), -Vector3.UnitY),
 
-        new(new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-        new(new Vector3(0.5f, 0.5f, -0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-        new(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
-        new(new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.20f, 0.76f, 0.34f)),
+        new(new Vector3(-0.5f, 0.5f, -0.5f), Vector3.UnitY),
+        new(new Vector3(0.5f, 0.5f, -0.5f), Vector3.UnitY),
+        new(new Vector3(0.5f, 0.5f, 0.5f), Vector3.UnitY),
+        new(new Vector3(-0.5f, 0.5f, 0.5f), Vector3.UnitY),
 
-        new(new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-        new(new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-        new(new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
-        new(new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.70f, 0.32f, 0.92f)),
+        new(new Vector3(-0.5f, -0.5f, -0.5f), -Vector3.UnitX),
+        new(new Vector3(-0.5f, 0.5f, -0.5f), -Vector3.UnitX),
+        new(new Vector3(-0.5f, 0.5f, 0.5f), -Vector3.UnitX),
+        new(new Vector3(-0.5f, -0.5f, 0.5f), -Vector3.UnitX),
 
-        new(new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-        new(new Vector3(0.5f, 0.5f, -0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-        new(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
-        new(new Vector3(0.5f, -0.5f, 0.5f), new Vector3(0.95f, 0.44f, 0.16f)),
+        new(new Vector3(0.5f, -0.5f, -0.5f), Vector3.UnitX),
+        new(new Vector3(0.5f, 0.5f, -0.5f), Vector3.UnitX),
+        new(new Vector3(0.5f, 0.5f, 0.5f), Vector3.UnitX),
+        new(new Vector3(0.5f, -0.5f, 0.5f), Vector3.UnitX),
     ];
 
     private static readonly ushort[] Indices =

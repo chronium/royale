@@ -16,6 +16,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
     private readonly SDL_GPUBuffer* indexBuffer;
     private readonly StaticMeshGeometry unitBoxMesh;
     private readonly IReadOnlyList<StaticMeshInstance> previewInstances;
+    private readonly StaticMeshLightingConstants lightingConstants = StaticMeshLightingConstants.CreateDefault();
     private SDL_GPUTexture* depthTexture;
     private uint depthTextureWidth;
     private uint depthTextureHeight;
@@ -41,8 +42,8 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         previewInstances = staticMeshInstances;
 
         vertexShader = LoadShader("basic.vert", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_VERTEX, uniformBufferCount: 1);
-        fragmentShader = LoadShader("basic.frag", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_FRAGMENT, uniformBufferCount: 0);
-        vertexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_VERTEX, (uint)(unitBoxMesh.Vertices.Count * sizeof(StaticMeshVertex)));
+        fragmentShader = LoadShader("basic.frag", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_FRAGMENT, uniformBufferCount: 1);
+        vertexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_VERTEX, (uint)(unitBoxMesh.Vertices.Count * StaticMeshVertex.Stride));
         indexBuffer = CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_INDEX, (uint)(unitBoxMesh.Indices.Count * sizeof(ushort)));
         pipeline = CreatePipeline(swapchainFormat);
 
@@ -70,11 +71,13 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
         SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBinding, 1);
         SDL_BindGPUIndexBuffer(renderPass, &indexBinding, SDL_GPUIndexElementSize.SDL_GPU_INDEXELEMENTSIZE_16BIT);
+        fixed (StaticMeshLightingConstants* lightingPointer = &lightingConstants)
+            SDL_PushGPUFragmentUniformData(commandBuffer, 0, (IntPtr)lightingPointer, (uint)sizeof(StaticMeshLightingConstants));
 
         foreach (StaticMeshInstance instance in previewInstances)
         {
-            Matrix4x4 worldViewProjection = StaticMeshDraw.CreateTransposedWorldViewProjection(instance, camera, width, height);
-            SDL_PushGPUVertexUniformData(commandBuffer, 0, (IntPtr)(&worldViewProjection), (uint)sizeof(Matrix4x4));
+            StaticMeshInstanceShaderConstants instanceConstants = StaticMeshDraw.CreateShaderConstants(instance, camera, width, height);
+            SDL_PushGPUVertexUniformData(commandBuffer, 0, (IntPtr)(&instanceConstants), (uint)sizeof(StaticMeshInstanceShaderConstants));
             SDL_DrawGPUIndexedPrimitives(renderPass, (uint)unitBoxMesh.Indices.Count, 1, 0, 0, 0);
         }
     }
@@ -153,7 +156,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         var vertexBufferDescription = new SDL_GPUVertexBufferDescription
         {
             slot = 0,
-            pitch = (uint)sizeof(StaticMeshVertex),
+            pitch = (uint)StaticMeshVertex.Stride,
             input_rate = SDL_GPUVertexInputRate.SDL_GPU_VERTEXINPUTRATE_VERTEX,
         };
 
@@ -163,14 +166,14 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
             location = 0,
             buffer_slot = 0,
             format = SDL_GPUVertexElementFormat.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-            offset = 0,
+            offset = StaticMeshVertex.PositionOffset,
         };
         vertexAttributes[1] = new SDL_GPUVertexAttribute
         {
             location = 1,
             buffer_slot = 0,
             format = SDL_GPUVertexElementFormat.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-            offset = (uint)sizeof(Vector3),
+            offset = (uint)StaticMeshVertex.NormalOffset,
         };
 
         var colorTargetDescription = new SDL_GPUColorTargetDescription
@@ -241,7 +244,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
 
     private void UploadGeometry()
     {
-        uint vertexBytes = (uint)(unitBoxMesh.Vertices.Count * sizeof(StaticMeshVertex));
+        uint vertexBytes = (uint)(unitBoxMesh.Vertices.Count * StaticMeshVertex.Stride);
         uint indexBytes = (uint)(unitBoxMesh.Indices.Count * sizeof(ushort));
         uint transferBytes = vertexBytes + indexBytes;
 

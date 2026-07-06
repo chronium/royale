@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T18:44:04.8470530Z
+modifiedAt: 2026-07-06T19:08:34.2268790Z
 ---
 
 ## Content and Map Data
@@ -131,6 +131,10 @@ The current smoke draw is a fixed `Royale BlurgText` label at the top-left of th
 `RENDER-009` extends the Blurg text path with rendering-owned world-space text billboards. `WorldTextBillboard` values carry text, world position, world-unit height, anchor, foreground and shadow colors, and either camera-facing or fixed-facing mode. Camera-facing labels derive their right/up basis from the active `RenderCamera`; fixed-facing labels preserve an authored world basis supplied by the caller.
 
 World text remains client/rendering presentation state. It is projected on the CPU from Blurg glyph rectangles into arbitrary screen-space textured quads, then batched through the existing `TextQuadRenderer`. The pass is color-only with no depth testing or depth writes, so labels render as readable overlays after world/debug geometry and before ImGui. Depth-tested, raycast-occluded, replicated player-name, health-bar, loot UI, HUD-layout, and server-owned label behavior are intentionally deferred.
+
+`RENDER-010` adds a render-only SimpleMesh GLB smoke asset. The client project references the pinned vendored SimpleMesh `net8.0` project and copies committed mesh assets from `assets/meshes/**` into runtime output under the same relative path. `SimpleMeshStaticMeshLoader` converts supported triangle geometry from `assets/meshes/kenney-prototype-kit/crate.glb` into `StaticMeshGeometry` by applying node transforms to positions and normals and rejecting empty, non-triangle, invalid, or non-16-bit-compatible geometry.
+
+The crate is drawn by the same basic static mesh shader, depth target, and flat lighting used for gray-box solids. Map `staticBoxes` still render through the built-in centered unit-box mesh path; the crate is a separate client/rendering smoke mesh batch. This does not add map schema fields, collision generation, SimpleMesh convex hull use, textures, materials, animation, skinning, mesh library management, protocol behavior, or server dependencies.
 
 ## Shader Build Pipeline
 

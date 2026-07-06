@@ -202,7 +202,9 @@ public sealed unsafe class SdlApplication : IDisposable
         GameMap map = MapCatalog.LoadById(options.MapId);
         loadedMap = map;
         localPlayer = LocalPlayerController.Create(map);
-        IReadOnlyList<StaticMeshInstance> staticMeshInstances = MapStaticMeshScene.CreateInstances(map);
+        StaticMeshGeometry crateSmokeGeometry = SimpleMeshStaticMeshLoader.LoadFromFile(
+            StaticMeshAssetPaths.GetKenneyPrototypeKitCratePath(AppContext.BaseDirectory));
+        StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, crateSmokeGeometry);
         logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and local spawn {localPlayer.SpawnPoint.Id}.");
 
         logger.ZLogInformation($"Creating SDL window.");
@@ -214,7 +216,7 @@ public sealed unsafe class SdlApplication : IDisposable
         logger.ZLogInformation($"SDL window created.");
 
         logger.ZLogInformation($"Creating SDL GPU device.");
-        gpuDevice = SdlGpuDevice.Create(Window, staticMeshInstances);
+        gpuDevice = SdlGpuDevice.Create(Window, staticMeshScene);
         logger.ZLogInformation($"SDL GPU device created.");
         imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
     }

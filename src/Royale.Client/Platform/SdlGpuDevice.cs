@@ -18,18 +18,18 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         SDL_GPUShaderFormat.SDL_GPU_SHADERFORMAT_DXIL;
 
     private readonly SdlWindow window;
-    private readonly IReadOnlyList<StaticMeshInstance> staticMeshInstances;
+    private readonly StaticMeshScene staticMeshScene;
     private SDL_GPUDevice* device;
     private StaticMeshRenderer? staticMeshRenderer;
     private DebugLineRenderer? debugLineRenderer;
     private BlurgTextRenderer? blurgTextRenderer;
     private bool windowClaimed;
 
-    private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window, IReadOnlyList<StaticMeshInstance> staticMeshInstances)
+    private SdlGpuDevice(SDL_GPUDevice* device, SdlWindow window, StaticMeshScene staticMeshScene)
     {
         this.device = device;
         this.window = window;
-        this.staticMeshInstances = staticMeshInstances;
+        this.staticMeshScene = staticMeshScene;
         SupportedShaderFormats = SDL_GetGPUShaderFormats(device);
         PreferredShaderFormat = SelectPreferredShaderFormat(SupportedShaderFormats);
     }
@@ -47,14 +47,14 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         }
     }
 
-    public static SdlGpuDevice Create(SdlWindow window, IReadOnlyList<StaticMeshInstance> staticMeshInstances)
+    public static SdlGpuDevice Create(SdlWindow window, StaticMeshScene staticMeshScene)
     {
         SDL_GPUDevice* device = SDL_CreateGPUDevice(RequestedShaderFormats, debug_mode: false, name: (byte*)null);
 
         if (device is null)
             throw new InvalidOperationException($"SDL GPU device creation failed: {SDL_GetError()}");
 
-        var gpuDevice = new SdlGpuDevice(device, window, staticMeshInstances);
+        var gpuDevice = new SdlGpuDevice(device, window, staticMeshScene);
 
         try
         {
@@ -126,7 +126,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 Handle,
                 swapchainFormat,
                 PreferredShaderFormat.Value,
-                staticMeshInstances);
+                staticMeshScene);
             blurgTextRenderer ??= new BlurgTextRenderer(
                 Handle,
                 swapchainFormat,

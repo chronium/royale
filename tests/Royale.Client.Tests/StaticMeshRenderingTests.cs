@@ -58,6 +58,40 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void SimpleMeshLoaderLoadsCommittedKenneyCrate()
+    {
+        StaticMeshGeometry mesh = SimpleMeshStaticMeshLoader.LoadFromFile(GetKenneyCrateAssetPath());
+
+        Assert.NotEmpty(mesh.Vertices);
+        Assert.NotEmpty(mesh.Indices);
+        Assert.Equal(0, mesh.Indices.Count % 3);
+    }
+
+    [Fact]
+    public void SimpleMeshLoaderProducesFiniteNormalizedCrateNormals()
+    {
+        StaticMeshGeometry mesh = SimpleMeshStaticMeshLoader.LoadFromFile(GetKenneyCrateAssetPath());
+
+        foreach (StaticMeshVertex vertex in mesh.Vertices)
+        {
+            AssertFinite(vertex.Position);
+            AssertFinite(vertex.Normal);
+            Assert.Equal(1.0f, vertex.Normal.Length(), precision: 5);
+        }
+    }
+
+    [Fact]
+    public void SimpleMeshLoaderProducesInRange16BitCrateIndices()
+    {
+        StaticMeshGeometry mesh = SimpleMeshStaticMeshLoader.LoadFromFile(GetKenneyCrateAssetPath());
+
+        Assert.InRange(mesh.Vertices.Count, 1, ushort.MaxValue);
+
+        foreach (ushort index in mesh.Indices)
+            Assert.InRange(index, 0, mesh.Vertices.Count - 1);
+    }
+
+    [Fact]
     public void UnitBoxMeshFacesHaveStableOutwardNormals()
     {
         StaticMeshGeometry mesh = UnitBoxMesh.Create();
@@ -118,6 +152,35 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void MapStaticMeshSceneKeepsMapStaticBoxesOnUnitBoxPath()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(map, UnitBoxMesh.Create());
+
+        Assert.Equal(map.StaticBoxes.Count, scene.UnitBoxInstances.Count);
+        Assert.Single(scene.SmokeMeshBatches);
+
+        IReadOnlyList<StaticMeshRenderBatch> renderBatches = scene.CreateRenderBatches();
+        Assert.Equal(2, renderBatches.Count);
+        Assert.Equal(scene.UnitBoxInstances, renderBatches[0].Instances);
+        Assert.Equal(UnitBoxMesh.Create().Indices.Count, renderBatches[0].Geometry.Indices.Count);
+    }
+
+    [Fact]
+    public void MapStaticMeshSceneIncludesCrateSmokeMeshSeparateFromMapStaticBoxes()
+    {
+        StaticMeshGeometry crateGeometry = SimpleMeshStaticMeshLoader.LoadFromFile(GetKenneyCrateAssetPath());
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(MapCatalog.LoadDefault(), crateGeometry);
+
+        StaticMeshRenderBatch smokeBatch = Assert.Single(scene.SmokeMeshBatches);
+        StaticMeshInstance smokeInstance = Assert.Single(smokeBatch.Instances);
+
+        Assert.Same(crateGeometry, smokeBatch.Geometry);
+        Assert.Equal("crate-smoke", smokeInstance.DebugName);
+        Assert.DoesNotContain(scene.UnitBoxInstances, instance => instance.DebugName == smokeInstance.DebugName);
+    }
+
+    [Fact]
     public void WorldViewProjectionCanBeCreatedForEveryPreviewInstance()
     {
         RenderCamera camera = DebugCamera.CreateDefault().ToRenderCamera();
@@ -147,6 +210,18 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void StaticMeshShaderConstantsCanBeCreatedForCrateSmokeInstance()
+    {
+        RenderCamera camera = DebugCamera.CreateDefault().ToRenderCamera();
+        StaticMeshInstance instance = MapStaticMeshScene.CreateCrateSmokeInstance();
+
+        StaticMeshInstanceShaderConstants constants = StaticMeshDraw.CreateShaderConstants(instance, camera, 1280, 720);
+
+        AssertFinite(constants.WorldViewProjection);
+        AssertFinite(constants.WorldInverse);
+    }
+
+    [Fact]
     public void StaticBoxTransformsUsePositionSizeAndEulerRotation()
     {
         var staticBox = new StaticBoxDefinition
@@ -163,6 +238,24 @@ public sealed class StaticMeshRenderingTests
             Matrix4x4.CreateTranslation(1.0f, 2.0f, 3.0f);
 
         Assert.Equal(expected, MapStaticMeshScene.CreateTransform(staticBox));
+    }
+
+    private static string GetKenneyCrateAssetPath() =>
+        Path.Combine(FindRepositoryRoot(), StaticMeshAssetPaths.KenneyPrototypeKitCrateRelativePath);
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Royale.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root from test output directory.");
     }
 
     private static void AssertFinite(Matrix4x4 matrix)

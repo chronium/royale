@@ -79,6 +79,7 @@ At the start of work, check whether Git is available and whether the worktree is
 - If the existing changes are complex, mixed, surprising, or not obviously safe to commit, stop and ask how to proceed.
 - Never overwrite, revert, or discard user changes unless explicitly instructed.
 - Keep commits focused on completed work. Do not mix unrelated tasks into one commit.
+- Prefix task commits with the PM task ID in square brackets, for example `[COMBAT-001] Add default rifle definition`.
 - Branches may be created when they materially reduce risk or help organize larger work, but a branch per task is not required and should not be treated as the default workflow.
 
 If Git is not initialized in the workspace, say so and continue with the PM board and wiki workflow.

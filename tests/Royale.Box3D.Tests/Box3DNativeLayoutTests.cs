@@ -29,6 +29,7 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3BodyDef>(104);
         AssertSize<B3SurfaceMaterial>(40);
         AssertSize<B3ShapeDef>(120);
+        AssertSize<B3Capsule>(28);
         AssertSize<B3Version>(12);
         AssertSize<B3Filter>(24);
         AssertSize<B3QueryFilter>(32);
@@ -173,6 +174,10 @@ public sealed class Box3DNativeLayoutTests
         AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.InvokeContactCreation), 110);
         AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.UpdateBodyMass), 111);
         AssertOffset<B3ShapeDef>(nameof(B3ShapeDef.InternalValue), 112);
+
+        AssertOffset<B3Capsule>(nameof(B3Capsule.Center1), 0);
+        AssertOffset<B3Capsule>(nameof(B3Capsule.Center2), 12);
+        AssertOffset<B3Capsule>(nameof(B3Capsule.Radius), 24);
     }
 
     [Fact]

@@ -74,6 +74,9 @@ public static class Box3DBindingSurface
     [DllImport(NativeLibraryName, EntryPoint = "b3DefaultShapeDef", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3ShapeDef b3DefaultShapeDef();
 
+    [DllImport(NativeLibraryName, EntryPoint = "b3CreateCapsuleShape", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3ShapeId b3CreateCapsuleShape(B3BodyId bodyId, in B3ShapeDef def, in B3Capsule capsule);
+
     [DllImport(NativeLibraryName, EntryPoint = "b3MakeBoxHull", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3BoxHull b3MakeBoxHull(float hx, float hy, float hz);
 
@@ -82,4 +85,33 @@ public static class Box3DBindingSurface
 
     [DllImport(NativeLibraryName, EntryPoint = "b3CreateHullShape", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3ShapeId b3CreateHullShape(B3BodyId bodyId, in B3ShapeDef def, in B3HullData hull);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3DestroyShape", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3DestroyShape(B3ShapeId shapeId, [MarshalAs(UnmanagedType.I1)] bool updateBodyMass);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_IsValid", CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool b3Shape_IsValid(B3ShapeId id);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_GetType", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3ShapeType b3Shape_GetType(B3ShapeId shapeId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_GetBody", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3BodyId b3Shape_GetBody(B3ShapeId shapeId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_GetWorld", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3WorldId b3Shape_GetWorld(B3ShapeId shapeId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_IsSensor", CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool b3Shape_IsSensor(B3ShapeId shapeId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_GetFilter", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3Filter b3Shape_GetFilter(B3ShapeId shapeId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Shape_SetFilter", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3Shape_SetFilter(
+        B3ShapeId shapeId,
+        B3Filter filter,
+        [MarshalAs(UnmanagedType.I1)] bool invokeContacts);
 }

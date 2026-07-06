@@ -261,6 +261,14 @@ public struct B3ShapeDef
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct B3Capsule
+{
+    public B3Vec3 Center1;
+    public B3Vec3 Center2;
+    public float Radius;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct B3Version
 {
     public int Major;

@@ -1,5 +1,5 @@
 using System.Numerics;
-using Royale.Client.Platform;
+using Royale.Client.Input;
 using Royale.Simulation;
 using SDL;
 

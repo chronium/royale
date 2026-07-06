@@ -1,4 +1,4 @@
-using Royale.Client.Platform;
+using Royale.Client.Launch;
 using Royale.Content;
 using Royale.Protocol;
 

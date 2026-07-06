@@ -1,7 +1,7 @@
 using System.Globalization;
 using Royale.Client.Gameplay;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.UI;
 
 public readonly record struct TrainingDummyDiagnosticsState(
     string Id,

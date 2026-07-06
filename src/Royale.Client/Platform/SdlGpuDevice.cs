@@ -1,5 +1,6 @@
 using SDL;
 using Royale.Client.Rendering;
+using Royale.Client.UI;
 using static SDL.SDL3;
 
 namespace Royale.Client.Platform;

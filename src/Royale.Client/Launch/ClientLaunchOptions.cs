@@ -2,7 +2,7 @@ using System.Globalization;
 using Royale.Content;
 using Royale.Protocol;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.Launch;
 
 public sealed record ClientLaunchOptions(
     ClientLaunchMode Mode,

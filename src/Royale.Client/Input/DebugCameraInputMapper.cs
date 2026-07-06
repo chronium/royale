@@ -1,7 +1,7 @@
 using Royale.Client.Rendering;
 using SDL;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.Input;
 
 public static class DebugCameraInputMapper
 {

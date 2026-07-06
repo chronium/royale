@@ -1,6 +1,6 @@
 using Royale.Client.Rendering;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.UI;
 
 public readonly record struct ImGuiDebugOverlayState(
     double DeltaSeconds,

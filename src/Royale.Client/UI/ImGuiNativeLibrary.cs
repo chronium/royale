@@ -2,7 +2,7 @@ using System.Reflection;
 using Evergine.Bindings.Imgui;
 using Royale.Native;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.UI;
 
 internal static class ImGuiNativeLibrary
 {

@@ -2,7 +2,7 @@ using System.Globalization;
 using Royale.Client.Gameplay;
 using Royale.Simulation;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.UI;
 
 public readonly record struct PlayerDiagnosticsState(
     int CurrentHealth,

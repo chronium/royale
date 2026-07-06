@@ -1,4 +1,4 @@
-using Royale.Client.Platform;
+using Royale.Client.Input;
 
 namespace Royale.Client.Tests;
 

@@ -1,4 +1,4 @@
-namespace Royale.Client.Platform;
+namespace Royale.Client.Presentation;
 
 public enum ClientCameraMode
 {

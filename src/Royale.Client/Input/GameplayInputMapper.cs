@@ -2,7 +2,7 @@ using System.Numerics;
 using Royale.Simulation;
 using SDL;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.Input;
 
 public static class GameplayInputMapper
 {

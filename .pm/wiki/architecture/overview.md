@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 createdAt: 2026-07-05T07:34:45.0706070Z
-modifiedAt: 2026-07-05T16:11:32.8324730Z
+modifiedAt: 2026-07-06T17:29:28.6596560Z
 ---
 
 ## Overview
@@ -41,40 +41,47 @@ The architecture should not optimize for arbitrary games, editor extensibility, 
 
 ## Solution Structure
 
-A possible solution layout is:
+The current solution layout is:
 
 ```text
 src/
-  Game.Client/
-  Game.Server/
-  Game.Simulation/
-  Game.Protocol/
-  Game.Content/
-  Game.Platform/
-  Game.Rendering/
-  Game.Debugging/
-  Box3D.Bindings/
-  Box3D/
+  Royale.Client/
+    Gameplay/        client-owned offline gameplay fixtures and feedback
+    Input/           input state and input-to-game command mapping
+    Launch/          client command-line options
+    Platform/        SDL application, window, GPU device, and mouse-mode glue
+    Presentation/    client camera mode and render-view mode controllers
+    Rendering/       render cameras, meshes, debug drawing, text, and shaders
+    Timing/          fixed-update accumulator
+    UI/              ImGui backend and diagnostics state
+  Royale.Server/
+  Royale.Simulation/
+  Royale.Protocol/
+  Royale.Content/
+  Royale.Diagnostics/
+  Royale.Native/
+  Royale.Box3D.Bindings/
+  Royale.Box3D/
 
 tests/
-  Game.Simulation.Tests/
-  Game.Protocol.Tests/
-  Game.Server.Tests/
-  Box3D.Tests/
+  Royale.Client.Tests/
+  Royale.Server.Tests/
+  Royale.Simulation.Tests/
+  Royale.Protocol.Tests/
+  Royale.Content.Tests/
+  Royale.Diagnostics.Tests/
+  Royale.Native.Tests/
+  Royale.Box3D.Tests/
 
-native/
-  box3d/
-
-assets/
-  shaders/
-  meshes/
-  textures/
-  maps/
+thirdparty/
+  repos/             ignored fetched source dependencies
+  patches/           committed project-specific dependency patches
+  artifacts/         ignored generated native artifacts
 ```
 
-The exact number of projects may change as the implementation develops.
+`Royale.Client.Platform` should stay focused on SDL/platform boundaries. Client presentation concerns such as input mapping, launch parsing, fixed timing, camera/render mode control, ImGui diagnostics, and rendering live in their own folders and namespaces.
 
-Projects should be split when there is a meaningful dependency or deployment boundary, not merely to create a theoretically clean hierarchy.
+Projects should be split when there is a meaningful dependency, testing, or deployment boundary, not merely to create a theoretically clean hierarchy.
 
 ## Dependency Direction
 
@@ -83,27 +90,30 @@ The most important dependency rule is that low-level and shared projects must no
 A simplified dependency graph is:
 
 ```text
-Game.Client
-  ├── Game.Simulation
-  ├── Game.Protocol
-  ├── Game.Content
-  ├── Game.Platform
-  ├── Game.Rendering
-  ├── Game.Debugging
-  └── Box3D
+Royale.Client
+  ├── Royale.Simulation
+  ├── Royale.Protocol
+  ├── Royale.Content
+  ├── Royale.Diagnostics
+  ├── Royale.Box3D
+  └── Royale.Native
 
-Game.Server
-  ├── Game.Simulation
-  ├── Game.Protocol
-  ├── Game.Content
-  └── Box3D
+Royale.Server
+  ├── Royale.Simulation
+  ├── Royale.Protocol
+  ├── Royale.Content
+  ├── Royale.Box3D
+  └── Royale.Diagnostics
 
-Game.Simulation
-  ├── Game.Content
-  └── Box3D
+Royale.Simulation
+  ├── Royale.Content
+  └── Royale.Box3D
 
-Box3D
-  └── Box3D.Bindings
+Royale.Box3D
+  └── Royale.Box3D.Bindings
+
+Royale.Box3D.Bindings
+  └── Royale.Native
 ```
 
 The dedicated server must not reference:

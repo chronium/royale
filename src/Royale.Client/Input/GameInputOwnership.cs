@@ -1,4 +1,6 @@
-namespace Royale.Client.Platform;
+using Royale.Client.UI;
+
+namespace Royale.Client.Input;
 
 public readonly record struct GameInputOwnership(bool RelativeMouseModeEnabled, ImGuiCaptureState ImGuiCapture)
 {

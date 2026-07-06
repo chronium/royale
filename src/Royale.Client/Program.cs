@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Royale.Client.Launch;
 using Royale.Client.Platform;
 using Royale.Diagnostics;
 using ZLogger;

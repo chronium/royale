@@ -2,9 +2,10 @@ using System.Runtime.InteropServices;
 using Evergine.Bindings.Imgui;
 using Evergine.Mathematics;
 using Royale.Client.Gameplay;
+using Royale.Client.Platform;
 using SDL;
 
-namespace Royale.Client.Platform;
+namespace Royale.Client.UI;
 
 internal sealed unsafe class ImGuiBackend : IDisposable
 {

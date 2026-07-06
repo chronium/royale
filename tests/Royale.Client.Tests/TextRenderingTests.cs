@@ -92,7 +92,7 @@ public sealed class TextRenderingTests
     }
 
     [Fact]
-    public void ProjectedQuadBuilderPreservesArbitraryCornersAndGroupsTextureRuns()
+    public void ProjectedQuadBuilderRoundsCornersAndGroupsTextureRuns()
     {
         TextQuadBatch batch = TextQuadBatchBuilder.CreateProjected(
             [
@@ -132,8 +132,8 @@ public sealed class TextRenderingTests
             ]);
 
         Assert.Equal(12, batch.Vertices.Count);
-        Assert.Equal(new Vector2(1.25f, 2.5f), batch.Vertices[0].Position);
-        Assert.Equal(new Vector2(10.75f, 13.5f), batch.Vertices[3].Position);
+        Assert.Equal(new Vector2(1.0f, 2.0f), batch.Vertices[0].Position);
+        Assert.Equal(new Vector2(11.0f, 14.0f), batch.Vertices[3].Position);
         Assert.Equal([0, 1, 2, 2, 1, 3], batch.Indices.Take(6).ToArray());
         Assert.Equal(2, batch.DrawCommands.Count);
         Assert.Equal(new TextDrawCommand(new IntPtr(1), 0, 12), batch.DrawCommands[0]);

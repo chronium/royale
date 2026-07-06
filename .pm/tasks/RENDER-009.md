@@ -7,7 +7,7 @@ priority: medium
 dependsOn:
 - RENDER-008
 createdAt: 2026-07-06T15:17:09.7329850Z
-modifiedAt: 2026-07-06T15:52:35.2268510Z
+modifiedAt: 2026-07-06T16:01:32.4464220Z
 ---
 
 Add world-space text billboard rendering on top of the Blurg SDL GPU text renderer. Support both camera-facing billboards for player-facing labels and fixed-facing billboards that preserve an authored world orientation.
@@ -43,3 +43,5 @@ Ask the project owner to visually validate readability, facing behavior, scale, 
 
 - 2026-07-06 15:45 UTC - Implementation started from the approved plan: client/rendering-only world-space Blurg text billboards with world-unit sizing, camera-facing and fixed-facing modes, overlay rendering after the world/debug pass and before ImGui, tests, wiki update, validation, and a focused commit. Scope excludes gameplay, protocol, server, HUD layout, health bars, replication, and content-schema changes.
 - 2026-07-06 15:52 UTC - Implemented world-space Blurg text billboards as client/rendering-only presentation state. Added world-unit label sizing, camera-facing and fixed-facing modes, CPU projection into arbitrary screen-space text quads, batching with existing texture draw-command grouping, and smoke labels for the training dummy and an authored fixed world label. Updated architecture/content-and-rendering. Validation: `dotnet build Royale.slnx -m:1 --no-restore`, `dotnet test Royale.slnx -m:1 --no-restore`, PM `validate_project`, and screenshot capture to `/tmp/royale-render009.bmp` passed. The startup screenshot visibly confirms the fixed world label outside ImGui; the camera-facing training-dummy label is attached to the dummy and needs human validation by turning/freecam because the current default gameplay view starts with the dummy behind the camera.
+- 2026-07-06 16:00 UTC - Human validation found per-glyph outline artifacts on projected world text. Follow-up fix: round projected quad screen positions to integer pixels before upload, matching the existing screen-text behavior.
+- 2026-07-06 16:01 UTC - Rounded projected text quad screen positions in `TextQuadBatchBuilder` before upload and updated client text rendering coverage to assert integer-snapped projected corners. Validation passed: `dotnet build Royale.slnx -m:1 --no-restore`, `dotnet test Royale.slnx -m:1 --no-restore`, and screenshot capture to `/tmp/royale-render009-rounded.bmp`.

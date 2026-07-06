@@ -117,10 +117,10 @@ public static class TextQuadBatchBuilder
         ushort baseVertex = checked((ushort)vertices.Count);
         Vector4 color = ToVector4(source.Color);
 
-        vertices.Add(new TextVertex(source.TopLeft, new Vector2(source.U0, source.V0), color));
-        vertices.Add(new TextVertex(source.TopRight, new Vector2(source.U1, source.V0), color));
-        vertices.Add(new TextVertex(source.BottomLeft, new Vector2(source.U0, source.V1), color));
-        vertices.Add(new TextVertex(source.BottomRight, new Vector2(source.U1, source.V1), color));
+        vertices.Add(new TextVertex(Round(source.TopLeft), new Vector2(source.U0, source.V0), color));
+        vertices.Add(new TextVertex(Round(source.TopRight), new Vector2(source.U1, source.V0), color));
+        vertices.Add(new TextVertex(Round(source.BottomLeft), new Vector2(source.U0, source.V1), color));
+        vertices.Add(new TextVertex(Round(source.BottomRight), new Vector2(source.U1, source.V1), color));
 
         AppendQuadIndices(vertices, indices, baseVertex);
     }
@@ -140,6 +140,9 @@ public static class TextQuadBatchBuilder
         if (vertices.Count > ushort.MaxValue - 4)
             throw new InvalidOperationException("Text quad batch exceeds 16-bit index capacity.");
     }
+
+    private static Vector2 Round(Vector2 position) =>
+        new(MathF.Round(position.X), MathF.Round(position.Y));
 
     private static void FinishCommand(
         List<TextDrawCommand> commands,

@@ -71,6 +71,43 @@ public sealed class MapContentTests
     }
 
     [Fact]
+    public void GrayboxMapUsesExpandedHorizontalFootprint()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        StaticBoxDefinition ground = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "ground-main");
+        StaticBoxDefinition northWall = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "boundary-north-wall");
+        StaticBoxDefinition eastWall = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "boundary-east-wall");
+
+        Assert.Equal(-24.0f, map.WorldBounds.Min.X);
+        Assert.Equal(-24.0f, map.WorldBounds.Min.Z);
+        Assert.Equal(24.0f, map.WorldBounds.Max.X);
+        Assert.Equal(24.0f, map.WorldBounds.Max.Z);
+        Assert.Equal(20.0f, map.SafeZone.Radius);
+
+        Assert.Equal(20.0f, ground.Size.X);
+        Assert.Equal(20.0f, ground.Size.Z);
+        Assert.Equal(-9.9f, northWall.Position.Z);
+        Assert.Equal(20.0f, northWall.Size.X);
+        Assert.Equal(9.9f, eastWall.Position.X);
+        Assert.Equal(20.0f, eastWall.Size.Z);
+    }
+
+    [Fact]
+    public void GrayboxRampClusterKeepsInternalSpacingAfterExpansion()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        StaticBoxDefinition step = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "step-low");
+        StaticBoxDefinition ramp = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "ramp-platform-approach");
+        StaticBoxDefinition platform = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "platform-high");
+
+        Assert.Equal(-6.1f, ramp.Position.X);
+        Assert.Equal(ramp.Position.X, step.Position.X);
+        Assert.Equal(ramp.Position.X, platform.Position.X);
+        Assert.Equal(-0.7f, step.Position.Z - ramp.Position.Z, precision: 5);
+        Assert.Equal(0.9f, platform.Position.Z - ramp.Position.Z, precision: 5);
+    }
+
+    [Fact]
     public void MissingMapIdFailsWithClearMessage()
     {
         FileNotFoundException exception = Assert.Throws<FileNotFoundException>(() => MapCatalog.LoadById("missing-map"));

@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T15:51:55.1458580Z
+modifiedAt: 2026-07-06T18:44:04.8470530Z
 ---
 
 ## Content and Map Data
@@ -12,6 +12,8 @@ The committed default map file is `src/Royale.Content/Maps/graybox.json`. The co
 
 `MapCatalog.LoadById()` accepts simple ASCII map ids using letters, digits, `-`, and `_`, then loads and validates the matching JSON file. Missing files fail with a clear `FileNotFoundException`; malformed JSON or invalid map shape fails with `InvalidDataException`.
 
+The current `graybox` map uses a larger horizontal test arena than the original M1 blockout. Its gameplay bounds are `-24..24` on X/Z, the safe-zone placeholder radius is `20`, and the rendered/collidable floor is `20 x 20` metres with perimeter walls at approximately `+/-9.9` metres. Individual cover, wall, step, platform, and ramp object sizes remain authored at their original scale. Most X/Z positions were doubled to create more walking room, while the step/ramp/platform assembly was translated as one unit so its internal spacing and ramp approach remain unchanged.
+
 The current minimal schema is:
 
 ```json
@@ -19,17 +21,17 @@ The current minimal schema is:
   "id": "graybox",
   "name": "Gray-Box Test Arena",
   "worldBounds": {
-    "min": { "x": -12.0, "y": -1.0, "z": -12.0 },
-    "max": { "x": 12.0, "y": 5.0, "z": 12.0 }
+    "min": { "x": -24.0, "y": -1.0, "z": -24.0 },
+    "max": { "x": 24.0, "y": 5.0, "z": 24.0 }
   },
   "safeZone": {
     "center": { "x": 0.0, "y": 0.0, "z": 0.0 },
-    "radius": 10.0
+    "radius": 20.0
   },
   "spawnPoints": [
     {
       "id": "spawn-north-west",
-      "position": { "x": -3.8, "y": 0.0, "z": -3.8 },
+      "position": { "x": -7.6, "y": 0.0, "z": -7.6 },
       "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
     }
   ],
@@ -43,7 +45,7 @@ The current minimal schema is:
     {
       "id": "ground-main",
       "position": { "x": 0.0, "y": -0.12, "z": 0.0 },
-      "size": { "x": 10.0, "y": 0.24, "z": 10.0 },
+      "size": { "x": 20.0, "y": 0.24, "z": 20.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     }
   ]

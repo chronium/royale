@@ -2,27 +2,27 @@
   "id": "graybox",
   "name": "Gray-Box Test Arena",
   "worldBounds": {
-    "min": { "x": -12.0, "y": -1.0, "z": -12.0 },
-    "max": { "x": 12.0, "y": 5.0, "z": 12.0 }
+    "min": { "x": -24.0, "y": -1.0, "z": -24.0 },
+    "max": { "x": 24.0, "y": 5.0, "z": 24.0 }
   },
   "safeZone": {
     "center": { "x": 0.0, "y": 0.0, "z": 0.0 },
-    "radius": 10.0
+    "radius": 20.0
   },
   "spawnPoints": [
     {
       "id": "spawn-north-west",
-      "position": { "x": -3.8, "y": 0.0, "z": -3.8 },
+      "position": { "x": -7.6, "y": 0.0, "z": -7.6 },
       "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
     },
     {
       "id": "spawn-south-east",
-      "position": { "x": 3.8, "y": 0.0, "z": 3.8 },
+      "position": { "x": 7.6, "y": 0.0, "z": 7.6 },
       "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
     },
     {
       "id": "spawn-west",
-      "position": { "x": -4.2, "y": 0.0, "z": -1.2 },
+      "position": { "x": -8.4, "y": 0.0, "z": -2.4 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 }
     }
   ],
@@ -33,83 +33,83 @@
     },
     {
       "id": "loot-platform",
-      "position": { "x": -2.8, "y": 1.1, "z": 2.2 }
+      "position": { "x": -5.85, "y": 1.1, "z": 3.75 }
     },
     {
       "id": "loot-cover",
-      "position": { "x": 2.5, "y": 0.7, "z": -1.7 }
+      "position": { "x": 5.0, "y": 0.7, "z": -3.4 }
     }
   ],
   "staticBoxes": [
     {
       "id": "ground-main",
       "position": { "x": 0.0, "y": -0.12, "z": 0.0 },
-      "size": { "x": 10.0, "y": 0.24, "z": 10.0 },
+      "size": { "x": 20.0, "y": 0.24, "z": 20.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-north-wall",
-      "position": { "x": 0.0, "y": 0.85, "z": -4.9 },
-      "size": { "x": 10.0, "y": 1.7, "z": 0.28 },
+      "position": { "x": 0.0, "y": 0.85, "z": -9.9 },
+      "size": { "x": 20.0, "y": 1.7, "z": 0.28 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-south-wall",
-      "position": { "x": 0.0, "y": 0.85, "z": 4.9 },
-      "size": { "x": 10.0, "y": 1.7, "z": 0.28 },
+      "position": { "x": 0.0, "y": 0.85, "z": 9.9 },
+      "size": { "x": 20.0, "y": 1.7, "z": 0.28 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-west-wall",
-      "position": { "x": -4.9, "y": 0.85, "z": 0.0 },
-      "size": { "x": 0.28, "y": 1.7, "z": 10.0 },
+      "position": { "x": -9.9, "y": 0.85, "z": 0.0 },
+      "size": { "x": 0.28, "y": 1.7, "z": 20.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-east-wall",
-      "position": { "x": 4.9, "y": 0.85, "z": 0.0 },
-      "size": { "x": 0.28, "y": 1.7, "z": 10.0 },
+      "position": { "x": 9.9, "y": 0.85, "z": 0.0 },
+      "size": { "x": 0.28, "y": 1.7, "z": 20.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "wall-center-long",
-      "position": { "x": -0.25, "y": 0.55, "z": -1.85 },
+      "position": { "x": -0.5, "y": 0.55, "z": -3.7 },
       "size": { "x": 3.8, "y": 1.1, "z": 0.34 },
       "rotationEuler": { "x": 0.0, "y": 10.0, "z": 0.0 }
     },
     {
       "id": "step-low",
-      "position": { "x": -3.05, "y": 0.2, "z": 0.85 },
+      "position": { "x": -6.1, "y": 0.2, "z": 2.4 },
       "size": { "x": 1.7, "y": 0.4, "z": 0.9 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "platform-high",
-      "position": { "x": -3.05, "y": 0.72, "z": 2.45 },
+      "position": { "x": -6.1, "y": 0.72, "z": 4.0 },
       "size": { "x": 2.1, "y": 0.4, "z": 1.7 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "ramp-platform-approach",
-      "position": { "x": -3.05, "y": 0.46, "z": 1.55 },
+      "position": { "x": -6.1, "y": 0.46, "z": 3.1 },
       "size": { "x": 1.7, "y": 0.22, "z": 1.6 },
       "rotationEuler": { "x": -18.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "cover-center-block",
-      "position": { "x": 0.35, "y": 0.38, "z": 0.35 },
+      "position": { "x": 0.7, "y": 0.38, "z": 0.7 },
       "size": { "x": 1.0, "y": 0.76, "z": 1.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "cover-east-tall",
-      "position": { "x": 2.55, "y": 0.55, "z": -1.4 },
+      "position": { "x": 5.1, "y": 0.55, "z": -2.8 },
       "size": { "x": 0.75, "y": 1.1, "z": 1.5 },
       "rotationEuler": { "x": 0.0, "y": -12.0, "z": 0.0 }
     },
     {
       "id": "cover-south-low",
-      "position": { "x": 1.85, "y": 0.28, "z": 2.7 },
+      "position": { "x": 3.7, "y": 0.28, "z": 5.4 },
       "size": { "x": 2.1, "y": 0.56, "z": 0.6 },
       "rotationEuler": { "x": 0.0, "y": -10.0, "z": 0.0 }
     }

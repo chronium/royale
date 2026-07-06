@@ -86,8 +86,8 @@ public sealed class MapStaticCollisionWorldTests
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
 
         IReadOnlyList<MapStaticCollider> colliders = collisionWorld.OverlapAabb(
-            new MapVector3(-0.25f, 0.1f, -0.25f),
-            new MapVector3(0.95f, 0.9f, 0.95f));
+            new MapVector3(0.1f, 0.1f, 0.1f),
+            new MapVector3(1.3f, 0.9f, 1.3f));
 
         Assert.Contains(colliders, collider => collider.StaticBoxId == "cover-center-block");
     }
@@ -112,8 +112,8 @@ public sealed class MapStaticCollisionWorldTests
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
 
         IReadOnlyList<MapStaticCollider> colliders = collisionWorld.OverlapAabb(
-            new MapVector3(-3.9f, 0.65f, 1.15f),
-            new MapVector3(-2.2f, 0.9f, 1.6f));
+            new MapVector3(-6.95f, 0.65f, 2.7f),
+            new MapVector3(-5.25f, 0.9f, 3.15f));
 
         Assert.Contains(colliders, collider => collider.StaticBoxId == "ramp-platform-approach");
     }

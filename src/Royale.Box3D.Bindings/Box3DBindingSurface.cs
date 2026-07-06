@@ -40,15 +40,36 @@ public static class Box3DBindingSurface
     [DllImport(NativeLibraryName, EntryPoint = "b3CreateBody", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3BodyId b3CreateBody(B3WorldId worldId, in B3BodyDef def);
 
+    [DllImport(NativeLibraryName, EntryPoint = "b3DestroyBody", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3DestroyBody(B3BodyId bodyId);
+
     [DllImport(NativeLibraryName, EntryPoint = "b3Body_IsValid", CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool b3Body_IsValid(B3BodyId id);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Body_GetType", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3BodyType b3Body_GetType(B3BodyId bodyId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Body_SetType", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3Body_SetType(B3BodyId bodyId, B3BodyType type);
 
     [DllImport(NativeLibraryName, EntryPoint = "b3Body_GetPosition", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3Pos b3Body_GetPosition(B3BodyId bodyId);
 
     [DllImport(NativeLibraryName, EntryPoint = "b3Body_GetRotation", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3Quat b3Body_GetRotation(B3BodyId bodyId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Body_GetTransform", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3WorldTransform b3Body_GetTransform(B3BodyId bodyId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Body_SetTransform", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3Body_SetTransform(B3BodyId bodyId, B3Pos position, B3Quat rotation);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Body_GetLinearVelocity", CallingConvention = CallingConvention.Cdecl)]
+    public static extern B3Vec3 b3Body_GetLinearVelocity(B3BodyId bodyId);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3Body_SetLinearVelocity", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void b3Body_SetLinearVelocity(B3BodyId bodyId, B3Vec3 linearVelocity);
 
     [DllImport(NativeLibraryName, EntryPoint = "b3DefaultShapeDef", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3ShapeDef b3DefaultShapeDef();

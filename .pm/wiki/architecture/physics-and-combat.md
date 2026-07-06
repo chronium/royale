@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-05T18:08:31.9762300Z
+modifiedAt: 2026-07-05T21:18:12.1588930Z
 ---
 
 ## Physics Architecture
@@ -31,7 +31,7 @@ This keeps state ownership and replication straightforward.
 
 ## Box3D Binding Scope
 
-The current Box3D binding surface includes foundational native value types, the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world, and the narrow body plus hull-shape subset needed by the upstream Box3D Hello World falling-box example.
+The current Box3D binding surface includes foundational native value types, the minimum world lifecycle APIs needed to create, validate, fixed-step, and destroy a world, the low-level body lifecycle, type, transform, and linear velocity APIs from PHYS-006, and the narrow hull-shape subset needed by the upstream Box3D Hello World falling-box example.
 
 Foundational bindings include:
 
@@ -52,13 +52,23 @@ World lifecycle bindings include:
 * `b3World_IsValid`
 * `b3World_Step`
 
-The Hello World subset adds:
+Body bindings include:
 
 * `b3DefaultBodyDef`
 * `b3CreateBody`
+* `b3DestroyBody`
 * `b3Body_IsValid`
+* `b3Body_GetType`
+* `b3Body_SetType`
 * `b3Body_GetPosition`
 * `b3Body_GetRotation`
+* `b3Body_GetTransform`
+* `b3Body_SetTransform`
+* `b3Body_GetLinearVelocity`
+* `b3Body_SetLinearVelocity`
+
+Hull-shape bindings include:
+
 * `b3DefaultShapeDef`
 * `b3MakeBoxHull`
 * `b3MakeCubeHull`
@@ -66,7 +76,7 @@ The Hello World subset adds:
 
 Supporting value bindings for that subset include `b3MotionLocks`, `b3BodyDef`, `b3SurfaceMaterial`, `b3ShapeDef`, `b3HullData`, and the embedded box hull storage used by `b3BoxHull`.
 
-This remains a low-level P/Invoke surface. Managed world, body, and shape ownership wrappers; broader body and shape lifecycle APIs; mesh, capsule, and sphere shape APIs; runtime native-library resolution; queries; debug draw; and gameplay-specific physics systems are deferred to their owning tasks.
+This remains a low-level P/Invoke surface. Managed world, body, and shape ownership wrappers; body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; broader shape lifecycle APIs; mesh, capsule, and sphere shape APIs; runtime native-library resolution; queries; debug draw; and gameplay-specific physics systems are deferred to their owning tasks.
 
 The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
 

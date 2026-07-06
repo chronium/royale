@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T04:31:33.9100270Z
+modifiedAt: 2026-07-06T05:06:52.3911000Z
 ---
 
 ## Physics Architecture
@@ -103,13 +103,21 @@ Primitive shape bindings include:
 
 Supporting value bindings for that subset include `b3MotionLocks`, `b3BodyDef`, `b3SurfaceMaterial`, `b3ShapeDef`, `b3Filter`, `b3QueryFilter`, `b3Capsule`, `b3ShapeProxy`, `b3RayResult`, `b3TreeStats`, `b3PlaneResult`, `b3HullData`, and the embedded box hull storage used by `b3BoxHull`.
 
-This remains a low-level P/Invoke surface. Managed world, body, shape, and query ownership wrappers; body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; material mutation; event toggles; mesh, height-field, compound, and sphere shape APIs; body-specific query APIs; runtime native-library resolution; debug draw; and gameplay-specific physics systems are deferred to their owning tasks.
+This remains a low-level P/Invoke surface. Managed world, body, shape, and query ownership wrappers; body names and user data; angular velocity; local/world point conversion; forces and impulses; mass APIs; material mutation; event toggles; mesh, height-field, compound, and sphere shape APIs; body-specific query APIs; runtime native-library resolution; and debug draw are deferred to their owning tasks.
 
 The current binding assumes the pinned Box3D build uses single-precision coordinates without `BOX3D_DOUBLE_PRECISION`. `b3Pos` maps to a three-float position and `b3WorldTransform` maps to the same layout as `b3Transform`.
 
 Every layout-sensitive binding type must have tests that verify native size and representative field offsets against the pinned Box3D headers. Pointer fields, native bool fields, inline fixed arrays, nested structs, and opaque IDs require explicit coverage because they are the most likely to drift silently.
 
 Native Box3D tests currently require the macOS ARM64 artifact at `thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.0.1.0.dylib`; build it with `sh thirdparty/build-box3d-macos.sh` before running tests on macOS ARM64 until final runtime native-library packaging is completed.
+
+## Static Map Collision
+
+`GAME-002` creates static Box3D collision from `GameMap.StaticBoxes` in `Royale.Simulation`. The map collision world is a disposable, game-specific owner for one Box3D world, one static body per static box, and one box hull shape per body. Each collider keeps the source static-box id associated with the created shape id so tests and debugging can resolve query hits back to map content.
+
+Static box collision uses the same shared `position`, `size`, and yaw/pitch/roll `rotationEuler` transform convention as client rendering. Box hull half-extents are `size / 2`, matching the centered unit-box render mesh.
+
+This type exists to build and query gray-box map collision for gameplay systems. It is not the general managed Box3D world/body/shape wrapper layer; runtime ownership wrappers remain deferred to `PHYS-009`.
 
 ## Player Controller
 

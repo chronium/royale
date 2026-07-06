@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T04:57:16.7326240Z
+modifiedAt: 2026-07-06T05:07:35.4211280Z
 ---
 
 ## Content and Map Data
@@ -50,9 +50,11 @@ The current minimal schema is:
 }
 ```
 
-Static boxes currently define copied shared map data and client-rendered gray-box geometry only. Their `position`, `size`, and human-editable `rotationEuler` values are converted by the client into unit-box world transforms. Spawn points, loot points, world bounds, and safe-zone fields are placeholders in this task and do not yet drive gameplay behavior.
+Static boxes define shared map data used by both client-rendered gray-box geometry and simulation static collision. Their `position`, `size`, and human-editable `rotationEuler` values are converted through the shared `MapStaticBoxTransforms` helper so rendering and collision use the same transform convention.
 
-`GAME-002` owns creating Box3D static collision from map static boxes. Until that task lands, map loading must not be treated as authoritative collision, spawn selection, loot placement, safe-zone simulation, or protocol compatibility behavior.
+Client rendering treats each static box as a centered unit-box mesh scaled by `size`, rotated by yaw/pitch/roll Euler angles, and translated by `position`. `GAME-002` uses the same data in `Royale.Simulation` to create one Box3D static body per static box and one box hull shape per body, with hull half-extents of `size / 2`. Shape ids are associated back to source static-box ids for tests and debugging.
+
+Spawn points, loot points, world bounds, and safe-zone fields are placeholders at this stage and do not yet drive gameplay behavior. Static map collision exists, but it does not implement spawn validation, loot collision, safe-zone simulation, mesh collision, height fields, dynamic bodies, or protocol compatibility behavior.
 
 Rendering-only data may remain client-specific.
 

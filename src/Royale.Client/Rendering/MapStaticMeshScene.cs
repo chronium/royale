@@ -11,14 +11,5 @@ public static class MapStaticMeshScene
             .ToArray();
 
     public static Matrix4x4 CreateTransform(StaticBoxDefinition staticBox) =>
-        Matrix4x4.CreateScale(ToVector3(staticBox.Size)) *
-        Matrix4x4.CreateFromYawPitchRoll(
-            DegreesToRadians(staticBox.RotationEuler.Y),
-            DegreesToRadians(staticBox.RotationEuler.X),
-            DegreesToRadians(staticBox.RotationEuler.Z)) *
-        Matrix4x4.CreateTranslation(ToVector3(staticBox.Position));
-
-    private static Vector3 ToVector3(MapVector3 vector) => new(vector.X, vector.Y, vector.Z);
-
-    private static float DegreesToRadians(float degrees) => degrees * MathF.PI / 180.0f;
+        MapStaticBoxTransforms.CreateWorldMatrix(staticBox);
 }

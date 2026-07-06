@@ -71,6 +71,7 @@ public sealed unsafe class SdlApplication : IDisposable
     {
         this.options = options;
         this.logger = logger;
+        ApplyCameraLaunchOptions(options);
     }
 
     public SdlWindow? Window { get; private set; }
@@ -78,6 +79,8 @@ public sealed unsafe class SdlApplication : IDisposable
     public InputState Input => input;
 
     public ClientCameraMode CameraMode => cameraMode.Mode;
+
+    public RenderCamera FreeCamera => freeCamera.ToRenderCamera();
 
     public RenderViewMode RenderViewMode => renderViewMode.Mode;
 
@@ -219,6 +222,18 @@ public sealed unsafe class SdlApplication : IDisposable
         gpuDevice = SdlGpuDevice.Create(Window, staticMeshScene);
         logger.ZLogInformation($"SDL GPU device created.");
         imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
+    }
+
+    private void ApplyCameraLaunchOptions(ClientLaunchOptions launchOptions)
+    {
+        if (launchOptions.CameraMode == ClientCameraMode.Freecam)
+            cameraMode.SwitchToFreecam();
+
+        if (launchOptions.CameraPosition is Vector3 cameraPosition)
+            freeCamera.Position = cameraPosition;
+
+        if (launchOptions.CameraLookAt is Vector3 cameraLookAt)
+            freeCamera.LookAt(cameraLookAt);
     }
 
     public void DebugKillLocalPlayer()

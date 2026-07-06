@@ -1,3 +1,5 @@
+using System.Numerics;
+using Royale.Client.Launch;
 using Royale.Client.Platform;
 using Royale.Client.Presentation;
 using Royale.Client.Rendering;
@@ -18,6 +20,38 @@ public sealed class SdlApplicationTests
         using var application = new SdlApplication();
 
         Assert.Equal(ClientCameraMode.Gameplay, application.CameraMode);
+    }
+
+    [Fact]
+    public void StartsInFreecamCameraModeWhenRequested()
+    {
+        ClientLaunchOptions options = ClientLaunchOptions.Default with
+        {
+            CameraMode = ClientCameraMode.Freecam
+        };
+
+        using var application = new SdlApplication(options);
+
+        Assert.Equal(ClientCameraMode.Freecam, application.CameraMode);
+    }
+
+    [Fact]
+    public void AppliesFreecamPositionAndLookAtWhenRequested()
+    {
+        var cameraPosition = new Vector3(4.0f, 2.2f, 3.0f);
+        var cameraLookAt = new Vector3(1.75f, 0.7f, -1.35f);
+        ClientLaunchOptions options = ClientLaunchOptions.Default with
+        {
+            CameraMode = ClientCameraMode.Freecam,
+            CameraPosition = cameraPosition,
+            CameraLookAt = cameraLookAt
+        };
+
+        using var application = new SdlApplication(options);
+
+        RenderCamera camera = application.FreeCamera;
+        AssertVector(cameraPosition, camera.Position);
+        AssertVector(Vector3.Normalize(cameraLookAt - cameraPosition), camera.Forward);
     }
 
     [Fact]
@@ -42,5 +76,12 @@ public sealed class SdlApplicationTests
     public void NonControlKeyIsNotGlobalControl()
     {
         Assert.False(SdlApplication.IsGlobalControl(SDL_Keycode.SDLK_A));
+    }
+
+    private static void AssertVector(Vector3 expected, Vector3 actual)
+    {
+        Assert.InRange(actual.X, expected.X - 0.0001f, expected.X + 0.0001f);
+        Assert.InRange(actual.Y, expected.Y - 0.0001f, expected.Y + 0.0001f);
+        Assert.InRange(actual.Z, expected.Z - 0.0001f, expected.Z + 0.0001f);
     }
 }

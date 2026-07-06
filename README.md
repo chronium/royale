@@ -123,6 +123,12 @@ The client also supports screenshot capture:
 dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
 ```
 
+Deterministic validation captures can start directly in freecam. Camera vectors use invariant-culture `x,y,z` floats and are accepted only with `--camera-mode freecam`:
+
+```sh
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --offline --map graybox --camera-mode freecam --camera-position 4,2.2,3 --camera-look-at 1.75,0.7,-1.35 --screenshot /tmp/royale-crate.bmp --screenshot-after-frames 5
+```
+
 ## Running The Server
 
 The server project exists and intentionally avoids client rendering dependencies:

@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T19:08:34.2268790Z
+modifiedAt: 2026-07-06T19:22:35.3299580Z
 ---
 
 ## Content and Map Data
@@ -87,9 +87,9 @@ The built-in static box mesh stores per-face outward unit normals instead of deb
 
 Rendering consumes a small `RenderCamera` value containing position, yaw, pitch, field of view, near plane, and far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
 
-Gameplay view and freecam are separate client presentation modes. The client starts in gameplay view, `F2` toggles between gameplay view and freecam, `F1` remains the explicit SDL relative mouse capture toggle, and `Escape` releases capture before quitting. Freecam movement is only applied while freecam mode is active.
+Gameplay view and freecam are separate client presentation modes. By default, the client starts in gameplay view; `F2` toggles between gameplay view and freecam, `F1` remains the explicit SDL relative mouse capture toggle, and `Escape` releases capture before quitting. `--camera-mode freecam` starts the client in freecam for deterministic validation, while `--camera-position x,y,z` sets the freecam position and `--camera-look-at x,y,z` aims the debug camera without mutating gameplay/player state. Freecam movement is only applied while freecam mode is active.
 
-The debug camera remains a free-fly controller that can produce a `RenderCamera`. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses `W/A/S/D` for horizontal local movement, `Space` for up, `Left Ctrl` for down, and rotates from mouse deltas only while SDL relative mouse mode is enabled. This camera is renderer/debug presentation state and is not the gameplay first-person controller or a server-authoritative player view.
+The debug camera remains a free-fly controller that can produce a `RenderCamera`. Without launch overrides, it starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses `W/A/S/D` for horizontal local movement, `Space` for up, `Left Ctrl` for down, and rotates from mouse deltas only while SDL relative mouse mode is enabled. This camera is renderer/debug presentation state and is not the gameplay first-person controller or a server-authoritative player view.
 
 Gameplay view now renders from a local offline player capsule instead of a temporary fixed camera anchor. `LocalPlayerController` selects a valid spawn with `MapSpawnSelector`, owns a client-side `MapStaticCollisionWorld`, advances `KinematicCharacterController` during fixed gameplay ticks, and keeps the `PlayerLookState` updated from mouse input while gameplay mode is active. `GameplayView` creates the first-person `RenderCamera` from the capsule feet anchor plus `PlayerViewSettings.DefaultEyeHeight` (`1.62` metres), using the local gameplay yaw and pitch.
 
@@ -170,6 +170,12 @@ For render validation, the client supports a development screenshot mode:
 
 ```text
 dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
+```
+
+Deterministic validation captures can start directly in freecam with invariant-culture camera vectors. `--camera-mode` accepts `gameplay` or `freecam`; `--camera-position x,y,z` and `--camera-look-at x,y,z` are accepted only with `--camera-mode freecam` and do not mutate gameplay/player state.
+
+```text
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --offline --map graybox --camera-mode freecam --camera-position 4,2.2,3 --camera-look-at 1.75,0.7,-1.35 --screenshot /tmp/royale-crate.bmp --screenshot-after-frames 5
 ```
 
 The screenshot path captures the presented swapchain frame through SDL GPU readback after BlurgText and ImGui rendering, writes a BMP, and exits the client after the requested frame.

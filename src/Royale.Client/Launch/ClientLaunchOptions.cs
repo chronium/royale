@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Numerics;
+using Royale.Client.Presentation;
 using Royale.Content;
 using Royale.Protocol;
 
@@ -9,6 +11,9 @@ public sealed record ClientLaunchOptions(
     string? ConnectHost,
     int Port,
     string MapId,
+    ClientCameraMode CameraMode,
+    Vector3? CameraPosition,
+    Vector3? CameraLookAt,
     string? ScreenshotPath,
     int ScreenshotAfterFrames)
 {
@@ -17,6 +22,9 @@ public sealed record ClientLaunchOptions(
         null,
         ProtocolConstants.DefaultPort,
         ContentCatalog.DefaultMapId,
+        ClientCameraMode.Gameplay,
+        null,
+        null,
         null,
         0);
 
@@ -26,6 +34,9 @@ public sealed record ClientLaunchOptions(
         string? connectHost = null;
         int port = ProtocolConstants.DefaultPort;
         string mapId = ContentCatalog.DefaultMapId;
+        ClientCameraMode cameraMode = ClientCameraMode.Gameplay;
+        Vector3? cameraPosition = null;
+        Vector3? cameraLookAt = null;
         string? screenshotPath = null;
         int screenshotAfterFrames = 0;
 
@@ -49,6 +60,18 @@ public sealed record ClientLaunchOptions(
                     mapId = ReadRequiredValue(args, ref index, "--map");
                     break;
 
+                case "--camera-mode":
+                    cameraMode = ParseCameraMode(ReadRequiredValue(args, ref index, "--camera-mode"));
+                    break;
+
+                case "--camera-position":
+                    cameraPosition = ParseVector3(ReadRequiredValue(args, ref index, "--camera-position"), "--camera-position");
+                    break;
+
+                case "--camera-look-at":
+                    cameraLookAt = ParseVector3(ReadRequiredValue(args, ref index, "--camera-look-at"), "--camera-look-at");
+                    break;
+
                 case "--screenshot":
                     screenshotPath = ReadRequiredValue(args, ref index, "--screenshot");
                     break;
@@ -69,6 +92,12 @@ public sealed record ClientLaunchOptions(
         if (offlineRequested && connectHost is not null)
             throw new ArgumentException("--offline cannot be combined with --connect.");
 
+        if (cameraMode != ClientCameraMode.Freecam && (cameraPosition is not null || cameraLookAt is not null))
+            throw new ArgumentException("--camera-position and --camera-look-at require --camera-mode freecam.");
+
+        if (cameraPosition is Vector3 position && cameraLookAt is Vector3 lookAt && position == lookAt)
+            throw new ArgumentException("--camera-look-at must differ from --camera-position.");
+
         if (screenshotPath is not null && screenshotAfterFrames == 0)
             screenshotAfterFrames = 1;
 
@@ -80,8 +109,40 @@ public sealed record ClientLaunchOptions(
             connectHost,
             port,
             mapId,
+            cameraMode,
+            cameraPosition,
+            cameraLookAt,
             screenshotPath,
             screenshotAfterFrames);
+    }
+
+    private static ClientCameraMode ParseCameraMode(string rawCameraMode) =>
+        rawCameraMode switch
+        {
+            "gameplay" => ClientCameraMode.Gameplay,
+            "freecam" => ClientCameraMode.Freecam,
+            _ => throw new ArgumentException("--camera-mode must be 'gameplay' or 'freecam'."),
+        };
+
+    private static Vector3 ParseVector3(string rawVector, string optionName)
+    {
+        string[] parts = rawVector.Split(',', StringSplitOptions.None);
+
+        if (parts.Length != 3)
+            throw new ArgumentException($"{optionName} must contain exactly three comma-separated finite floats.");
+
+        float x = ParseVectorComponent(parts[0], optionName);
+        float y = ParseVectorComponent(parts[1], optionName);
+        float z = ParseVectorComponent(parts[2], optionName);
+        return new Vector3(x, y, z);
+    }
+
+    private static float ParseVectorComponent(string rawValue, string optionName)
+    {
+        if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float value) || !float.IsFinite(value))
+            throw new ArgumentException($"{optionName} must contain exactly three comma-separated finite floats.");
+
+        return value;
     }
 
     private static int ParsePort(string rawPort)

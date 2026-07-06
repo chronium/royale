@@ -94,6 +94,19 @@ public static class MapCatalog
                 throw InvalidMap(path, $"static box '{box.Id}' size components must be positive.");
         }
 
+        if (map.SpawnPoints.Count == 0)
+            throw InvalidMap(path, "at least one spawn point is required.");
+
+        HashSet<string> spawnPointIds = new(StringComparer.Ordinal);
+        foreach (MapSpawnPoint spawnPoint in map.SpawnPoints)
+        {
+            if (string.IsNullOrWhiteSpace(spawnPoint.Id))
+                throw InvalidMap(path, "spawn point id is required.");
+
+            if (!spawnPointIds.Add(spawnPoint.Id))
+                throw InvalidMap(path, $"spawn point id '{spawnPoint.Id}' must be unique.");
+        }
+
         if (map.WorldBounds.Min.X >= map.WorldBounds.Max.X ||
             map.WorldBounds.Min.Y >= map.WorldBounds.Max.Y ||
             map.WorldBounds.Min.Z >= map.WorldBounds.Max.Z)
@@ -101,9 +114,23 @@ public static class MapCatalog
             throw InvalidMap(path, "worldBounds min must be less than max on every axis.");
         }
 
+        foreach (MapSpawnPoint spawnPoint in map.SpawnPoints)
+        {
+            if (!Contains(map.WorldBounds, spawnPoint.Position))
+                throw InvalidMap(path, $"spawn point '{spawnPoint.Id}' position must be inside worldBounds.");
+        }
+
         if (map.SafeZone.Radius <= 0.0f)
             throw InvalidMap(path, "safeZone radius must be positive.");
     }
+
+    private static bool Contains(MapBounds bounds, MapVector3 position) =>
+        position.X >= bounds.Min.X &&
+        position.Y >= bounds.Min.Y &&
+        position.Z >= bounds.Min.Z &&
+        position.X <= bounds.Max.X &&
+        position.Y <= bounds.Max.Y &&
+        position.Z <= bounds.Max.Z;
 
     private static InvalidDataException InvalidMap(string path, string message) =>
         new($"Map file '{path}' is invalid: {message}");

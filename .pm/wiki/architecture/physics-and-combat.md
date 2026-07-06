@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T05:20:07.9258340Z
+modifiedAt: 2026-07-06T05:56:24.8886700Z
 ---
 
 ## Physics Architecture
@@ -120,6 +120,8 @@ Native Box3D tests currently require the macOS ARM64 artifact at `thirdparty/art
 Static box collision uses the same shared `position`, `size`, and yaw/pitch/roll `rotationEuler` transform convention as client rendering. Box hull half-extents are `size / 2`, matching the centered unit-box render mesh.
 
 This type exists to build and query gray-box map collision for gameplay systems. Internally it owns its Box3D world, static bodies, and static shapes through the PHYS-009 wrappers while preserving its public raw ID and query behavior. Cast and overlap calls still use the low-level query bindings with `world.Id` and hit shape IDs because managed query wrappers are not part of PHYS-009.
+
+`GAME-007` adds reusable spawn selection on top of static overlap queries. `MapSpawnPoint.Position` is the player feet anchor, and `MapSpawnSelector.CreateReservation()` builds a standing clearance AABB above that point using the default player radius `0.35`, height `1.8`, and ground clearance `0.05`. `TrySelectSpawn()` scans spawn points in map order and returns the first candidate whose clearance AABB does not overlap static map collision or caller-provided `SpawnReservation` AABBs. AABB touching without positive overlap is allowed. The selector is deterministic and does not randomize; battle-royale spawn randomization belongs to later match-flow work.
 
 ## Player Controller
 

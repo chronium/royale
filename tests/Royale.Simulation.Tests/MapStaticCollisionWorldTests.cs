@@ -4,6 +4,7 @@ using Royale.Simulation;
 
 namespace Royale.Simulation.Tests;
 
+[Collection(Box3DNativeTestCollection.Name)]
 public sealed class MapStaticCollisionWorldTests
 {
     [Fact]

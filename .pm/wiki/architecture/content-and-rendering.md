@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T05:07:35.4211280Z
+modifiedAt: 2026-07-06T05:55:40.9365270Z
 ---
 
 ## Content and Map Data
@@ -29,7 +29,7 @@ The current minimal schema is:
   "spawnPoints": [
     {
       "id": "spawn-north-west",
-      "position": { "x": -4.5, "y": 0.2, "z": -4.5 },
+      "position": { "x": -3.8, "y": 0.0, "z": -3.8 },
       "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
     }
   ],
@@ -54,7 +54,9 @@ Static boxes define shared map data used by both client-rendered gray-box geomet
 
 Client rendering treats each static box as a centered unit-box mesh scaled by `size`, rotated by yaw/pitch/roll Euler angles, and translated by `position`. `GAME-002` uses the same data in `Royale.Simulation` to create one Box3D static body per static box and one box hull shape per body, with hull half-extents of `size / 2`. Shape ids are associated back to source static-box ids for tests and debugging.
 
-Spawn points, loot points, world bounds, and safe-zone fields are placeholders at this stage and do not yet drive gameplay behavior. Static map collision exists, but it does not implement spawn validation, loot collision, safe-zone simulation, mesh collision, height fields, dynamic bodies, or protocol compatibility behavior.
+Spawn points are gameplay content, not placeholders. `MapCatalog` requires at least one spawn point, each spawn id must be non-empty and unique, and every spawn position must be inside `worldBounds`. `MapSpawnPoint.Position` is the player feet anchor. `GAME-007` uses spawn points in `Royale.Simulation` for deterministic first-valid selection with static-collision clearance checks and caller-provided occupancy reservations; it does not yet integrate spawning into client/server match flow.
+
+Loot points and safe-zone fields are still placeholders at this stage and do not yet drive gameplay behavior. Static map collision and spawn selection exist, but the map content does not yet implement loot collision, safe-zone simulation, mesh collision, height fields, dynamic bodies, or protocol compatibility behavior.
 
 Rendering-only data may remain client-specific.
 

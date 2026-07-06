@@ -12,17 +12,17 @@
   "spawnPoints": [
     {
       "id": "spawn-north-west",
-      "position": { "x": -4.5, "y": 0.2, "z": -4.5 },
+      "position": { "x": -3.8, "y": 0.0, "z": -3.8 },
       "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
     },
     {
       "id": "spawn-south-east",
-      "position": { "x": 4.5, "y": 0.2, "z": 4.5 },
+      "position": { "x": 3.8, "y": 0.0, "z": 3.8 },
       "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
     },
     {
       "id": "spawn-west",
-      "position": { "x": -5.0, "y": 0.2, "z": 2.0 },
+      "position": { "x": -4.2, "y": 0.0, "z": -1.2 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 }
     }
   ],

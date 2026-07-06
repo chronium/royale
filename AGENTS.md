@@ -306,6 +306,16 @@ Before moving a task to `done`, verify:
 - The server remains free of client rendering and UI dependencies.
 - No unrelated changes or generated artifacts were introduced.
 
+## Human Validation Requests
+
+When a completed change would benefit from project-owner validation, call that out explicitly in the final summary.
+
+This is required for changes that cannot be fully validated by automated tests, including rendering appearance, game feel, input behavior, camera feel, combat feel, platform-specific behavior, audio or visual feedback, and major UI or debug tooling changes.
+
+Still run the relevant automated validation first. Human validation is an additional request, not a substitute for tests.
+
+Be specific about what should be validated and how. For example: "Please validate F5-F8 render modes visually" or "Please play a short combat loop and check that rifle cadence feels acceptable."
+
 ## Review Guidance
 
 When reviewing changes, prioritize:

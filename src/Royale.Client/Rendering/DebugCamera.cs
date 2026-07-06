@@ -8,9 +8,6 @@ public sealed class DebugCamera
     public static readonly float MinPitchRadians = DegreesToRadians(-89.0f);
     public static readonly float MaxPitchRadians = DegreesToRadians(89.0f);
 
-    public const float DefaultVerticalFieldOfViewRadians = MathF.PI / 3.0f;
-    public const float DefaultNearPlane = 0.1f;
-    public const float DefaultFarPlane = 100.0f;
     public const float MovementSpeedUnitsPerSecond = 3.5f;
     public const float MouseSensitivityRadiansPerPixel = 0.0025f;
 
@@ -26,18 +23,7 @@ public sealed class DebugCamera
 
     public float PitchRadians { get; private set; }
 
-    public Vector3 Forward
-    {
-        get
-        {
-            float cosPitch = MathF.Cos(PitchRadians);
-
-            return Vector3.Normalize(new Vector3(
-                cosPitch * MathF.Sin(YawRadians),
-                MathF.Sin(PitchRadians),
-                -cosPitch * MathF.Cos(YawRadians)));
-        }
-    }
+    public Vector3 Forward => ToRenderCamera().Forward;
 
     public static DebugCamera CreateDefault()
     {
@@ -99,20 +85,15 @@ public sealed class DebugCamera
         }
     }
 
-    public Matrix4x4 CreateViewMatrix() => Matrix4x4.CreateLookAt(Position, Position + Forward, Vector3.UnitY);
+    public RenderCamera ToRenderCamera() => new(Position, YawRadians, PitchRadians);
+
+    public Matrix4x4 CreateViewMatrix() => ToRenderCamera().CreateViewMatrix();
 
     public Matrix4x4 CreateProjectionMatrix(uint renderWidth, uint renderHeight) =>
-        Matrix4x4.CreatePerspectiveFieldOfView(
-            DefaultVerticalFieldOfViewRadians,
-            GetAspectRatio(renderWidth, renderHeight),
-            DefaultNearPlane,
-            DefaultFarPlane);
-
-    public Matrix4x4 CreateTransposedWorldViewProjection(Matrix4x4 world, uint renderWidth, uint renderHeight) =>
-        Matrix4x4.Transpose(world * CreateViewMatrix() * CreateProjectionMatrix(renderWidth, renderHeight));
+        ToRenderCamera().CreateProjectionMatrix(renderWidth, renderHeight);
 
     public static float GetAspectRatio(uint renderWidth, uint renderHeight) =>
-        renderWidth == 0 || renderHeight == 0 ? 1.0f : renderWidth / (float)renderHeight;
+        RenderCamera.GetAspectRatio(renderWidth, renderHeight);
 
     private static float DegreesToRadians(float degrees) => degrees * MathF.PI / 180.0f;
 }

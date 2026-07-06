@@ -58,7 +58,7 @@ public sealed class StaticMeshRenderingTests
     [Fact]
     public void WorldViewProjectionCanBeCreatedForEveryPreviewInstance()
     {
-        DebugCamera camera = DebugCamera.CreateDefault();
+        RenderCamera camera = DebugCamera.CreateDefault().ToRenderCamera();
         IReadOnlyList<StaticMeshInstance> instances = MapStaticMeshScene.CreateInstances(MapCatalog.LoadDefault());
 
         foreach (StaticMeshInstance instance in instances)

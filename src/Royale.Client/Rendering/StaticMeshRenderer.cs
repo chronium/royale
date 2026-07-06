@@ -54,7 +54,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         SDL_GPURenderPass* renderPass,
         uint width,
         uint height,
-        DebugCamera camera)
+        RenderCamera camera)
     {
         var vertexBinding = new SDL_GPUBufferBinding
         {

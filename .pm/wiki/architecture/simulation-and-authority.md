@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-05T16:10:17.3093740Z
+modifiedAt: 2026-07-06T06:58:53.7021170Z
 ---
 
 ## Simulation Model
@@ -152,6 +152,19 @@ public enum InputButtons : ushort
 ```
 
 The server records the most recent processed input sequence for each player. That sequence is returned in snapshots so the client knows which predicted inputs have been acknowledged.
+
+Local offline gameplay input now has a shared pre-protocol sample type:
+
+```csharp
+public readonly record struct PlayerInputSample(
+    Vector2 Move,
+    bool Jump,
+    Vector2 LookDelta);
+```
+
+`PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` is button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled. Converting movement through player yaw, assigning sequence numbers, and sending network input commands remain later server/network tasks.
+
+Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`. Mouse deltas adjust yaw and clamped pitch with finite-value guards so invalid device deltas do not corrupt local look state.
 
 ## Client-Side Prediction
 

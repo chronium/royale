@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T05:55:40.9365270Z
+modifiedAt: 2026-07-06T06:59:15.8290600Z
 ---
 
 ## Content and Map Data
@@ -74,22 +74,26 @@ Initial responsibilities include:
 * Buffer creation
 * Texture creation
 * Static mesh rendering
-* Debug camera matrices
+* Camera matrices
 * Basic lighting
 * Debug geometry
 * ImGui rendering
 
 The current static mesh renderer owns one SDL GPU pipeline and shader pair, uploads a built-in unit box mesh once, and draws static map geometry by pushing one world-view-projection matrix per `StaticMeshInstance`. The client loads the selected map id from `ClientLaunchOptions.MapId`, reads the copied JSON through `MapCatalog`, and converts each `staticBoxes` entry into a render instance. It is not a scene graph, ECS, material system, mesh asset loader, culling system, batching system, or instancing API.
 
-The current scene camera is an FPS-style free-fly debug camera owned by the client presentation loop. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses a 60 degree vertical field of view, a 0.1 near plane, and a 100.0 far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
+Rendering consumes a small `RenderCamera` value containing position, yaw, pitch, field of view, near plane, and far plane. Projection aspect ratio comes from the acquired swapchain pixel dimensions, with zero width or height falling back to a safe 1:1 aspect ratio.
 
-Debug camera controls are `W/A/S/D` for horizontal local movement, `Space` for up, and `Left Ctrl` for down. Mouse deltas rotate yaw and clamped pitch only while SDL relative mouse mode is enabled. `F1` toggles relative mouse mode and `Escape` releases capture before exiting. This camera is renderer/debug presentation state and is not the gameplay first-person controller or a server-authoritative player view.
+Gameplay view and freecam are separate client presentation modes. The client starts in gameplay view, `F2` toggles between gameplay view and freecam, `F1` remains the explicit SDL relative mouse capture toggle, and `Escape` releases capture before quitting. Freecam movement is only applied while freecam mode is active.
+
+The debug camera remains a free-fly controller that can produce a `RenderCamera`. It starts at approximately `(2.8, 2.1, 2.8)`, looks toward the origin, uses `W/A/S/D` for horizontal local movement, `Space` for up, `Left Ctrl` for down, and rotates from mouse deltas only while SDL relative mouse mode is enabled. This camera is renderer/debug presentation state and is not the gameplay first-person controller or a server-authoritative player view.
+
+Gameplay view owns a `PlayerLookState` and currently renders from a temporary fixed camera anchor using that look state. Attaching the first-person camera to the player capsule remains `GAME-005`.
 
 ImGui uses Evergine's generated ImGui.Net/cimgui bindings plus a project-owned native `royale_imgui` shim. The shim is built with Dear ImGui's SDL3 platform backend and SDL_GPU renderer backend.
 
 UI-001 owns ImGui context lifetime, SDL3 backend lifetime, SDL_GPU backend lifetime, SDL event forwarding, display size/framebuffer scale/delta-time updates, and frame begin. UI-002 owns overlay construction and draw-data submission.
 
-Active ImGui rendering uses this SDL_GPU ordering:
+Active ImGui rendering uses this SDL GPU ordering:
 
 1. Poll SDL events and forward them to ImGui.
 2. Begin the ImGui frame after event polling.

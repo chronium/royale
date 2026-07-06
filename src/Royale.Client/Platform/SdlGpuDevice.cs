@@ -82,7 +82,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
     internal void PresentFrame(
         double deltaSeconds,
-        DebugCamera camera,
+        RenderCamera camera,
         ImGuiBackend? imguiBackend = null,
         string? screenshotPath = null)
     {

@@ -35,6 +35,28 @@ Use `get_next_task` when available instead of guessing from raw task lists.
 - Always inspect the returned task's `dependenciesReady`, `waitingOnDependencies`, priority, milestone, and reason before acting.
 - If `readyOnly: true` returns no task for a filtered track, do not bypass dependencies; either choose a ready task from another track or plan the dependency that unblocks the requested track.
 
+### PM MCP Tool Usage
+
+Prefer the most specific PM MCP tool that fits the operation.
+
+- Use `search_tasks` to find related task IDs, dependency references, or prior decisions before changing board structure.
+- Use `update_task_metadata` for task title, description, track, milestone, priority, or dependency changes instead of rewriting full task markdown.
+- Use `update_task_markdown` only when task notes or acceptance details need markdown changes that metadata tools cannot express.
+- Use `move_task` for state changes. Never move task refs manually.
+- Use `set_milestone_priority` and task `priority` metadata to guide sequencing rather than relying on manual ordering alone.
+- Use `reorder_tasks` only when an explicit within-track order matters after priority and dependency data are already correct.
+- Use `bulk_assign_tasks_to_milestone` for milestone reshuffles instead of editing tasks one by one.
+- Use `validate_project` after PM structure changes, especially after dependency, priority, milestone, task order, wiki rename, or wiki delete operations.
+- Use `get_project`, `list_milestones`, `list_tracks`, and `list_states` when checking configured keys rather than inferring them from file names.
+
+For wiki work:
+
+- Use `list_wiki_pages` or `search_wiki_pages` before creating a page so duplicate source-of-truth pages are not introduced.
+- Use `outline_wiki_page` followed by `patch_wiki_page` for targeted edits under an existing heading.
+- Use `update_wiki_page_markdown` only for broad rewrites where a targeted patch would be less clear.
+- Use `rename_wiki_page` and `remove_wiki_page` for wiki restructuring. Never rename or delete wiki files manually.
+- Use `create_wiki_page` for new source-of-truth pages and include enough initial structure that later agents can patch them safely.
+
 ## PM Storage Protection
 
 The `.pm/` directory is PM storage, not a normal hand-edited project area.

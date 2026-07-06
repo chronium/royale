@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T07:41:09.3783880Z
+modifiedAt: 2026-07-06T08:00:19.5220390Z
 ---
 
 ## Physics Architecture
@@ -158,6 +158,12 @@ Movement behavior is intentionally direct and inspectable for the MVP:
 Slope checks use collision plane normals and treat normals with `Y >= cos(45 degrees)` as walkable. Steeper planes are blocking or airborne contacts, not ground. The first implementation prioritizes deterministic, testable behavior over polished feel; more exhaustive collision edge cases remain in the GAME-006 collision test task.
 
 The controller is simulation-only. `GAME-005` uses it from a client-owned local offline player controller for first-person camera movement, but that local capsule is not authoritative server state and does not add networking, match state, animation, audio, or combat behavior.
+
+Step-up attempts are only accepted when the elevated move settles on a walkable surface meaningfully above the original feet height. This prevents a failed step near an obstacle edge from briefly routing the capsule upward and backward before landing back on the floor, which caused visible jitter around the graybox `step-low` obstacle.
+
+Penetration recovery uses the overlap depth reported by Box3D mover planes. Walkable planes can correct small vertical ground contact, while non-walkable planes only push when overlap exceeds the controller skin width. This avoids oscillation when pressing into a wall at a shallow angle: near-contact wall planes are used for clipping but no longer trigger an oversized recovery push on alternate ticks.
+
+Step-up attempts also compare progress along the intended horizontal movement direction. A step is accepted only if the elevated path lands on walkable ground above the current feet height and advances farther along input than the flat slide did. This preserves valid small steps while rejecting shortcut paths that move sideways or backward around obstacle edges.
 
 ## Combat Flow
 

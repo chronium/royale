@@ -126,8 +126,12 @@ public sealed class KinematicCharacterController
             elevatedMove.Position,
             new Vector3(0.0f, -(Settings.MaxStepHeight + Settings.GroundProbeDistance), 0.0f));
 
-        float steppedHorizontalDistance = HorizontalDistance(position, downMove.Position);
-        if (downMove.HitGround && steppedHorizontalDistance > flatHorizontalDistance + Settings.SkinWidth)
+        float stepHeight = downMove.Position.Y - position.Y;
+        float steppedProgress = HorizontalProgress(position, downMove.Position, displacement);
+        float flatProgress = HorizontalProgress(position, flatMove.Position, displacement);
+        if (downMove.HitGround &&
+            stepHeight > Settings.SkinWidth &&
+            steppedProgress > flatProgress + Settings.SkinWidth)
         {
             return downMove with
             {
@@ -234,8 +238,15 @@ public sealed class KinematicCharacterController
             foreach (MapStaticCollisionPlane plane in planes)
             {
                 Vector3 normal = NormalizeOrZero(plane.Normal);
-                if (normal != Vector3.Zero)
-                    correction += normal * Settings.PenetrationRecoveryDistance;
+                if (normal == Vector3.Zero || !float.IsFinite(plane.Offset) || plane.Offset <= 0.0f)
+                    continue;
+
+                float pushDistance = IsWalkable(normal)
+                    ? plane.Offset
+                    : plane.Offset - Settings.SkinWidth + Epsilon;
+
+                if (pushDistance > 0.0f)
+                    correction += normal * MathF.Min(pushDistance, Settings.PenetrationRecoveryDistance);
             }
 
             if (correction.LengthSquared() <= Epsilon * Epsilon)
@@ -276,6 +287,16 @@ public sealed class KinematicCharacterController
     private static float HorizontalLength(Vector3 vector) => MathF.Sqrt((vector.X * vector.X) + (vector.Z * vector.Z));
 
     private static float HorizontalDistance(Vector3 a, Vector3 b) => HorizontalLength(b - a);
+
+    private static float HorizontalProgress(Vector3 from, Vector3 to, Vector3 desiredDisplacement)
+    {
+        float desiredLength = HorizontalLength(desiredDisplacement);
+        if (desiredLength <= Epsilon)
+            return 0.0f;
+
+        Vector3 movement = to - from;
+        return ((movement.X * desiredDisplacement.X) + (movement.Z * desiredDisplacement.Z)) / desiredLength;
+    }
 
     private static float DegreesToRadians(float degrees) => degrees * MathF.PI / 180.0f;
 

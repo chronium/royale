@@ -96,6 +96,42 @@ public sealed class KinematicCharacterControllerTests
     }
 
     [Fact]
+    public void ShallowAngleWallSlideDoesNotOscillatePerpendicularToWall()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateWallMap());
+        var controller = new KinematicCharacterController();
+
+        foreach ((float x, float z) in new[]
+        {
+            (0.1763f, 1.0f),
+            (0.2679f, 1.0f),
+            (0.3640f, 1.0f),
+        })
+        {
+            KinematicCharacterState state = new(new Vector3(1.52f, 0.0f, -2.5f), Vector3.Zero, true);
+            Vector2 move = Vector2.Normalize(new Vector2(x, z));
+            var slidePositions = new List<Vector3>();
+
+            for (int i = 0; i < 80; i++)
+            {
+                state = controller.Step(
+                    collisionWorld,
+                    state,
+                    new KinematicCharacterInput(move, false),
+                    Tick).State;
+
+                if (i >= 20 && i <= 45)
+                    slidePositions.Add(state.Position);
+            }
+
+            float minX = slidePositions.Min(position => position.X);
+            float maxX = slidePositions.Max(position => position.X);
+            Assert.InRange(maxX - minX, 0.0f, 0.002f);
+            Assert.All(slidePositions, position => Assert.InRange(position.Y, -0.001f, 0.02f));
+        }
+    }
+
+    [Fact]
     public void HighSpeedMovementIntoThinWallIsBlocked()
     {
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateThinWallMap());
@@ -216,6 +252,28 @@ public sealed class KinematicCharacterControllerTests
         Assert.True(result.State.IsGrounded);
         Assert.InRange(result.State.Position.Y, -0.001f, 0.02f);
         Assert.InRange(result.State.Position.Z, 0.45f, 0.55f);
+    }
+
+    [Fact]
+    public void SlidingPastTooTallStepEdgeDoesNotAcceptFloorHeightShortcutStep()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateGrayboxStepLowMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState state = new(new Vector3(-3.6f, 0.0f, -0.4f), Vector3.Zero, true);
+        Vector2 move = Vector2.Normalize(new Vector2(1.0f, 1.0f));
+
+        for (int i = 0; i < 45; i++)
+        {
+            KinematicCharacterStepResult result = controller.Step(
+                collisionWorld,
+                state,
+                new KinematicCharacterInput(move, false),
+                Tick);
+
+            Assert.False(result.Stepped);
+            Assert.True(result.Displacement.Z >= -0.001f);
+            state = result.State;
+        }
     }
 
     [Fact]
@@ -352,6 +410,10 @@ public sealed class KinematicCharacterControllerTests
     private static GameMap CreateHighStepMap() => CreateMap(
         Box("floor", new Vector3(0.0f, -0.1f, 0.0f), new Vector3(20.0f, 0.2f, 20.0f)),
         Box("high-step", new Vector3(0.0f, 0.25f, 1.0f), new Vector3(3.0f, 0.5f, 0.35f)));
+
+    private static GameMap CreateGrayboxStepLowMap() => CreateMap(
+        Box("floor", new Vector3(0.0f, -0.1f, 0.0f), new Vector3(20.0f, 0.2f, 20.0f)),
+        Box("step-low", new Vector3(-3.05f, 0.2f, 0.85f), new Vector3(1.7f, 0.4f, 0.9f)));
 
     private static GameMap CreateCeilingMap() => CreateMap(
         Box("floor", new Vector3(0.0f, -0.1f, 0.0f), new Vector3(20.0f, 0.2f, 20.0f)),

@@ -97,7 +97,11 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         ImguiNative.igNewFrame();
     }
 
-    public void BuildDebugOverlay(ImGuiDebugOverlayState state, TrainingDummy? trainingDummy = null)
+    public void BuildDebugOverlay(
+        ImGuiDebugOverlayState state,
+        LocalPlayerController? localPlayer = null,
+        Action? debugKillPlayer = null,
+        Action? debugRespawnPlayer = null)
     {
         ThrowIfDisposed();
         ImguiNative.igSetCurrentContext(context);
@@ -114,8 +118,41 @@ internal sealed unsafe class ImGuiBackend : IDisposable
 
         ImguiNative.igEnd();
 
-        if (trainingDummy is not null)
-            BuildTrainingDummyDiagnostics(trainingDummy);
+        if (localPlayer is not null)
+        {
+            BuildPlayerDiagnostics(localPlayer, debugKillPlayer, debugRespawnPlayer);
+            BuildTrainingDummyDiagnostics(localPlayer.TrainingDummy);
+        }
+    }
+
+    private static void BuildPlayerDiagnostics(
+        LocalPlayerController localPlayer,
+        Action? debugKillPlayer,
+        Action? debugRespawnPlayer)
+    {
+        PlayerDiagnosticsState state = PlayerDiagnosticsState.FromPlayer(localPlayer);
+
+        ImguiNative.igSetNextWindowSize(new Vector2(260.0f, 120.0f), ImGuiCond.FirstUseEver);
+        if (ImguiNative.igBegin("Player", null, ImGuiWindowFlags.None))
+        {
+            ImguiNative.igText(state.HealthText);
+            ImguiNative.igText(state.AliveText);
+
+            if (ImguiNative.igButton("Kill Player", new Vector2(110.0f, 0.0f)))
+            {
+                if (debugKillPlayer is not null)
+                    debugKillPlayer();
+                else
+                    localPlayer.DebugKill();
+            }
+
+            ImguiNative.igSameLine(0.0f, -1.0f);
+
+            if (ImguiNative.igButton("Respawn Player", new Vector2(140.0f, 0.0f)))
+                (debugRespawnPlayer ?? localPlayer.DebugRespawn)();
+        }
+
+        ImguiNative.igEnd();
     }
 
     private static void BuildTrainingDummyDiagnostics(TrainingDummy trainingDummy)

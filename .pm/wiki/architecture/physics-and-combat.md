@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T14:22:28.9562650Z
+modifiedAt: 2026-07-06T14:38:32.5499510Z
 ---
 
 ## Physics Architecture
@@ -208,7 +208,17 @@ Damage application is driven by `DamageController.Apply()` using a weapon-backed
 
 The default rifle deals `25` damage, so four valid target hits reduce default player health to `0`. Health clamps at zero, and reaching zero sets `Alive == false`. Applying damage to an already-dead target is a no-op that preserves `0` health and `Alive == false`.
 
-There is no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire rule, target ownership, authoritative damage history, respawn, or final combat UI in this contract. Dead-player movement, firing restrictions, spectator behavior, and respawn remain deferred to `COMBAT-005`.
+There is no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire rule, target ownership, authoritative damage history, or final combat UI in this contract. Server-authoritative elimination, respawn timers, final spectator UX, and player-vs-player damage remain deferred to later match and networking work.
+
+### Local Debug Death And Respawn
+
+`COMBAT-005` adds a client-only offline death and respawn debug flow for the local player controller. The local player owns mutable `HealthState` for this sandbox path and exposes explicit debug methods to apply damage, kill the player, and respawn the player. These methods are diagnostics hooks, not gameplay input commands and not server-authoritative match elimination.
+
+While the local player is dead, gameplay look updates and gameplay fixed updates are ignored. Dead fixed updates do not move the capsule, accept jumps, fire the rifle, advance rifle cadence state, increment the local shot count, resolve hitscan, or damage the training dummy. The SDL client switches to the existing freecam when the local player transitions alive-to-dead; the freecam is the temporary spectator placeholder for this task. On debug respawn, the SDL client switches back to gameplay camera mode.
+
+Debug respawn restores player health, spawn feet position, zero velocity, default look, ready rifle cadence, cleared last fire/hit/damage outputs, and spawn-derived gameplay camera state. It does not reset the training dummy health or damage history.
+
+The ImGui `Player` diagnostics window displays local player health and alive state and exposes `Kill Player` and `Respawn Player` buttons. No kill or respawn hotkeys, networking, server match elimination, respawn timer, final HUD, animation, audio, or player-vs-player damage are part of this contract.
 
 ### Hitscan Raycasts
 

@@ -249,6 +249,81 @@ public sealed class LocalPlayerControllerTests
         Assert.Null(player.LastHitscanResult);
     }
 
+    [Fact]
+    public void DebugKillSetsPlayerHealthToZeroAndDead()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
+
+        HealthState health = player.DebugKill();
+
+        Assert.Equal(0, health.CurrentHealth);
+        Assert.False(health.Alive);
+        Assert.Equal(health, player.Health);
+        Assert.False(player.Alive);
+    }
+
+    [Fact]
+    public void DeadPlayerDoesNotLookMoveFireAdvanceCadenceOrDamageDummy()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireOneTick(player);
+        WeaponFireState weaponStateAfterShot = player.WeaponFireState;
+        int shotsAfterShot = player.TotalShotsFired;
+        int dummyHealthAfterShot = player.TrainingDummy.Health.CurrentHealth;
+        int dummyHistoryAfterShot = player.TrainingDummy.DamageHistory.Count;
+        Vector3 positionAfterShot = player.FeetPosition;
+        PlayerLookState lookAfterShot = player.LookState;
+
+        player.DebugKill();
+        player.UpdateLook(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: false, new Vector2(50.0f, -25.0f)));
+
+        for (int i = 0; i < 20; i++)
+            player.FixedUpdate(new PlayerInputSample(new Vector2(0.0f, 1.0f), Jump: true, Fire: true, Vector2.Zero), Tick);
+
+        Assert.Equal(weaponStateAfterShot, player.WeaponFireState);
+        Assert.Equal(shotsAfterShot, player.TotalShotsFired);
+        Assert.Equal(dummyHealthAfterShot, player.TrainingDummy.Health.CurrentHealth);
+        Assert.Equal(dummyHistoryAfterShot, player.TrainingDummy.DamageHistory.Count);
+        AssertVector(positionAfterShot, player.FeetPosition);
+        Assert.Equal(lookAfterShot, player.LookState);
+        Assert.False(player.LastFireResult.Fired);
+        Assert.Null(player.LastHitscanResult);
+        Assert.Null(player.LastTrainingDummyDamageResult);
+    }
+
+    [Fact]
+    public void RespawnRestoresPlayerStateAndLeavesTrainingDummyHistory()
+    {
+        using LocalPlayerController player = CreatePlayerWithDummyInFront();
+
+        FireOneTick(player);
+        player.UpdateLook(new PlayerInputSample(Vector2.Zero, Jump: false, Fire: false, new Vector2(20.0f, 10.0f)));
+        player.FixedUpdate(new PlayerInputSample(new Vector2(0.0f, 1.0f), Jump: false, Fire: false, Vector2.Zero), Tick);
+
+        Assert.Equal(75, player.TrainingDummy.Health.CurrentHealth);
+        Assert.Single(player.TrainingDummy.DamageHistory);
+
+        player.DebugKill();
+        player.DebugRespawn();
+
+        Assert.Equal(HealthState.DefaultPlayer, player.Health);
+        Assert.True(player.Alive);
+        AssertVector(ToVector3(player.SpawnPoint.Position), player.FeetPosition);
+        AssertVector(Vector3.Zero, player.CharacterState.Velocity);
+        Assert.Equal(new PlayerLookState(0.0f, 0.0f), player.LookState);
+        Assert.Equal(WeaponFireState.Ready, player.WeaponFireState);
+        Assert.Equal(default, player.LastFireResult);
+        Assert.Null(player.LastHitscanResult);
+        Assert.Null(player.LastTrainingDummyDamageResult);
+        Assert.Equal(0, player.TotalShotsFired);
+        Assert.Equal(75, player.TrainingDummy.Health.CurrentHealth);
+        Assert.Single(player.TrainingDummy.DamageHistory);
+        AssertVector(
+            ToVector3(player.SpawnPoint.Position) + new Vector3(0.0f, PlayerViewSettings.DefaultEyeHeight, 0.0f),
+            player.ToRenderCamera().Position);
+    }
+
     private static GameMap CreateFloorMap() => new()
     {
         Id = "test-map",

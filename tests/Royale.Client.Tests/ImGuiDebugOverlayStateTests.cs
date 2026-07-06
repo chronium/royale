@@ -2,6 +2,7 @@ using System.Numerics;
 using Royale.Client.Gameplay;
 using Royale.Client.Rendering;
 using Royale.Client.Platform;
+using Royale.Content;
 using Royale.Simulation;
 
 namespace Royale.Client.Tests;
@@ -62,4 +63,39 @@ public sealed class ImGuiDebugOverlayStateTests
             "tick 42: rifle raw 25 applied 25 hp 75 dist 9.75 hit (1.00, 1.50, -9.75) region - falloff - random -",
             TrainingDummyDiagnosticsState.FormatDamageEntry(state.DamageHistory[0]));
     }
+
+    [Fact]
+    public void FormatsPlayerDiagnosticsText()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
+        player.DebugKill();
+
+        PlayerDiagnosticsState state = PlayerDiagnosticsState.FromPlayer(player);
+
+        Assert.Equal("Health: 0/100", state.HealthText);
+        Assert.Equal("State: dead", state.AliveText);
+    }
+
+    private static GameMap CreateFloorMap() => new()
+    {
+        Id = "test-map",
+        Name = "Test Map",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "floor",
+                Position = new MapVector3(0.0f, -0.1f, 0.0f),
+                Size = new MapVector3(20.0f, 0.2f, 20.0f),
+            },
+        ],
+    };
 }

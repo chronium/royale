@@ -59,7 +59,9 @@ public sealed class LocalPlayerController : IDisposable
 
     public TrainingDummy TrainingDummy { get; }
 
-    public HealthState Health { get; }
+    public HealthState Health { get; private set; }
+
+    public bool Alive => Health.Alive;
 
     public WeaponFireState WeaponFireState => weaponFireState;
 
@@ -117,6 +119,9 @@ public sealed class LocalPlayerController : IDisposable
     {
         ThrowIfDisposed();
 
+        if (!Alive)
+            return;
+
         LookState = PlayerLookController.ApplyMouseDelta(LookState, input.LookDelta, LookSettings);
     }
 
@@ -126,6 +131,23 @@ public sealed class LocalPlayerController : IDisposable
 
         if (!double.IsFinite(fixedDeltaSeconds) || fixedDeltaSeconds <= 0.0)
             throw new ArgumentOutOfRangeException(nameof(fixedDeltaSeconds), "Fixed timestep must be finite and positive.");
+
+        if (!Alive)
+        {
+            LastFireResult = new WeaponFireStepResult(
+                Fired: false,
+                weaponFireState,
+                WeaponFireController.ResolveFireIntervalTicks(Weapon));
+            LastHitscanResult = null;
+            LastTrainingDummyDamageResult = null;
+            return new KinematicCharacterStepResult(
+                CharacterState,
+                Vector3.Zero,
+                JumpAccepted: false,
+                HitCeiling: false,
+                Stepped: false,
+                SlideIterations: 0);
+        }
 
         LastFireResult = WeaponFireController.Step(Weapon, weaponFireState, input.Fire, fixedTick);
         weaponFireState = LastFireResult.State;
@@ -156,6 +178,35 @@ public sealed class LocalPlayerController : IDisposable
 
         CharacterState = result.State;
         return result;
+    }
+
+    public HealthState DebugApplyDamage(int damage)
+    {
+        ThrowIfDisposed();
+
+        Health = Health.ApplyDamage(damage);
+        return Health;
+    }
+
+    public HealthState DebugKill()
+    {
+        ThrowIfDisposed();
+
+        return DebugApplyDamage(Health.MaxHealth);
+    }
+
+    public void DebugRespawn()
+    {
+        ThrowIfDisposed();
+
+        Health = HealthState.DefaultPlayer;
+        CharacterState = new KinematicCharacterState(ToVector3(SpawnPoint.Position), Vector3.Zero, IsGrounded: false);
+        LookState = new PlayerLookState(0.0f, 0.0f);
+        weaponFireState = WeaponFireState.Ready;
+        LastFireResult = default;
+        LastHitscanResult = null;
+        LastTrainingDummyDamageResult = null;
+        TotalShotsFired = 0;
     }
 
     public RenderCamera ToRenderCamera() =>

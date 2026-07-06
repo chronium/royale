@@ -113,7 +113,9 @@ public sealed unsafe class SdlApplication : IDisposable
                 fixedTime.TotalFixedTicks,
                 Window?.RelativeMouseMode.Enabled == true,
                 renderViewMode.Mode),
-                localPlayer?.TrainingDummy);
+                localPlayer,
+                DebugKillLocalPlayer,
+                DebugRespawnLocalPlayer);
             Render(frameTime);
             UpdateWindowTitle(frameTime);
 
@@ -123,8 +125,15 @@ public sealed unsafe class SdlApplication : IDisposable
 
     private void FixedUpdate(FixedTickTime time)
     {
-        if (cameraMode.ShouldApplyGameplayFixedUpdate)
-            localPlayer?.FixedUpdate(lastGameplayInput, time.DeltaSeconds);
+        if (localPlayer is null)
+            return;
+
+        bool wasAlive = localPlayer.Alive;
+
+        if (cameraMode.ShouldApplyGameplayFixedUpdateForPlayer(localPlayer.Alive))
+            localPlayer.FixedUpdate(lastGameplayInput, time.DeltaSeconds);
+
+        cameraMode.HandleLocalPlayerAliveTransition(wasAlive, localPlayer.Alive);
     }
 
     private void Render(FrameTime time)
@@ -182,6 +191,26 @@ public sealed unsafe class SdlApplication : IDisposable
         gpuDevice = SdlGpuDevice.Create(Window, staticMeshInstances);
         logger.ZLogInformation($"SDL GPU device created.");
         imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
+    }
+
+    public void DebugKillLocalPlayer()
+    {
+        if (localPlayer is null)
+            return;
+
+        bool wasAlive = localPlayer.Alive;
+        localPlayer.DebugKill();
+        cameraMode.HandleLocalPlayerAliveTransition(wasAlive, localPlayer.Alive);
+    }
+
+    public void DebugRespawnLocalPlayer()
+    {
+        if (localPlayer is null)
+            return;
+
+        bool wasAlive = localPlayer.Alive;
+        localPlayer.DebugRespawn();
+        cameraMode.HandleLocalPlayerAliveTransition(wasAlive, localPlayer.Alive);
     }
 
     private void PollEvents(ImGuiCaptureState imguiCapture)
@@ -294,7 +323,8 @@ public sealed unsafe class SdlApplication : IDisposable
             return;
         }
 
-        localPlayer?.UpdateLook(lastGameplayInput);
+        if (localPlayer?.Alive == true)
+            localPlayer.UpdateLook(lastGameplayInput);
     }
 
     private void UpdateWindowTitle(FrameTime frameTime)

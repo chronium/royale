@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T07:21:57.0289780Z
+modifiedAt: 2026-07-07T08:45:01.6582150Z
 ---
 
 ## Networking Layers
@@ -10,17 +10,24 @@ Networking should be divided into several conceptual layers.
 
 ## Transport
 
-The transport moves packets between endpoints.
+The transport moves opaque packets between connected peers. It does not define protocol framing, handshake messages, serialization, input commands, snapshots, prediction, reconciliation, or client/server launch wiring.
 
-It should expose a small interface and hide the chosen UDP implementation from game code.
+`Royale.Network` owns the game transport abstraction:
 
 ```csharp
 public interface INetworkTransport : IDisposable
 {
-    void Send(NetworkEndpoint endpoint, ReadOnlySpan<byte> packet);
+    void Start(int port);
+    NetworkPeerId Connect(NetworkEndpoint endpoint);
+    void Send(NetworkPeerId peerId, ReadOnlySpan<byte> packet, NetworkDelivery delivery, byte channel = 0);
+    void Disconnect(NetworkPeerId peerId);
     void Poll(INetworkEventHandler handler);
 }
 ```
+
+The public transport surface uses game-owned types: `NetworkEndpoint`, `NetworkPeerId`, `NetworkDelivery`, `NetworkDisconnectReason`, and `INetworkEventHandler`. Packet payloads are opaque byte spans or copied byte buffers at this layer.
+
+`LiteNetLibNetworkTransport` is the first real UDP implementation. It owns LiteNetLib's listener and manager, accepts incoming LiteNetLib connection requests at the transport level, maps LiteNetLib delivery and disconnect values into game-owned enums, and supports LiteNetLib channels `0` through `63`. Only `Royale.Network` references LiteNetLib; `Royale.Protocol`, `Royale.Simulation`, client/server gameplay code, and higher layers must not reference LiteNetLib directly.
 
 The same higher-level connection code should work with:
 
@@ -44,7 +51,7 @@ The connection layer manages:
 
 Client and server launch options already expose the default network port contract. Both sides default to port `7777`. The client accepts `--connect <host>` and `--port <port>` to describe the intended remote endpoint, and the server accepts `--port <port>` to select its listen port.
 
-Real transport behavior is still deferred. At this stage, `--connect` is parsed and logged by the client so later networking tasks can attach transport behavior without changing the launch contract.
+UDP packet transport exists in `Royale.Network`, but executable launch wiring and higher-level connection behavior are still deferred. At this stage, `--connect` is parsed and logged by the client so later networking tasks can attach handshake, framing, session state, and protocol compatibility behavior without changing the launch contract.
 
 ## Protocol
 

@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-06T18:53:06.8279800Z
+modifiedAt: 2026-07-07T04:42:57.0256690Z
 ---
 
 ## Fetch Scripts
@@ -20,6 +20,7 @@ sh thirdparty/fetch-box3d.sh
 sh thirdparty/fetch-imgui-net.sh
 sh thirdparty/fetch-blurgtext.sh
 sh thirdparty/fetch-simplemesh.sh
+sh thirdparty/fetch-wattlescript.sh
 ```
 
 Each fetch script is deterministic and safe to rerun:
@@ -40,6 +41,8 @@ The scripts should fail clearly if the pinned commit cannot be fetched, a requir
 
 `fetch-simplemesh.sh` has no submodule or native build steps at the pinned revision.
 
+`fetch-wattlescript.sh` has no submodule or native build steps at the pinned revision.
+
 ## Restore and Build Notes
 
 SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`.
@@ -50,7 +53,9 @@ BlurgText is consumed by `Royale.Client` from the fetched managed project at `th
 
 SimpleMesh is fetched to `thirdparty/repos/SimpleMesh` as managed-only source. It is Apache-2.0 licensed, targets `net8.0`, supports OBJ, Collada, and embedded-buffer glTF/glb import, and imports Y-up geometry. `RENDER-010` owns adding any future project reference or mesh loading/rendering code.
 
-For a fresh checkout after fetching SDL3-CS, ImGui.Net, BlurgText, or SimpleMesh, restore the solution with the binding's desktop-target property:
+WattleScript is fetched to `thirdparty/repos/wattlescript` as managed interpreter source. Its interpreter project is `thirdparty/repos/wattlescript/src/WattleScript.Interpreter/WattleScript.Interpreter.csproj` and targets `netstandard2.0` at the pinned revision. It is BSD 3-Clause licensed, with upstream's license noting string-library parts based on KopiLua. WattleScript is for automated gameplay test orchestration only; `TEST-001` owns any future test host, scenario API, script execution, smoke test, or project reference. It must not become a runtime dependency of `Royale.Client`, `Royale.Server`, `Royale.Simulation`, or `Royale.Protocol`.
+
+For a fresh checkout after fetching SDL3-CS, ImGui.Net, BlurgText, SimpleMesh, or WattleScript, restore the solution with the binding's desktop-target property:
 
 ```sh
 dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
@@ -217,7 +222,7 @@ Keep patches focused. If a patch contains unrelated changes, split it before com
 
 When updating a dependency commit, re-apply the patch series and refresh patches only when needed.
 
-No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, BlurgText, or SimpleMesh.
+No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, BlurgText, SimpleMesh, or WattleScript.
 
 ## Updating a Third-Party Dependency
 

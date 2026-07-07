@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependencies Overview
 createdAt: 2026-07-05T07:54:48.9395240Z
-modifiedAt: 2026-07-06T18:52:44.2513210Z
+modifiedAt: 2026-07-07T04:41:33.9536980Z
 ---
 
 ## Overview
@@ -27,6 +27,7 @@ This keeps the main repo simple to clone and avoids submodule state becoming par
 | ImGui.Net | `https://github.com/EvergineTeam/ImGui.Net` | `1f97beecfc9b83e1549e9782757cf85b1777cb9d` | C# ImGui bindings for client development UI. |
 | BlurgText | `https://github.com/CallumDev/blurgtext` | `ea49c33b27ad55cc811dc8be4c9829ed4367d936` | Game-facing text outside ImGui. |
 | SimpleMesh | `https://github.com/CallumDev/SimpleMesh` | `9f46341e35fa5876fbea7b96bd021bc3abd7842d` | Managed mesh import source staged for future client rendering work. |
+| WattleScript | `https://github.com/WattleScript/wattlescript` | `b8ccc1930733c25c8a25e6087fc29a4c555562fe` | Interpreter source staged for automated gameplay test orchestration. |
 
 Use full commit SHAs, not branch names, tags, or floating references.
 

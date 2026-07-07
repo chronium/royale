@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Layout
 createdAt: 2026-07-05T16:14:33.2369430Z
-modifiedAt: 2026-07-06T18:52:44.2763790Z
+modifiedAt: 2026-07-07T04:41:59.3266630Z
 ---
 
 ## Directory Layout
@@ -25,6 +25,7 @@ thirdparty/
   fetch-imgui-net.sh
   fetch-blurgtext.sh
   fetch-simplemesh.sh
+  fetch-wattlescript.sh
   royale_imgui/          # committed project-owned C ABI shim source
   repos/                 # ignored clones, created by scripts
   build/                 # ignored generated native build output
@@ -39,6 +40,8 @@ thirdparty/
     blurgtext/
       README.md
     SimpleMesh/
+      README.md
+    wattlescript/
       README.md
 ```
 
@@ -110,6 +113,8 @@ thirdparty/build/blurgtext/osx-arm64/
 thirdparty/artifacts/blurgtext/osx-arm64/lib/libblurgtext.dylib
 ```
 
+WattleScript is currently fetched as managed interpreter source only and has no project-owned native build artifact layout.
+
 Project packaging tasks may copy selected final native binaries into project-controlled runtime or packaging directories later, but generated third-party build directories should remain ignored.
 
 ## Runtime Native Layout
@@ -133,4 +138,4 @@ runtimes/linux-x64/native/libbox3d.so
 * `osx-arm64` `libblurgtext` -> `libblurgtext.dylib`
 * `linux-x64` `box3d` -> `libbox3d.so`
 
-Box3D runtime-native copy rules are centralized in `Royale.Box3D`, so clients, servers, and tests receive Box3D through their project reference. The client output includes SDL3, Box3D, the ImGui shim, and BlurgText. The server output includes Box3D only and must remain free of SDL, ImGui, BlurgText, textures, shaders, and UI native libraries.
+Box3D runtime-native copy rules are centralized in `Royale.Box3D`, so clients, servers, and tests receive Box3D through their project reference. The client output includes SDL3, Box3D, the ImGui shim, and BlurgText. The server output includes Box3D only and must remain free of SDL, ImGui, BlurgText, textures, shaders, and UI native libraries. WattleScript remains a future automated gameplay test-host dependency and must not be copied into client or server runtime outputs.

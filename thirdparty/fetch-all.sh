@@ -9,3 +9,4 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$SCRIPT_DIR/fetch-blurgtext.sh"
 "$SCRIPT_DIR/fetch-simplemesh.sh"
 "$SCRIPT_DIR/fetch-wattlescript.sh"
+"$SCRIPT_DIR/fetch-litenetlib.sh"

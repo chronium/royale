@@ -20,6 +20,7 @@ This directory contains the committed dependency-management files for native and
 | BlurgText | `https://github.com/CallumDev/blurgtext` | `ea49c33b27ad55cc811dc8be4c9829ed4367d936` | Game-facing text outside ImGui. |
 | SimpleMesh | `https://github.com/CallumDev/SimpleMesh` | `9f46341e35fa5876fbea7b96bd021bc3abd7842d` | Managed mesh import source staged for future client rendering work. |
 | WattleScript | `https://github.com/WattleScript/wattlescript` | `b8ccc1930733c25c8a25e6087fc29a4c555562fe` | Interpreter source staged for automated gameplay test orchestration. |
+| LiteNetLib | `https://github.com/RevenantX/LiteNetLib` | `37cbf5ab608a4dbd0e491c528a0c14c1e09f1cba` | Managed UDP networking source staged for `NET-001` transport work. |
 
 Native SDL3 is not pinned separately yet. Until platform packaging tasks prove a different requirement, SDL3 native availability is expected to come through the selected SDL3-CS source.
 
@@ -35,6 +36,7 @@ thirdparty/
   fetch-blurgtext.sh
   fetch-simplemesh.sh
   fetch-wattlescript.sh
+  fetch-litenetlib.sh
   build-blurgtext-macos.sh
   repos/                 # ignored clones created by fetch scripts
   build/                 # ignored native build output
@@ -46,6 +48,7 @@ thirdparty/
     blurgtext/
     SimpleMesh/
     wattlescript/
+    LiteNetLib/
 ```
 
 ## Fetching Source
@@ -65,6 +68,7 @@ sh thirdparty/fetch-imgui-net.sh
 sh thirdparty/fetch-blurgtext.sh
 sh thirdparty/fetch-simplemesh.sh
 sh thirdparty/fetch-wattlescript.sh
+sh thirdparty/fetch-litenetlib.sh
 ```
 
 Each script initializes or reuses an ignored repository under `thirdparty/repos/<dependency>`, fetches the pinned commit with depth 1, checks out detached `FETCH_HEAD`, resets and cleans the working tree, then applies any `*.patch` files from the matching patch directory.
@@ -74,6 +78,14 @@ Each script initializes or reuses an ignored repository under `thirdparty/repos/
 SimpleMesh has no project patches, submodules, or native build steps at the pinned revision. It is Apache-2.0 licensed, managed-only, targets `net8.0`, supports OBJ, Collada, and embedded-buffer glTF/glb import, and imports Y-up geometry. `RENDER-010` owns adding any future project reference or mesh loading/rendering code.
 
 WattleScript has no project patches, submodules, or native build steps at the pinned revision. It is BSD 3-Clause licensed and contains string-library parts derived from KopiLua under the upstream license notice. It is fetched as interpreter source for automated gameplay test orchestration only. `TEST-001` owns adding any future test host, scenario API, script execution, smoke tests, or project references; WattleScript must not become a runtime dependency of the client, server, simulation, or protocol projects.
+
+LiteNetLib has no project patches, submodules, or native build steps at the pinned revision. It is fetched as managed UDP networking source only and is staged for `NET-001` transport work; this pin does not add runtime project references or change protocol, client, server, or transport APIs. The pinned project targets `net8.0;netstandard2.1` and declares MIT package metadata.
+
+After fetching, LiteNetLib's managed project is expected at:
+
+```text
+thirdparty/repos/LiteNetLib/LiteNetLib/LiteNetLib.csproj
+```
 
 After fetching, WattleScript's interpreter project is expected at:
 

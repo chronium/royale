@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-07T04:42:57.0256690Z
+modifiedAt: 2026-07-07T08:22:21.1622640Z
 ---
 
 ## Fetch Scripts
@@ -21,6 +21,7 @@ sh thirdparty/fetch-imgui-net.sh
 sh thirdparty/fetch-blurgtext.sh
 sh thirdparty/fetch-simplemesh.sh
 sh thirdparty/fetch-wattlescript.sh
+sh thirdparty/fetch-litenetlib.sh
 ```
 
 Each fetch script is deterministic and safe to rerun:
@@ -43,6 +44,8 @@ The scripts should fail clearly if the pinned commit cannot be fetched, a requir
 
 `fetch-wattlescript.sh` has no submodule or native build steps at the pinned revision.
 
+`fetch-litenetlib.sh` has no submodule or native build steps at the pinned revision.
+
 ## Restore and Build Notes
 
 SDL3-CS is consumed from the fetched source project at `thirdparty/repos/SDL3-CS/SDL3-CS/SDL3-CS.csproj`.
@@ -55,7 +58,9 @@ SimpleMesh is fetched to `thirdparty/repos/SimpleMesh` as managed-only source. I
 
 WattleScript is fetched to `thirdparty/repos/wattlescript` as managed interpreter source. Its interpreter project is `thirdparty/repos/wattlescript/src/WattleScript.Interpreter/WattleScript.Interpreter.csproj` and targets `netstandard2.0` at the pinned revision. It is BSD 3-Clause licensed, with upstream's license noting string-library parts based on KopiLua. WattleScript is for automated gameplay test orchestration only; `TEST-001` owns any future test host, scenario API, script execution, smoke test, or project reference. It must not become a runtime dependency of `Royale.Client`, `Royale.Server`, `Royale.Simulation`, or `Royale.Protocol`.
 
-For a fresh checkout after fetching SDL3-CS, ImGui.Net, BlurgText, SimpleMesh, or WattleScript, restore the solution with the binding's desktop-target property:
+LiteNetLib is fetched to `thirdparty/repos/LiteNetLib` as managed UDP networking source. Its main project is `thirdparty/repos/LiteNetLib/LiteNetLib/LiteNetLib.csproj`, targets `net8.0;netstandard2.1`, and declares `PackageLicenseExpression` `MIT`; the fetched checkout also contains `LICENSE.txt` with the MIT license. LiteNetLib is staged for `NET-001` transport work only. `BUILD-017` does not add project references or change protocol, client, server, or transport APIs.
+
+For a fresh checkout after fetching SDL3-CS, ImGui.Net, BlurgText, SimpleMesh, WattleScript, or LiteNetLib, restore the solution with the binding's desktop-target property:
 
 ```sh
 dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
@@ -222,7 +227,7 @@ Keep patches focused. If a patch contains unrelated changes, split it before com
 
 When updating a dependency commit, re-apply the patch series and refresh patches only when needed.
 
-No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, BlurgText, SimpleMesh, or WattleScript.
+No project-specific patches are currently required for SDL3-CS, box3d, ImGui.Net, BlurgText, SimpleMesh, WattleScript, or LiteNetLib.
 
 ## Updating a Third-Party Dependency
 

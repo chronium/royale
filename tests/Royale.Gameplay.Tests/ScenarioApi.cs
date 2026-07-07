@@ -7,6 +7,8 @@ namespace Royale.Gameplay.Tests;
 
 public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 {
+    internal const int MaxClockWaitTicks = 10000;
+
     private readonly Dictionary<uint, ScenarioPlayerApi> playersById = [];
     private InProcessServerSession? session;
 
@@ -69,10 +71,68 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         if (count < 1)
             throw new ScriptRuntimeException("scenario.server.step requires a positive tick count.");
 
+        StepRunningServer(count);
+    }
+
+    internal ulong WaitTicks(int count)
+    {
+        if (count < 1 || count > MaxClockWaitTicks)
+            throw new ScriptRuntimeException(
+                $"scenario.clock.waitTicks requires a tick count from 1 to {MaxClockWaitTicks}.");
+
+        StepRunningServer(count);
+
+        return CurrentTick;
+    }
+
+    internal bool WaitUntil(ScriptExecutionContext context, int maxTicks, DynValue predicate)
+    {
+        if (maxTicks < 0 || maxTicks > MaxClockWaitTicks)
+            throw new ScriptRuntimeException(
+                $"scenario.clock.waitUntil requires maxTicks from 0 to {MaxClockWaitTicks}.");
+
+        RequirePredicate(predicate);
+        RequireRunningSession();
+
+        if (EvaluatePredicate(context, predicate))
+            return true;
+
+        for (int i = 0; i < maxTicks; i++)
+        {
+            StepRunningServer(1);
+
+            if (EvaluatePredicate(context, predicate))
+                return true;
+        }
+
+        return false;
+    }
+
+    private void StepRunningServer(int count)
+    {
         InProcessServerSession runningSession = RequireRunningSession();
 
         for (int i = 0; i < count; i++)
             runningSession.Step();
+    }
+
+    private static void RequirePredicate(DynValue predicate)
+    {
+        if (predicate.Type is not (DataType.Function or DataType.ClrFunction))
+            throw new ScriptRuntimeException("scenario.clock.waitUntil requires a predicate function.");
+    }
+
+    private static bool EvaluatePredicate(ScriptExecutionContext context, DynValue predicate)
+    {
+        DynValue result = context.GetScript().Call(predicate);
+
+        if (result.Type != DataType.Boolean)
+        {
+            throw new ScriptRuntimeException(
+                $"scenario.clock.waitUntil predicate must return a boolean, got {result.Type.ToLuaTypeString()}.");
+        }
+
+        return result.Boolean;
     }
 
     internal ScenarioPlayerApi ConnectPlayer()
@@ -303,6 +363,13 @@ public sealed class ScenarioAssertApi : ScenarioScriptObject
 public sealed class ScenarioClockApi(ScenarioApi scenario) : ScenarioScriptObject
 {
     public ulong tick => scenario.CurrentTick;
+
+    public int maxWaitTicks => ScenarioApi.MaxClockWaitTicks;
+
+    public ulong waitTicks(int count) => scenario.WaitTicks(count);
+
+    public bool waitUntil(ScriptExecutionContext context, int maxTicks, DynValue predicate) =>
+        scenario.WaitUntil(context, maxTicks, predicate);
 }
 
 public sealed class ScenarioArtifactsApi : ScenarioScriptObject

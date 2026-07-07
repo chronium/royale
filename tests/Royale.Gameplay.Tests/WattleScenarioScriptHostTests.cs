@@ -137,6 +137,150 @@ public sealed class WattleScenarioScriptHostTests
     }
 
     [Fact]
+    public void ScenarioClockWaitTicksAdvancesServerClockAndSnapshots()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.observe.latest(player);
+
+            var tick = scenario.clock.waitTicks(3);
+            var snapshot = scenario.observe.latest(player);
+
+            scenario.assert.equal(3, tick);
+            scenario.assert.equal(3, snapshot.serverTick);
+            scenario.assert.equal(3, scenario.server.tick);
+            scenario.assert.equal(3, scenario.clock.tick);
+            scenario.assert.equal(10000, scenario.clock.maxWaitTicks);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioClockWaitTicksProcessesQueuedPlayerInput()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+
+            scenario.assert.isTrue(scenario.players.input(player, {
+                sequence = 107,
+                clientTick = 1070,
+                moveX = 0.0,
+                moveY = 1.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            }));
+
+            scenario.clock.waitTicks(1);
+            var snapshot = scenario.observe.latest(player);
+
+            scenario.assert.equal(107, snapshot.acknowledgedInputSequence);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioClockWaitUntilReturnsImmediatelyWhenPredicateIsAlreadyTrue()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+
+            var completed = scenario.clock.waitUntil(5, function() {
+                return scenario.clock.tick == 0;
+            });
+
+            scenario.assert.isTrue(completed);
+            scenario.assert.equal(0, scenario.clock.tick);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioClockWaitUntilStepsUntilPredicateBecomesTrue()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+
+            var completed = scenario.clock.waitUntil(5, function() {
+                return scenario.clock.tick == 3;
+            });
+
+            scenario.assert.isTrue(completed);
+            scenario.assert.equal(3, scenario.clock.tick);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioClockWaitUntilReturnsFalseAfterExactlyMaxTicks()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+
+            var completed = scenario.clock.waitUntil(4, function() {
+                return false;
+            });
+
+            scenario.assert.equal(false, completed);
+            scenario.assert.equal(4, scenario.clock.tick);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Theory]
+    [InlineData("scenario.clock.waitTicks(0);")]
+    [InlineData("scenario.clock.waitTicks(10001);")]
+    [InlineData("scenario.clock.waitUntil(-1, function() { return true; });")]
+    [InlineData("scenario.clock.waitUntil(10001, function() { return true; });")]
+    [InlineData("scenario.clock.waitUntil(1, nil);")]
+    [InlineData("scenario.clock.waitUntil(1, 42);")]
+    [InlineData("scenario.clock.waitUntil(1, function() { return 42; });")]
+    [InlineData("scenario.clock.waitUntil(1, function() { error(\"predicate failure\"); });")]
+    public void ScenarioClockWaitHelpersRejectInvalidArgumentsOrPredicateFailures(string statement)
+    {
+        string source = $$"""
+            scenario.server.start("graybox");
+            {{statement}}
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Theory]
+    [InlineData("scenario.clock.waitTicks(1);")]
+    [InlineData("scenario.clock.waitUntil(0, function() { return true; });")]
+    public void ScenarioClockWaitHelpersRequireRunningServer(string statement)
+    {
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(statement));
+    }
+
+    [Fact]
     public void ScenarioPlayersInputSubmitsValidCommandAndAcknowledgesSequence()
     {
         const string source = """

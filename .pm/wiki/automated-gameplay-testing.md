@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-07T06:11:35.1118120Z
+modifiedAt: 2026-07-07T06:25:13.1673850Z
 ---
 
 ## Overview
@@ -64,7 +64,7 @@ The authoritative server should remain able to run without WattleScript present.
 
 Initial integration lives in `tests/Royale.Gameplay.Tests`. The project references the pinned interpreter source at `thirdparty/repos/wattlescript/src/WattleScript.Interpreter/WattleScript.Interpreter.csproj`; no runtime project under `src/` should reference WattleScript.
 
-The test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, registers the test-only scenario wrapper types as Wattle userdata, and exposes one global named `scenario`. The scenario API wraps `Royale.Server.InProcessServerSession` for server lifecycle, scripted player connection handles, read-only snapshot observation, basic script assertions, clock inspection, and in-memory artifact metadata. WattleScript remains a test orchestration dependency only.
+The test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, registers the test-only scenario wrapper types as Wattle userdata, and exposes one global named `scenario`. The scenario API wraps `Royale.Server.InProcessServerSession` for server lifecycle, scripted player connection handles, read-only snapshot observation, basic script assertions, deterministic tick waits, clock inspection, and in-memory artifact metadata. WattleScript remains a test orchestration dependency only.
 
 ## Scenario API
 
@@ -87,6 +87,9 @@ Current `scenario` groups:
 * `scenario.assert.equal(expected, actual)` throws a script runtime exception when simple script values differ.
 * `scenario.assert["true"](value)` and `scenario.assert.isTrue(value)` throw a script runtime exception unless `value` is the boolean `true`. The bracket spelling is required for the member named `true` because `true` is a Wattle keyword and cannot be parsed after `.` as a normal member name.
 * `scenario.clock.tick` mirrors `scenario.server.tick`, or `0` before server start and after stop.
+* `scenario.clock.waitTicks(count)` advances the running in-process server by exactly `count` simulation ticks and returns the current tick. `count` must be from `1` through `scenario.clock.maxWaitTicks`.
+* `scenario.clock.waitUntil(maxTicks, predicate)` evaluates a script predicate at the current tick, then advances up to `maxTicks` ticks until the predicate returns boolean `true`. It returns `true` on success and `false` after exactly `maxTicks` ticks when the predicate never succeeds. `maxTicks` may be `0` for a current-tick-only check.
+* `scenario.clock.maxWaitTicks` reports the fixed per-call wait cap, currently `10000` ticks.
 * `scenario.artifacts.record(name, value)` stores an in-memory string artifact value for the current host run.
 * `scenario.artifacts.count` and `scenario.artifacts.names` expose in-memory artifact metadata.
 
@@ -108,10 +111,12 @@ scenario.players.input(player, {
 
 Malformed command tables fail with a script runtime exception, including missing required numeric fields, non-number required fields, non-boolean button fields, missing player handles, disconnected players, and stopped servers. Protocol-invalid but well-formed commands return `false` and are not acknowledged by later snapshots.
 
+Clock waits also fail with script runtime exceptions for invalid tick counts, missing running servers, non-function predicates, non-boolean predicate results, and predicate exceptions. Wait helpers are deterministic server stepping utilities, not wall-clock sleeps.
+
 Current boundaries:
 
 * Scripts cannot directly mutate authoritative player state such as position, health, ammunition, match phase, safe-zone state, or winner.
-* The API does not expose `moveTo`, `lookAt`, `shootAt`, tick waits, eventual assertions, replay file output, real UDP transport, or adverse-network controls yet.
+* The API does not expose `moveTo`, `lookAt`, `shootAt`, eventual assertion helpers, replay file output, real UDP transport, or adverse-network controls yet.
 * Scripts do not receive `PlayerInputCommand`, `InputButtons`, server simulation objects, or authoritative player state directly.
 * Artifact recording is in-memory metadata only; no files are written by `TEST-002`.
 * API calls that require a running server or connected player fail explicitly when used after stop or disconnect.
@@ -122,7 +127,9 @@ High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayIns
 
 Scenarios should advance using simulation ticks.
 
-Bounded waits should be expressed in ticks or simulation time, not arbitrary wall-clock sleeps. This keeps tests fast, reproducible, and independent of local machine speed.
+Bounded waits are expressed in ticks, not arbitrary wall-clock sleeps. `scenario.clock.waitTicks` is for exact deterministic advancement. `scenario.clock.waitUntil` is for bounded polling of script-observable state and evaluates the predicate once before stepping, then once after each tick advanced. This keeps tests fast, reproducible, and independent of local machine speed.
+
+Richer diagnostic assertion helpers remain future `TEST-004` work; `TEST-003` only adds deterministic tick-based execution flow.
 
 The same scenario model should eventually run against:
 

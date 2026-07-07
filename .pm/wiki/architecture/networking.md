@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T17:04:52.7550580Z
+modifiedAt: 2026-07-07T17:14:42.9868440Z
 ---
 
 ## Networking Layers
@@ -108,7 +108,7 @@ Handshake payload serialization exists for `ClientHello`, `ServerAccept`, and `S
 
 `ClientInputPayloadSerializer` serializes accepted-session `PlayerInputCommand` batches. A client input payload is a one-byte command count followed by 1 to 4 command records. Each command record is little-endian and contains `Sequence`, `ClientTick`, `Move.X`, `Move.Y`, `YawRadians`, `PitchRadians`, and `Buttons`. Payload deserialization rejects empty batches, oversized batches, invalid movement, invalid pitch, non-finite floats, undefined button bits, truncated payloads, and trailing bytes.
 
-`Royale.Network` sends `ProtocolMessageType.ClientInput` packets with the accepted nonzero session id using `NetworkDelivery.Unreliable` on input channel `2`. Each client input packet contains the newest command plus up to three previous commands, serialized newest-first, so normal packet loss can be tolerated without reliable retransmission. `ServerInputReceiver` consumes input packets only from accepted peers with the expected session id and channel. It discards stale or duplicate input commands using monotonic `Sequence` ordering per peer, leaves sequence wraparound handling deferred, and forwards accepted commands to the server callback in ascending sequence order so the in-process server's latest-command-for-tick behavior stays stable.
+`Royale.Network` sends `ProtocolMessageType.ClientInput` packets with the accepted nonzero session id using `NetworkDelivery.Sequenced` on input channel `2`. This keeps input unreliable while preserving the LiteNetLib channel; plain `Unreliable` delivery is not used for client input because LiteNetLib delivers those packets without the requested channel. Each client input packet contains the newest command plus up to three previous commands, serialized newest-first, so normal packet loss can be tolerated without reliable retransmission. `ServerInputReceiver` consumes input packets only from accepted peers with the expected session id and channel. It discards stale or duplicate input commands using monotonic `Sequence` ordering per peer, leaves sequence wraparound handling deferred, and forwards accepted commands to the server callback in ascending sequence order so the in-process server's latest-command-for-tick behavior stays stable.
 
 `ServerSnapshotPayloadSerializer` serializes full `ServerSnapshot` payloads with little-endian primitive fields. Nullable `uint` and `ulong` snapshot fields use explicit one-byte presence markers: `0` for absent and `1` for present, followed by the value only when present. Weapon ids are UTF-8 strings with one-byte length prefixes. Snapshot payloads are bounded by `ProtocolConstants.MaxSnapshotPlayers = 128` and `ProtocolConstants.MaxSnapshotWeaponIdLength = 64`.
 

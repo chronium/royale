@@ -58,7 +58,7 @@ public sealed class NetworkServerRuntimeTests
                 Move = new Vector2(0.0f, 1.0f),
                 YawRadians = MathF.PI / 2.0f,
             }),
-            NetworkDelivery.Unreliable,
+            NetworkDelivery.Sequenced,
             ClientInputSender.InputChannel);
 
         runtime.Step();

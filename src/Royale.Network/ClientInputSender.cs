@@ -65,7 +65,7 @@ public sealed class ClientInputSender
         transport.Send(
             serverPeerId,
             packet[..packetBytesWritten],
-            NetworkDelivery.Unreliable,
+            NetworkDelivery.Sequenced,
             InputChannel);
         return true;
     }

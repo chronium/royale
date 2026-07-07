@@ -54,7 +54,7 @@ public sealed class NetworkClientRuntimeTests
             clientTick: 12));
 
         SentPacket inputPacket = Assert.Single(transport.SentPackets);
-        Assert.Equal(NetworkDelivery.Unreliable, inputPacket.Delivery);
+        Assert.Equal(NetworkDelivery.Sequenced, inputPacket.Delivery);
         Assert.Equal(ClientInputSender.InputChannel, inputPacket.Channel);
         Assert.True(ClientInputPayloadSerializer.TryReadCommands(
             ReadPayload(inputPacket.Payload),

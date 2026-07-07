@@ -7,7 +7,7 @@ namespace Royale.Network.Tests;
 public sealed class ClientInputSenderTests
 {
     [Fact]
-    public void SenderFramesClientInputWithAcceptedSessionAndUnreliableInputChannel()
+    public void SenderFramesClientInputWithAcceptedSessionAndSequencedInputChannel()
     {
         FakeNetworkTransport transport = new();
         NetworkPeerId serverPeer = new(7);
@@ -19,7 +19,7 @@ public sealed class ClientInputSenderTests
         SentPacket sent = Assert.Single(transport.SentPackets);
         PacketParts parts = ReadPacket(sent.Payload);
         Assert.Equal(serverPeer, sent.PeerId);
-        Assert.Equal(NetworkDelivery.Unreliable, sent.Delivery);
+        Assert.Equal(NetworkDelivery.Sequenced, sent.Delivery);
         Assert.Equal(ClientInputSender.InputChannel, sent.Channel);
         Assert.Equal(accept.SessionId, parts.Header.SessionId);
         Assert.Equal(ProtocolMessageType.ClientInput, parts.Header.MessageType);

@@ -137,6 +137,270 @@ public sealed class WattleScenarioScriptHostTests
     }
 
     [Fact]
+    public void ScenarioPlayersInputSubmitsValidCommandAndAcknowledgesSequence()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+
+            var accepted = scenario.players.input(player, {
+                sequence = 7,
+                clientTick = 120,
+                moveX = 0.0,
+                moveY = 1.0,
+                yawRadians = 0.25,
+                pitchRadians = 0.0
+            });
+
+            scenario.server.step(1);
+            var snapshot = scenario.observe.latest(player);
+
+            scenario.assert.isTrue(accepted);
+            scenario.assert.equal(7, snapshot.acknowledgedInputSequence);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputTracksSeparatePlayerAcknowledgements()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var first = scenario.players.connect();
+            var second = scenario.players.connect();
+
+            scenario.assert.isTrue(scenario.players.input(first, {
+                sequence = 11,
+                clientTick = 201,
+                moveX = 0.0,
+                moveY = 1.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            }));
+            scenario.assert.isTrue(scenario.players.input(second, {
+                sequence = 22,
+                clientTick = 202,
+                moveX = 1.0,
+                moveY = 0.0,
+                yawRadians = 1.0,
+                pitchRadians = 0.0
+            }));
+
+            scenario.server.step(1);
+            var firstSnapshot = scenario.observe.latest(first);
+            var secondSnapshot = scenario.observe.latest(second);
+
+            scenario.assert.equal(11, firstSnapshot.acknowledgedInputSequence);
+            scenario.assert.equal(22, secondSnapshot.acknowledgedInputSequence);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputCombinesButtonBooleans()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+
+            scenario.assert.isTrue(scenario.players.input(player, {
+                sequence = 31,
+                clientTick = 301,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0,
+                fire = true,
+                reload = true,
+                crouch = true
+            }));
+
+            scenario.server.step(1);
+            var snapshot = scenario.observe.latest(player);
+
+            scenario.assert.equal(31, snapshot.acknowledgedInputSequence);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputReturnsFalseForProtocolInvalidCommand()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+
+            var accepted = scenario.players.input(player, {
+                sequence = 40,
+                clientTick = 400,
+                moveX = 2.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            });
+
+            scenario.server.step(1);
+            var snapshot = scenario.observe.latest(player);
+
+            scenario.assert.equal(false, accepted);
+            scenario.assert.equal(nil, snapshot.acknowledgedInputSequence);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Theory]
+    [InlineData("sequence")]
+    [InlineData("clientTick")]
+    [InlineData("moveX")]
+    [InlineData("moveY")]
+    [InlineData("yawRadians")]
+    [InlineData("pitchRadians")]
+    public void ScenarioPlayersInputRequiresNumericFields(string removedField)
+    {
+        string source = $$"""
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            var command = {
+                sequence = 50,
+                clientTick = 500,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            };
+            command.{{removedField}} = nil;
+            scenario.players.input(player, command);
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Theory]
+    [InlineData("sequence")]
+    [InlineData("clientTick")]
+    [InlineData("moveX")]
+    [InlineData("moveY")]
+    [InlineData("yawRadians")]
+    [InlineData("pitchRadians")]
+    public void ScenarioPlayersInputRejectsNonNumberFields(string field)
+    {
+        string source = $$"""
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            var command = {
+                sequence = 60,
+                clientTick = 600,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            };
+            command.{{field}} = "invalid";
+            scenario.players.input(player, command);
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputRejectsNonBooleanButtonFields()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.players.input(player, {
+                sequence = 70,
+                clientTick = 700,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0,
+                fire = 1
+            });
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputRequiresConnectedPlayer()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.players.disconnect(player);
+            scenario.players.input(player, {
+                sequence = 80,
+                clientTick = 800,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            });
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputRequiresRunningServer()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.server.stop();
+            scenario.players.input(player, {
+                sequence = 90,
+                clientTick = 900,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            });
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputRequiresPlayerHandle()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            scenario.players.input(nil, {
+                sequence = 100,
+                clientTick = 1000,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            });
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
     public void ScenarioAssertHelpersThrowScriptRuntimeFailures()
     {
         Assert.Throws<ScriptRuntimeException>(

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Royale.Protocol;
 using Royale.Server;
 using WattleScript.Interpreter;
@@ -95,6 +96,15 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         playersById.Remove(connectedPlayer.playerId);
     }
 
+    internal bool EnqueueInputCommand(ScenarioPlayerApi player, DynValue commandTable)
+    {
+        InProcessServerSession runningSession = RequireRunningSession();
+        ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
+        PlayerInputCommand command = ParseInputCommand(commandTable);
+
+        return runningSession.TryEnqueueInputCommand(connectedPlayer.Connection, command);
+    }
+
     internal ServerSnapshot GetLatestSnapshot(ScenarioPlayerApi player)
     {
         InProcessServerSession runningSession = RequireRunningSession();
@@ -129,6 +139,83 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
         return connectedPlayer;
     }
+
+    private static PlayerInputCommand ParseInputCommand(DynValue commandTable)
+    {
+        if (commandTable.Type != DataType.Table)
+            throw new ScriptRuntimeException("scenario.players.input requires a command table.");
+
+        Table table = commandTable.Table;
+        InputButtons buttons = InputButtons.None;
+
+        if (ReadOptionalBoolean(table, "jump"))
+            buttons |= InputButtons.Jump;
+        if (ReadOptionalBoolean(table, "fire"))
+            buttons |= InputButtons.Fire;
+        if (ReadOptionalBoolean(table, "reload"))
+            buttons |= InputButtons.Reload;
+        if (ReadOptionalBoolean(table, "interact"))
+            buttons |= InputButtons.Interact;
+        if (ReadOptionalBoolean(table, "crouch"))
+            buttons |= InputButtons.Crouch;
+
+        return new PlayerInputCommand(
+            Sequence: ReadRequiredUInt32(table, "sequence"),
+            ClientTick: ReadRequiredUInt32(table, "clientTick"),
+            Move: new Vector2(
+                ReadRequiredSingle(table, "moveX"),
+                ReadRequiredSingle(table, "moveY")),
+            YawRadians: ReadRequiredSingle(table, "yawRadians"),
+            PitchRadians: ReadRequiredSingle(table, "pitchRadians"),
+            Buttons: buttons);
+    }
+
+    private static uint ReadRequiredUInt32(Table table, string fieldName)
+    {
+        DynValue value = ReadRequired(table, fieldName);
+
+        if (value.Type != DataType.Number)
+            throw new ScriptRuntimeException($"scenario.players.input field '{fieldName}' must be a number.");
+
+        double number = value.Number;
+        if (!double.IsFinite(number) || number < uint.MinValue || number > uint.MaxValue || number % 1.0 != 0.0)
+            throw new ScriptRuntimeException($"scenario.players.input field '{fieldName}' must be a uint32 integer.");
+
+        return (uint)number;
+    }
+
+    private static float ReadRequiredSingle(Table table, string fieldName)
+    {
+        DynValue value = ReadRequired(table, fieldName);
+
+        if (value.Type != DataType.Number)
+            throw new ScriptRuntimeException($"scenario.players.input field '{fieldName}' must be a number.");
+
+        return (float)value.Number;
+    }
+
+    private static bool ReadOptionalBoolean(Table table, string fieldName)
+    {
+        DynValue value = table.Get(fieldName);
+
+        if (value.IsNil())
+            return false;
+
+        if (value.Type != DataType.Boolean)
+            throw new ScriptRuntimeException($"scenario.players.input field '{fieldName}' must be a boolean.");
+
+        return value.Boolean;
+    }
+
+    private static DynValue ReadRequired(Table table, string fieldName)
+    {
+        DynValue value = table.Get(fieldName);
+
+        if (value.IsNil())
+            throw new ScriptRuntimeException($"scenario.players.input requires field '{fieldName}'.");
+
+        return value;
+    }
 }
 
 public sealed class ScenarioServerApi(ScenarioApi scenario) : ScenarioScriptObject
@@ -151,6 +238,8 @@ public sealed class ScenarioPlayersApi(ScenarioApi scenario) : ScenarioScriptObj
     public ScenarioPlayerApi connect() => scenario.ConnectPlayer();
 
     public void disconnect(ScenarioPlayerApi player) => scenario.DisconnectPlayer(player);
+
+    public bool input(ScenarioPlayerApi player, DynValue command) => scenario.EnqueueInputCommand(player, command);
 }
 
 public sealed class ScenarioObservationsApi(ScenarioApi scenario) : ScenarioScriptObject

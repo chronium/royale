@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-07T06:00:23.8314780Z
+modifiedAt: 2026-07-07T06:11:35.1118120Z
 ---
 
 ## Overview
@@ -79,6 +79,7 @@ Current `scenario` groups:
 * `scenario.server.tick` reports the current authoritative server tick, or `0` when stopped.
 * `scenario.players.connect()` connects one scripted player and returns a player handle with read-only `playerId`, `connectionId`, and `isConnected` properties.
 * `scenario.players.disconnect(player)` disconnects a connected script player handle.
+* `scenario.players.input(player, commandTable)` submits one low-level protocol-shaped input command through the in-process server boundary and returns `true` when accepted or `false` when the command is well-formed but rejected by protocol validation.
 * `scenario.players.count` reports the current connected script player count.
 * `scenario.observe.latest(player)` returns the latest read-only snapshot wrapper for a connected player.
 * `scenario.observe.connectedPlayerCount` and `scenario.observe.livingPlayerCount` expose current server counts while the server is running.
@@ -89,10 +90,29 @@ Current `scenario` groups:
 * `scenario.artifacts.record(name, value)` stores an in-memory string artifact value for the current host run.
 * `scenario.artifacts.count` and `scenario.artifacts.names` expose in-memory artifact metadata.
 
+`scenario.players.input` command tables are flat and explicit. Required numeric fields are `sequence`, `clientTick`, `moveX`, `moveY`, `yawRadians`, and `pitchRadians`. Optional boolean fields default to `false`: `jump`, `fire`, `reload`, `interact`, and `crouch`.
+
+Example:
+
+```wattle
+scenario.players.input(player, {
+    sequence = 7,
+    clientTick = 120,
+    moveX = 0.0,
+    moveY = 1.0,
+    yawRadians = 0.25,
+    pitchRadians = 0.0,
+    fire = true
+});
+```
+
+Malformed command tables fail with a script runtime exception, including missing required numeric fields, non-number required fields, non-boolean button fields, missing player handles, disconnected players, and stopped servers. Protocol-invalid but well-formed commands return `false` and are not acknowledged by later snapshots.
+
 Current boundaries:
 
 * Scripts cannot directly mutate authoritative player state such as position, health, ammunition, match phase, safe-zone state, or winner.
-* The API does not expose `moveTo`, `lookAt`, `shootAt`, low-level input command submission, tick waits, eventual assertions, replay file output, real UDP transport, or adverse-network controls yet.
+* The API does not expose `moveTo`, `lookAt`, `shootAt`, tick waits, eventual assertions, replay file output, real UDP transport, or adverse-network controls yet.
+* Scripts do not receive `PlayerInputCommand`, `InputButtons`, server simulation objects, or authoritative player state directly.
 * Artifact recording is in-memory metadata only; no files are written by `TEST-002`.
 * API calls that require a running server or connected player fail explicitly when used after stop or disconnect.
 

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Royale.Content;
 using Royale.Protocol;
 using Royale.Simulation.Combat;
@@ -10,6 +11,7 @@ public sealed class HeadlessServerSimulation : IDisposable
 {
     private readonly GameMap map;
     private readonly MapStaticCollisionWorld collisionWorld;
+    private readonly KinematicCharacterController characterController = new();
     private readonly Dictionary<ServerPlayerId, AuthoritativePlayerState> players = [];
     private readonly Dictionary<ServerPlayerId, SpawnReservation> spawnReservations = [];
     private uint nextPlayerId = 1;
@@ -45,6 +47,13 @@ public sealed class HeadlessServerSimulation : IDisposable
     public static HeadlessServerSimulation Create(string mapId)
     {
         GameMap map = MapCatalog.LoadById(mapId);
+        return Create(map);
+    }
+
+    public static HeadlessServerSimulation Create(GameMap map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+
         MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
 
         try
@@ -143,7 +152,18 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public void Step()
     {
+        Step(new Dictionary<ServerPlayerId, PlayerInputCommand>());
+    }
+
+    public void Step(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand> inputCommands)
+    {
         ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(inputCommands);
+
+        ValidateInputCommands(inputCommands);
+        ApplyMovement(inputCommands);
+        ApplyCombat(inputCommands);
+        RefreshLivingPlayerCount();
 
         collisionWorld.Step(SimulationSettings.FixedDeltaSeconds, SimulationSettings.PhysicsSubStepCount);
         CurrentTick++;
@@ -251,6 +271,161 @@ public sealed class HeadlessServerSimulation : IDisposable
     {
         int livingPlayerCount = players.Values.Count(player => player.Health.Alive);
         MatchState = MatchState with { LivingPlayerCount = livingPlayerCount };
+    }
+
+    private void ValidateInputCommands(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand> inputCommands)
+    {
+        foreach ((ServerPlayerId playerId, PlayerInputCommand command) in inputCommands)
+        {
+            if (!players.ContainsKey(playerId))
+                throw new InvalidOperationException($"Cannot apply input for unknown player '{playerId}'.");
+
+            if (!PlayerInputCommandValidation.IsValid(command))
+                throw new ArgumentException($"Cannot apply invalid input command for player '{playerId}'.", nameof(inputCommands));
+        }
+    }
+
+    private void ApplyMovement(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand> inputCommands)
+    {
+        foreach (ServerPlayerId playerId in players.Keys.OrderBy(id => id.Value).ToArray())
+        {
+            AuthoritativePlayerState player = players[playerId];
+            bool hasCommand = inputCommands.TryGetValue(playerId, out PlayerInputCommand command);
+
+            if (hasCommand)
+            {
+                player = player with
+                {
+                    LastProcessedInputSequence = command.Sequence,
+                };
+            }
+
+            if (!player.Health.Alive)
+            {
+                players[playerId] = player;
+                continue;
+            }
+
+            if (hasCommand)
+            {
+                player = player with
+                {
+                    Look = new PlayerLookState(command.YawRadians, command.PitchRadians),
+                };
+            }
+
+            Vector2 localMove = hasCommand ? command.Move : Vector2.Zero;
+            bool jump = hasCommand && (command.Buttons & InputButtons.Jump) != 0;
+            Vector2 worldMove = PlayerMovementIntent.ToWorldMovement(localMove, player.Look.YawRadians);
+            KinematicCharacterStepResult stepResult = characterController.Step(
+                collisionWorld,
+                player.Character,
+                new KinematicCharacterInput(worldMove, jump),
+                SimulationSettings.FixedDeltaSeconds);
+
+            players[playerId] = player with
+            {
+                Character = stepResult.State,
+            };
+        }
+    }
+
+    private void ApplyCombat(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand> inputCommands)
+    {
+        foreach (ServerPlayerId shooterId in players.Keys.OrderBy(id => id.Value).ToArray())
+        {
+            if (!inputCommands.TryGetValue(shooterId, out PlayerInputCommand command) ||
+                (command.Buttons & InputButtons.Fire) == 0)
+            {
+                continue;
+            }
+
+            AuthoritativePlayerState shooter = players[shooterId];
+            if (!shooter.Health.Alive || shooter.Weapon.AmmoInMagazine <= 0)
+                continue;
+
+            WeaponDefinition weapon = WeaponCatalog.GetById(shooter.Weapon.WeaponId);
+            WeaponFireStepResult fireResult = WeaponFireController.Step(
+                weapon,
+                shooter.Weapon.Fire,
+                fireHeld: true,
+                CurrentTick);
+
+            if (!fireResult.Fired)
+                continue;
+
+            shooter = shooter with
+            {
+                Weapon = shooter.Weapon with
+                {
+                    AmmoInMagazine = shooter.Weapon.AmmoInMagazine - 1,
+                    Fire = fireResult.State,
+                },
+            };
+            players[shooterId] = shooter;
+
+            HitscanRay ray = HitscanResolver.CreatePlayerRay(
+                shooter.Character,
+                shooter.Look,
+                PlayerViewSettings.Default,
+                weapon);
+            HitscanHit hit = HitscanResolver.Resolve(collisionWorld, ray, CreateTargetCandidates(shooterId));
+            ApplyDamage(weapon, hit, shooterId);
+        }
+    }
+
+    private IEnumerable<HitscanTarget> CreateTargetCandidates(ServerPlayerId shooterId) =>
+        players.Values
+            .Where(player => player.PlayerId != shooterId && player.Health.Alive)
+            .OrderBy(player => player.PlayerId.Value)
+            .Select(player => HitscanTarget.FromCharacter(
+                CreateTargetId(player.PlayerId),
+                player.Character,
+                characterController.Settings));
+
+    private void ApplyDamage(WeaponDefinition weapon, HitscanHit hit, ServerPlayerId shooterId)
+    {
+        Dictionary<string, HealthState> targetHealth = players.Values
+            .Where(player => player.PlayerId != shooterId && player.Health.Alive)
+            .ToDictionary(
+                player => CreateTargetId(player.PlayerId),
+                player => player.Health,
+                StringComparer.Ordinal);
+
+        DamageResult damage = DamageController.Apply(weapon, hit, targetHealth);
+        if (!damage.Applied || string.IsNullOrWhiteSpace(damage.TargetId))
+            return;
+
+        if (!TryParseTargetId(damage.TargetId, out ServerPlayerId targetId) ||
+            !players.TryGetValue(targetId, out AuthoritativePlayerState? target) ||
+            !targetHealth.TryGetValue(damage.TargetId, out HealthState health))
+        {
+            return;
+        }
+
+        players[targetId] = target with
+        {
+            Health = health,
+        };
+    }
+
+    private static string CreateTargetId(ServerPlayerId playerId) =>
+        playerId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private static bool TryParseTargetId(string targetId, out ServerPlayerId playerId)
+    {
+        if (uint.TryParse(
+            targetId,
+            System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out uint value))
+        {
+            playerId = new ServerPlayerId(value);
+            return true;
+        }
+
+        playerId = default;
+        return false;
     }
 
     private static float DegreesToRadians(float degrees) => degrees * MathF.PI / 180.0f;

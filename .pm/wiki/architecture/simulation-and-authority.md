@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-07T04:14:19.6948030Z
+modifiedAt: 2026-07-07T07:21:44.0136070Z
 ---
 
 ## Simulation Model
@@ -131,17 +131,15 @@ SERVER-002 introduces the first concrete authoritative state container in `Royal
 
 Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player IDs are allocated monotonically by the simulation and are not reused when a player is removed.
 
-`AuthoritativePlayerState` currently contains the server player id, optional connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and the last processed input sequence. `AddPlayer` selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the player with `WeaponCatalog.DefaultRifle`.
+`AuthoritativePlayerState` contains the server player id, optional connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and the last processed input sequence. `AddPlayer` selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the player with `WeaponCatalog.DefaultRifle`.
 
-`AuthoritativeWeaponState` stores the current weapon id, magazine ammunition, reserve ammunition, `WeaponFireState`, and reload placeholders. Rifle cadence, ammo consumption, reload behavior, hit resolution, and damage are still future server simulation work.
+`AuthoritativeWeaponState` stores the current weapon id, magazine ammunition, reserve ammunition, `WeaponFireState`, and reload placeholders. SERVER-006 consumes magazine ammunition and advances rifle fire cadence for accepted server-authoritative shots. Reload behavior remains future work.
 
-SERVER-002 only initializes and owns authoritative state. The fixed server tick still advances the static Box3D world and server tick counter; it does not process networking, input commands, snapshots, movement, combat, match phase transitions, safe-zone shrinking, eliminations, winners, or match reset yet.
-
-SERVER-003 adds `HeadlessServerSimulation.AcknowledgePlayerInputSequence` so server-owned session code can update a player's last processed input sequence. This is an acknowledgement field only; it does not currently apply movement, look, weapon, interaction, reload, or match behavior from the command.
+`HeadlessServerSimulation.Step()` remains a no-input convenience wrapper. `HeadlessServerSimulation.Step(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand>)` validates supplied commands, applies movement/look/combat intent for the tick, refreshes living-player count, steps the static collision world, and increments the authoritative server tick. Commands for unknown players or protocol-invalid commands fail explicitly.
 
 ## Input Commands
 
-Client input commands are protocol-owned intent messages associated with client simulation ticks. They are not authoritative gameplay state; the server will interpret accepted commands against server-owned player, weapon, match, and map state in later tasks.
+Client input commands are protocol-owned intent messages associated with client simulation ticks. They are not authoritative gameplay state; the server interprets accepted commands against server-owned player, weapon, match, and map state.
 
 ```csharp
 public readonly record struct PlayerInputCommand(
@@ -178,7 +176,9 @@ public enum InputButtons : ushort
 
 `PlayerInputCommandValidation` accepts only finite movement and look values, movement vectors whose length is at most `1.0` plus a small tolerance, pitch within the allowed look range, and button masks containing only defined bits. Yaw is validated for finiteness but is not clamped by the protocol helper.
 
-`InProcessServerSession` is the first command queue owner. It accepts only valid `PlayerInputCommand` values, rejects invalid commands before queueing, drains valid commands before each in-process server step, and updates the owning player's `LastProcessedInputSequence` to the drained command sequence. If multiple valid commands are queued for one player before a step, the top-level acknowledgement in the next recipient snapshot reflects the last command drained for that player. Sequence wraparound handling remains future networking/protocol work; SERVER-003 uses simple monotonic `uint` sequences.
+`InProcessServerSession` accepts only valid `PlayerInputCommand` values, rejects invalid commands before queueing, drains valid commands before each in-process server step, and passes the latest drained command per connected player to `HeadlessServerSimulation.Step(...)`. If multiple valid commands are queued for one player before a step, only the latest drained command affects that server tick and becomes the top-level acknowledged sequence in the next recipient snapshot. Sequence wraparound handling remains future networking/protocol work; SERVER-006 uses simple monotonic `uint` sequences.
+
+For alive players, an accepted command sets server-owned look from yaw/pitch, converts local movement through the command yaw into a world X/Z movement vector, applies jump intent, and may fire the equipped rifle. Players with no command for a tick are stepped with neutral movement and no fire intent. Dead players may still have a latest valid sequence acknowledged, but they do not update look, move, jump, fire, consume ammo, or advance weapon cadence.
 
 Local offline gameplay input still has a shared pre-protocol sample type:
 
@@ -186,12 +186,13 @@ Local offline gameplay input still has a shared pre-protocol sample type:
 public readonly record struct PlayerInputSample(
     Vector2 Move,
     bool Jump,
+    bool Fire,
     Vector2 LookDelta);
 ```
 
-`PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` is button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled. For the local offline player, the client converts `Move` through the current gameplay yaw before passing a world X/Z movement vector to `KinematicCharacterController`. Assigning sequence numbers and sending network input commands remain later server/network tasks.
+`PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` and `Fire` are button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled.
 
-Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`. Mouse deltas adjust yaw and clamped pitch with finite-value guards so invalid device deltas do not corrupt local look state.
+`PlayerMovementIntent.ToWorldMovement()` is the shared helper for converting local movement through gameplay yaw before passing world X/Z intent to `KinematicCharacterController`. The local offline player and the headless server both use this helper. Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`.
 
 ## Server Snapshots
 
@@ -206,13 +207,13 @@ SERVER-005 defines the first protocol-owned server snapshot DTOs in `Royale.Prot
 * match state
 * safe-zone state
 
-Snapshots are recipient-specific only for acknowledgement and local-player identity. When `CreateSnapshot` is called without a recipient, `LocalPlayerId` and `AcknowledgedInputSequence` are `null`. When a recipient is supplied, it must be an active server player; unknown recipients fail explicitly. The acknowledgement comes from the recipient player's `LastProcessedInputSequence`. It remains `null` until accepted command processing updates that authoritative field; SERVER-003 updates it through the in-process session's validated command queue.
+Snapshots are recipient-specific only for acknowledgement and local-player identity. When `CreateSnapshot` is called without a recipient, `LocalPlayerId` and `AcknowledgedInputSequence` are `null`. When a recipient is supplied, it must be an active server player; unknown recipients fail explicitly. The acknowledgement comes from the recipient player's `LastProcessedInputSequence`, which SERVER-006 updates from the latest valid command processed for that recipient during an in-process server step.
 
 Player snapshot entries are sorted by player id for deterministic tests and future wire stability. Each player entry contains replicated gameplay state only: player id, position, velocity, yaw, pitch, current health, max health, alive state, and weapon state. Weapon state includes weapon id, magazine ammo, reserve ammo, next allowed fire tick, last fired tick, reload state, and optional reload completion tick.
 
-Snapshot match state uses `ServerSnapshotMatchPhase`, a protocol enum mapped from the server authority `MatchPhase`. Match snapshots include phase, phase start tick, living-player count, and optional winner player id. Safe-zone snapshots include center, current radius, target radius, and last updated tick.
+Snapshots now reflect server-authoritative movement, look, rifle ammo/cadence, health, alive state, and living-player count after input application. Killed players remain in snapshots with `Alive == false` and health `0`. Snapshot DTOs still exclude server connection ids, spawn reservations, collision internals, client presentation state, rendering data, and UI data.
 
-Snapshots deliberately exclude server connection ids, spawn reservations, collision internals, client presentation state, rendering data, and UI data. SERVER-005 defines DTOs and server-side mapping only. SERVER-003 uses those DTOs in local per-client snapshot queues, but serialization, UDP transport, snapshot send cadence, interpolation, prediction, reconciliation, and gameplay input application remain future work.
+Serialization, UDP transport, snapshot send cadence, interpolation, prediction, reconciliation, winner selection, combat events, reload replication, and match reset remain future work.
 
 ## Client-Side Prediction
 

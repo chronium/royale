@@ -22,6 +22,45 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
+    public void CreateCanUseProgrammaticMapForDeterministicTests()
+    {
+        GameMap map = new()
+        {
+            Id = "server-test-map",
+            Name = "Server Test Map",
+            SpawnPoints =
+            [
+                new MapSpawnPoint
+                {
+                    Id = "spawn-a",
+                    Position = new MapVector3(0.0f, 0.0f, 0.0f),
+                },
+            ],
+            StaticBoxes =
+            [
+                new StaticBoxDefinition
+                {
+                    Id = "floor",
+                    Position = new MapVector3(0.0f, -0.1f, 0.0f),
+                    Size = new MapVector3(10.0f, 0.2f, 10.0f),
+                },
+            ],
+            SafeZone = new SafeZoneDefinition
+            {
+                Center = new MapVector3(0.0f, 0.0f, 0.0f),
+                Radius = 25.0f,
+            },
+        };
+
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(map);
+
+        Assert.Equal("server-test-map", simulation.MapId);
+        Assert.Equal(1, simulation.StaticColliderCount);
+        AuthoritativePlayerState player = simulation.AddPlayer();
+        Assert.Equal(new ServerPlayerId(1), player.PlayerId);
+    }
+
+    [Fact]
     public void CreateInitializesEmptyAuthoritativeState()
     {
         GameMap map = MapCatalog.LoadDefault();

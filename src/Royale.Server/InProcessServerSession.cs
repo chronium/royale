@@ -1,4 +1,5 @@
 using Royale.Protocol;
+using Royale.Content;
 
 namespace Royale.Server;
 
@@ -28,6 +29,9 @@ public sealed class InProcessServerSession : IDisposable
 
     public static InProcessServerSession Create(string mapId) =>
         new(HeadlessServerSimulation.Create(mapId));
+
+    public static InProcessServerSession Create(GameMap map) =>
+        new(HeadlessServerSimulation.Create(map));
 
     public InProcessClientConnection ConnectClient()
     {
@@ -76,13 +80,15 @@ public sealed class InProcessServerSession : IDisposable
     {
         ThrowIfDisposed();
 
+        var inputCommands = new Dictionary<ServerPlayerId, PlayerInputCommand>();
+
         foreach (InProcessClientState client in clients.Values)
         {
             while (client.InputCommands.TryDequeue(out PlayerInputCommand command))
-                simulation.AcknowledgePlayerInputSequence(client.PlayerId, command.Sequence);
+                inputCommands[client.PlayerId] = command;
         }
 
-        simulation.Step();
+        simulation.Step(inputCommands);
 
         foreach (InProcessClientState client in clients.Values)
             client.Snapshots.Enqueue(simulation.CreateSnapshot(client.PlayerId));

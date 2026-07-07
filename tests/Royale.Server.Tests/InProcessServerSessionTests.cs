@@ -105,6 +105,156 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void StepAppliesMovementAndLookToAuthoritativeSnapshots()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+        ServerSnapshot initial = session.DrainSnapshots(first)[^1];
+        _ = session.DrainSnapshots(second);
+        Vector3 initialPosition = FindPlayer(initial, first.PlayerId).Position;
+
+        Assert.True(session.TryEnqueueInputCommand(
+            first,
+            ValidCommand(sequence: 1) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                YawRadians = MathF.PI / 2.0f,
+                PitchRadians = 0.25f,
+            }));
+
+        session.Step();
+        ServerSnapshot firstSnapshot = DequeueSnapshot(session, first);
+        ServerSnapshot secondSnapshot = DequeueSnapshot(session, second);
+        PlayerSnapshotState firstFromFirstSnapshot = FindPlayer(firstSnapshot, first.PlayerId);
+        PlayerSnapshotState firstFromSecondSnapshot = FindPlayer(secondSnapshot, first.PlayerId);
+
+        Assert.True(firstFromFirstSnapshot.Position.X > initialPosition.X + 0.01f);
+        Assert.Equal(MathF.PI / 2.0f, firstFromFirstSnapshot.YawRadians);
+        Assert.Equal(0.25f, firstFromFirstSnapshot.PitchRadians);
+        Assert.Equal(firstFromFirstSnapshot.Position, firstFromSecondSnapshot.Position);
+        Assert.Equal(1U, firstSnapshot.AcknowledgedInputSequence);
+        Assert.Null(secondSnapshot.AcknowledgedInputSequence);
+    }
+
+    [Fact]
+    public void LatestQueuedCommandWinsForOneServerTick()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection client = session.ConnectClient();
+        ServerSnapshot initial = session.DrainSnapshots(client)[^1];
+        Vector3 initialPosition = FindPlayer(initial, client.PlayerId).Position;
+
+        Assert.True(session.TryEnqueueInputCommand(
+            client,
+            ValidCommand(sequence: 1) with
+            {
+                Move = new Vector2(0.0f, -1.0f),
+                PitchRadians = -0.10f,
+            }));
+        Assert.True(session.TryEnqueueInputCommand(
+            client,
+            ValidCommand(sequence: 2) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                PitchRadians = 0.10f,
+            }));
+
+        session.Step();
+        ServerSnapshot snapshot = DequeueSnapshot(session, client);
+        PlayerSnapshotState player = FindPlayer(snapshot, client.PlayerId);
+
+        Assert.Equal(2U, snapshot.AcknowledgedInputSequence);
+        Assert.True(player.Position.Z < initialPosition.Z - 0.01f);
+        Assert.InRange(MathF.Abs(player.Position.X - initialPosition.X), 0.0f, 0.001f);
+        Assert.Equal(0.10f, player.PitchRadians);
+    }
+
+    [Fact]
+    public void RifleFireDamagesTargetInBothClientsSnapshots()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+        _ = session.DrainSnapshots(first);
+        _ = session.DrainSnapshots(second);
+
+        Assert.True(session.TryEnqueueInputCommand(first, FireCommand(sequence: 1, yawRadians: 0.0f)));
+
+        session.Step();
+        ServerSnapshot firstSnapshot = DequeueSnapshot(session, first);
+        ServerSnapshot secondSnapshot = DequeueSnapshot(session, second);
+
+        Assert.Equal(75, FindPlayer(firstSnapshot, second.PlayerId).CurrentHealth);
+        Assert.Equal(75, FindPlayer(secondSnapshot, second.PlayerId).CurrentHealth);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize - 1, FindPlayer(firstSnapshot, first.PlayerId).Weapon.AmmoInMagazine);
+        Assert.Equal(2, firstSnapshot.Match.LivingPlayerCount);
+        Assert.Equal(2, secondSnapshot.Match.LivingPlayerCount);
+    }
+
+    [Fact]
+    public void FourDefaultRifleHitsKillTargetAndReduceLivingPlayerCount()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+        _ = session.DrainSnapshots(first);
+        _ = session.DrainSnapshots(second);
+
+        FireOnCurrentTick(session, first, sequence: 1);
+        StepTicks(session, 5);
+        FireOnCurrentTick(session, first, sequence: 2);
+        StepTicks(session, 5);
+        FireOnCurrentTick(session, first, sequence: 3);
+        StepTicks(session, 5);
+        FireOnCurrentTick(session, first, sequence: 4);
+
+        ServerSnapshot snapshot = session.DrainSnapshots(first)[^1];
+        PlayerSnapshotState target = FindPlayer(snapshot, second.PlayerId);
+
+        Assert.Equal(0, target.CurrentHealth);
+        Assert.False(target.Alive);
+        Assert.Equal(1, snapshot.Match.LivingPlayerCount);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize - 4, FindPlayer(snapshot, first.PlayerId).Weapon.AmmoInMagazine);
+    }
+
+    [Fact]
+    public void DeadPlayersDoNotMoveLookFireOrAdvanceWeaponCadence()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+        _ = session.DrainSnapshots(first);
+        _ = session.DrainSnapshots(second);
+        KillSecondPlayer(session, first);
+        ServerSnapshot killedSnapshot = session.DrainSnapshots(first)[^1];
+        PlayerSnapshotState deadBefore = FindPlayer(killedSnapshot, second.PlayerId);
+        PlayerSnapshotState shooterBefore = FindPlayer(killedSnapshot, first.PlayerId);
+
+        Assert.False(deadBefore.Alive);
+        Assert.True(session.TryEnqueueInputCommand(
+            second,
+            FireCommand(sequence: 99, yawRadians: MathF.PI) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                PitchRadians = 0.30f,
+            }));
+
+        session.Step();
+        ServerSnapshot snapshot = DequeueSnapshot(session, first);
+        PlayerSnapshotState deadAfter = FindPlayer(snapshot, second.PlayerId);
+        PlayerSnapshotState shooterAfter = FindPlayer(snapshot, first.PlayerId);
+
+        Assert.Equal(deadBefore.Position, deadAfter.Position);
+        Assert.Equal(deadBefore.YawRadians, deadAfter.YawRadians);
+        Assert.Equal(deadBefore.PitchRadians, deadAfter.PitchRadians);
+        Assert.Equal(deadBefore.Weapon.AmmoInMagazine, deadAfter.Weapon.AmmoInMagazine);
+        Assert.Equal(deadBefore.Weapon.NextAllowedFireTick, deadAfter.Weapon.NextAllowedFireTick);
+        Assert.Equal(shooterBefore.CurrentHealth, shooterAfter.CurrentHealth);
+        Assert.False(deadAfter.Alive);
+    }
+
+    [Fact]
     public void DisconnectRemovesAuthoritativePlayerAndRejectsFurtherUseOfHandle()
     {
         using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
@@ -153,4 +303,75 @@ public sealed class InProcessServerSessionTests
         YawRadians: 0.0f,
         PitchRadians: 0.0f,
         Buttons: InputButtons.None);
+
+    private static PlayerInputCommand FireCommand(uint sequence, float yawRadians) =>
+        ValidCommand(sequence) with
+        {
+            YawRadians = yawRadians,
+            Buttons = InputButtons.Fire,
+        };
+
+    private static void FireOnCurrentTick(
+        InProcessServerSession session,
+        InProcessClientConnection client,
+        uint sequence)
+    {
+        Assert.True(session.TryEnqueueInputCommand(client, FireCommand(sequence, yawRadians: 0.0f)));
+        session.Step();
+    }
+
+    private static void KillSecondPlayer(
+        InProcessServerSession session,
+        InProcessClientConnection first)
+    {
+        FireOnCurrentTick(session, first, sequence: 1);
+        StepTicks(session, 5);
+        FireOnCurrentTick(session, first, sequence: 2);
+        StepTicks(session, 5);
+        FireOnCurrentTick(session, first, sequence: 3);
+        StepTicks(session, 5);
+        FireOnCurrentTick(session, first, sequence: 4);
+    }
+
+    private static void StepTicks(InProcessServerSession session, int ticks)
+    {
+        for (int i = 0; i < ticks; i++)
+            session.Step();
+    }
+
+    private static PlayerSnapshotState FindPlayer(ServerSnapshot snapshot, ServerPlayerId playerId) =>
+        snapshot.Players.Single(player => player.PlayerId == playerId.Value);
+
+    private static GameMap CreateOpenArenaMap() => new()
+    {
+        Id = "open-arena",
+        Name = "Open Arena",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+            new MapSpawnPoint
+            {
+                Id = "spawn-b",
+                Position = new MapVector3(0.0f, 0.0f, -10.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "floor",
+                Position = new MapVector3(0.0f, -0.1f, -5.0f),
+                Size = new MapVector3(30.0f, 0.2f, 30.0f),
+            },
+        ],
+        SafeZone = new SafeZoneDefinition
+        {
+            Center = new MapVector3(0.0f, 0.0f, -5.0f),
+            Radius = 50.0f,
+        },
+    };
 }

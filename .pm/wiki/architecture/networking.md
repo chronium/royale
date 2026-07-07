@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T04:11:30.1432120Z
+modifiedAt: 2026-07-07T07:21:57.0289780Z
 ---
 
 ## Networking Layers
@@ -90,25 +90,23 @@ The first implementation does not need sophisticated backwards compatibility. It
 
 Before real networking is introduced, the client should be able to communicate with a server simulation through in-memory queues.
 
-This mode should preserve the same conceptual boundaries as real networking:
+This mode preserves the same conceptual boundaries as real networking:
 
 ```text
 Client
-  produces serialized or structured commands
+  produces structured commands
 
-In-process transport
-  moves commands between queues
+In-process transport/session
+  queues commands per connected client
 
 Server
-  processes commands and produces snapshots
+  applies commands to authoritative simulation and produces snapshots
 
-In-process transport
-  returns snapshots to the client
+In-process transport/session
+  returns recipient-specific snapshots to each client
 ```
 
-The client should not call arbitrary server gameplay methods directly.
-
-Keeping the communication boundary intact makes it easier to introduce UDP later without rewriting the simulation architecture.
+The client should not call arbitrary server gameplay methods directly. Keeping the communication boundary intact makes it easier to introduce UDP later without rewriting the simulation architecture.
 
 An in-process mode also helps with:
 
@@ -118,12 +116,10 @@ An in-process mode also helps with:
 * Running multiple simulated clients
 * Reproducing packet sequences
 
-SERVER-003 adds the first concrete in-process session boundary in `Royale.Server`. `InProcessServerSession` owns a `HeadlessServerSimulation` and gives each connected local client an `InProcessClientConnection` containing the server connection id and authoritative player id.
-
-Connecting a local client allocates a `ServerConnectionId`, calls `HeadlessServerSimulation.AddPlayer`, creates per-client input and snapshot queues, and enqueues an initial recipient-specific `ServerSnapshot`. That initial snapshot carries the local player id and the current top-level acknowledged input sequence for that player.
+`InProcessServerSession` owns a `HeadlessServerSimulation` and gives each connected local client an `InProcessClientConnection` containing the server connection id and authoritative player id. Connecting a local client allocates a `ServerConnectionId`, calls `HeadlessServerSimulation.AddPlayer`, creates per-client input and snapshot queues, and enqueues an initial recipient-specific `ServerSnapshot`.
 
 Clients submit structured `PlayerInputCommand` intent through the session queue API. Commands are validated with `PlayerInputCommandValidation` before they enter the server queue. Invalid commands are rejected, are not queued, and are not acknowledged. Unknown, disconnected, or disposed client handles fail explicitly.
 
-Each `InProcessServerSession.Step` drains queued valid commands per connected client, updates that player's `LastProcessedInputSequence` for acknowledgement only, advances the authoritative simulation by one tick, and enqueues a recipient-specific snapshot for every connected client. Snapshot dequeue and drain APIs are per client. Disconnecting a local client removes its authoritative player and prevents further use of that handle.
+Each `InProcessServerSession.Step` drains queued valid commands per connected client, keeps only the latest drained command for each player for that server tick, passes those commands to `HeadlessServerSimulation.Step(...)`, and enqueues a recipient-specific snapshot for every connected client. The latest processed command sequence becomes the recipient's top-level snapshot acknowledgement.
 
-This is not real UDP transport and does not add serialization, handshake, loss simulation, client launch wiring, client prediction, reconciliation, interpolation, movement processing, combat processing, or snapshot send-rate throttling. The SDL client still does not reference `Royale.Server`.
+SERVER-006 makes this path authoritative for local/synthetic clients: queued command intent now drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. It still does not add real UDP transport, serialization, handshake, loss simulation, client launch wiring, client prediction, reconciliation, interpolation, snapshot send-rate throttling, winner selection, combat events, respawn, reload, or match reset. The SDL client still does not reference `Royale.Server`.

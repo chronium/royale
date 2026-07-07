@@ -57,7 +57,7 @@ public sealed class LocalPlayerControllerTests
         float expectedWorldX,
         float expectedWorldZ)
     {
-        Vector2 worldMove = LocalPlayerController.ToWorldMovement(new Vector2(localX, localY), yawRadians);
+        Vector2 worldMove = PlayerMovementIntent.ToWorldMovement(new Vector2(localX, localY), yawRadians);
 
         Assert.InRange(worldMove.X, expectedWorldX - 0.0001f, expectedWorldX + 0.0001f);
         Assert.InRange(worldMove.Y, expectedWorldZ - 0.0001f, expectedWorldZ + 0.0001f);

@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-06T15:01:22.0359260Z
+modifiedAt: 2026-07-07T07:29:43.9370780Z
 ---
 
 ## Physics Architecture
@@ -176,8 +176,8 @@ The first weapon is a server-authoritative hitscan rifle.
 The client:
 
 1. Detects fire input.
-2. Predicts local visual feedback.
-3. Sends the fire input as part of the current command.
+2. Predicts local visual feedback where a local sandbox path exists.
+3. Sends the fire input as part of the current command for networked play.
 
 The server:
 
@@ -185,11 +185,11 @@ The server:
 2. Checks whether the weapon is equipped.
 3. Checks fire cadence.
 4. Checks ammunition.
-5. Computes the authoritative shot direction.
-6. Performs the raycast.
-7. Applies damage to the closest valid hit.
-8. Updates ammunition and cooldown.
-9. Emits an authoritative combat event.
+5. Computes the authoritative shot direction from server-owned position and look.
+6. Performs the raycast against static map geometry and other alive players.
+7. Applies damage to the closest valid player target hit.
+8. Updates ammunition and cooldown for accepted shots.
+9. Refreshes authoritative living-player count after damage/death.
 
 The client may immediately show:
 
@@ -200,6 +200,8 @@ The client may immediately show:
 
 The client must wait for authoritative confirmation before treating another player as damaged or dead.
 
+SERVER-006 does not add combat events, reload behavior, winner selection, elimination removal, respawn, lag compensation, or real UDP replication. Simultaneous in-process combat is resolved deterministically by ascending server player id.
+
 ### Health and Damage
 
 `COMBAT-004` adds the first simulation-owned reusable health and damage model. `HealthState.DefaultPlayer` starts players at `100/100` HP with `Alive == true`.
@@ -208,7 +210,7 @@ Damage application is driven by `DamageController.Apply()` using a weapon-backed
 
 The default rifle deals `25` damage, so four valid target hits reduce default player health to `0`. Health clamps at zero, and reaching zero sets `Alive == false`. Applying damage to an already-dead target is a no-op that preserves `0` health and `Alive == false`.
 
-There is no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire rule, target ownership, authoritative damage history, or final combat UI in this contract. Server-authoritative elimination, respawn timers, final spectator UX, and player-vs-player damage remain deferred to later match and networking work.
+SERVER-006 applies this model to server-owned player-vs-player rifle hits in the in-process session path. The shooter is excluded from target candidates, only alive players are target candidates, static geometry blocks farther player targets, and killed players remain in snapshots with health `0` and `Alive == false`. There is still no armor, healing, limb multiplier, distance falloff, randomness, friendly-fire team rule, authoritative damage history, final combat UI, respawn timer, or spectator UX.
 
 ### Local Debug Death And Respawn
 
@@ -218,7 +220,7 @@ While the local player is dead, gameplay look updates and gameplay fixed updates
 
 Debug respawn restores player health, spawn feet position, zero velocity, default look, ready rifle cadence, cleared last fire/hit/damage outputs, and spawn-derived gameplay camera state. It does not reset the training dummy health or damage history.
 
-The ImGui `Player` diagnostics window displays local player health and alive state and exposes `Kill Player` and `Respawn Player` buttons. No kill or respawn hotkeys, networking, server match elimination, respawn timer, final HUD, animation, audio, or player-vs-player damage are part of this contract.
+The ImGui `Player` diagnostics window displays local player health and alive state and exposes `Kill Player` and `Respawn Player` buttons. No kill or respawn hotkeys, networking, server match elimination, respawn timer, final HUD, animation, audio, or player-vs-player damage are part of this client-only debug contract.
 
 ### Weapon Feedback
 
@@ -236,13 +238,13 @@ F6/F7 debug-line rendering draws the active feedback through existing debug prim
 
 `HitscanResolver` queries static map collision through `MapStaticCollisionWorld.CastRayClosest()` and wraps the closest static hit with point, normal, fraction, distance, and source static collider metadata. Callers may also pass feet-anchored vertical capsule `HitscanTarget` values using the same radius and height convention as the kinematic character controller. The nearest valid hit wins across static geometry and capsule targets, so static geometry blocks farther targets.
 
-Hitscan resolution reports hit geometry and target ids only. `COMBAT-004` applies damage from target hits through `DamageController`; ammunition consumption, authoritative combat events, target ownership, and presentation effects remain deferred to later combat tasks.
+Hitscan resolution reports hit geometry and target ids only. SERVER-006 uses it from the headless server to resolve player-vs-player rifle shots after cadence and ammunition checks. Ammunition mutation, cooldown mutation, and health mutation remain outside `HitscanResolver` itself.
 
 ### Offline Training Dummy
 
 `COMBAT-007` adds a client-owned offline training dummy as a development fixture for validating rifle damage and cadence without a second player. The stable target id is `training-dummy`. The dummy starts from `HealthState.DefaultPlayer`, uses a feet-anchored vertical capsule with the same default radius `0.35` and height `1.8` convention as player hitscan targets, and is placed near the selected local spawn in the graybox arena. Tests can inject explicit dummy placement.
 
-Local offline firing now resolves rifle hitscan against both static map collision and the training dummy target. Static geometry still wins over a farther dummy target. When the dummy is hit, damage is applied through `DamageController.Apply()` using the existing health table contract. Dead dummy targets remain queryable for diagnostics, but COMBAT-004 dead-target no-op rules prevent further damage or damage-history entries.
+Local offline firing resolves rifle hitscan against both static map collision and the training dummy target. Static geometry wins over a farther dummy target. When the dummy is hit, damage is applied through `DamageController.Apply()` using the existing health table contract. Dead dummy targets remain queryable for diagnostics, but COMBAT-004 dead-target no-op rules prevent further damage or damage-history entries.
 
 The dummy keeps a client-only diagnostics history of the 16 most recent applied damage entries, newest first. Each entry records tick, weapon id, raw damage, applied damage, remaining health, hit distance, hit point, and nullable placeholders for future hit region, falloff multiplier, and random modifier.
 
@@ -269,7 +271,7 @@ Canonical rifle tuning is:
 
 Rifle cadence is enforced by `WeaponFireController` in `Royale.Simulation` using fixed simulation ticks. The default rifle's `0.1 second` fire interval resolves to `6` ticks at `SimulationSettings.TickRateHz` (`60 Hz`). A fresh `WeaponFireState` can fire immediately on the first eligible tick with `Fire == true`; after a shot at tick `T`, the next allowed shot is tick `T + intervalTicks`. Holding fire only emits shots on eligible ticks. Releasing fire does not reset cooldown, and pressing again after cooldown fires immediately.
 
-The local offline client player currently owns a default-rifle cadence state so fixed updates can exercise the input path before inventory, pickups, networking, raycasts, damage, ammunition, reloads, targets, combat feedback, and UI controls are added. Server-authoritative combat remains the contract for networked play.
+The local offline client player and the headless server both use the default-rifle cadence model. Server-authoritative accepted shots consume one magazine round; reload remains deferred.
 
 ## Match State Machine
 

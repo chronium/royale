@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-07T05:15:52.5665910Z
+modifiedAt: 2026-07-07T06:00:23.8314780Z
 ---
 
 ## Overview
@@ -64,23 +64,37 @@ The authoritative server should remain able to run without WattleScript present.
 
 Initial integration lives in `tests/Royale.Gameplay.Tests`. The project references the pinned interpreter source at `thirdparty/repos/wattlescript/src/WattleScript.Interpreter/WattleScript.Interpreter.csproj`; no runtime project under `src/` should reference WattleScript.
 
-The initial test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, and executes scenario source with `DoString`. This is only a smoke-test host for now; scenario APIs, server lifecycle control, scripted players, tick execution, assertions, replay artifacts, and transport scenarios are deferred to later `TEST` tasks.
+The test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, registers the test-only scenario wrapper types as Wattle userdata, and exposes one global named `scenario`. The scenario API wraps `Royale.Server.InProcessServerSession` for server lifecycle, scripted player connection handles, read-only snapshot observation, basic script assertions, clock inspection, and in-memory artifact metadata. WattleScript remains a test orchestration dependency only.
 
 ## Scenario API
 
-The script-visible API should be narrow and sandboxed.
+The script-visible API is narrow and sandboxed. Scripts receive one global object named `scenario`; no other project-owned globals are installed.
 
-Initial API areas may include:
+Current `scenario` groups:
 
-* Server lifecycle
-* Scripted player lifecycle
-* Input commands
-* Tick advancement
-* Network condition controls
-* Snapshot observations
-* Event observations
-* Assertions
-* Replay and artifact capture
+* `scenario.server.start(mapId)` starts an in-process authoritative server for a map such as `graybox`.
+* `scenario.server.stop()` stops the in-process server and invalidates connected script player handles.
+* `scenario.server.step(count)` advances the authoritative server by a positive number of simulation ticks.
+* `scenario.server.isRunning` reports whether the in-process server is active.
+* `scenario.server.tick` reports the current authoritative server tick, or `0` when stopped.
+* `scenario.players.connect()` connects one scripted player and returns a player handle with read-only `playerId`, `connectionId`, and `isConnected` properties.
+* `scenario.players.disconnect(player)` disconnects a connected script player handle.
+* `scenario.players.count` reports the current connected script player count.
+* `scenario.observe.latest(player)` returns the latest read-only snapshot wrapper for a connected player.
+* `scenario.observe.connectedPlayerCount` and `scenario.observe.livingPlayerCount` expose current server counts while the server is running.
+* Snapshot wrappers expose read-only `serverTick`, `localPlayerId`, `acknowledgedInputSequence`, `connectedPlayerCount`, and `livingPlayerCount`.
+* `scenario.assert.equal(expected, actual)` throws a script runtime exception when simple script values differ.
+* `scenario.assert["true"](value)` and `scenario.assert.isTrue(value)` throw a script runtime exception unless `value` is the boolean `true`. The bracket spelling is required for the member named `true` because `true` is a Wattle keyword and cannot be parsed after `.` as a normal member name.
+* `scenario.clock.tick` mirrors `scenario.server.tick`, or `0` before server start and after stop.
+* `scenario.artifacts.record(name, value)` stores an in-memory string artifact value for the current host run.
+* `scenario.artifacts.count` and `scenario.artifacts.names` expose in-memory artifact metadata.
+
+Current boundaries:
+
+* Scripts cannot directly mutate authoritative player state such as position, health, ammunition, match phase, safe-zone state, or winner.
+* The API does not expose `moveTo`, `lookAt`, `shootAt`, low-level input command submission, tick waits, eventual assertions, replay file output, real UDP transport, or adverse-network controls yet.
+* Artifact recording is in-memory metadata only; no files are written by `TEST-002`.
+* API calls that require a running server or connected player fail explicitly when used after stop or disconnect.
 
 High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayInsideZone` should be implemented through lower-level input commands rather than direct state mutation.
 

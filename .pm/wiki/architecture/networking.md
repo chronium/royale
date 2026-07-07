@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-05T20:00:54.3746730Z
+modifiedAt: 2026-07-07T04:11:30.1432120Z
 ---
 
 ## Networking Layers
@@ -117,3 +117,13 @@ An in-process mode also helps with:
 * Debugging prediction
 * Running multiple simulated clients
 * Reproducing packet sequences
+
+SERVER-003 adds the first concrete in-process session boundary in `Royale.Server`. `InProcessServerSession` owns a `HeadlessServerSimulation` and gives each connected local client an `InProcessClientConnection` containing the server connection id and authoritative player id.
+
+Connecting a local client allocates a `ServerConnectionId`, calls `HeadlessServerSimulation.AddPlayer`, creates per-client input and snapshot queues, and enqueues an initial recipient-specific `ServerSnapshot`. That initial snapshot carries the local player id and the current top-level acknowledged input sequence for that player.
+
+Clients submit structured `PlayerInputCommand` intent through the session queue API. Commands are validated with `PlayerInputCommandValidation` before they enter the server queue. Invalid commands are rejected, are not queued, and are not acknowledged. Unknown, disconnected, or disposed client handles fail explicitly.
+
+Each `InProcessServerSession.Step` drains queued valid commands per connected client, updates that player's `LastProcessedInputSequence` for acknowledgement only, advances the authoritative simulation by one tick, and enqueues a recipient-specific snapshot for every connected client. Snapshot dequeue and drain APIs are per client. Disconnecting a local client removes its authoritative player and prevents further use of that handle.
+
+This is not real UDP transport and does not add serialization, handshake, loss simulation, client launch wiring, client prediction, reconciliation, interpolation, movement processing, combat processing, or snapshot send-rate throttling. The SDL client still does not reference `Royale.Server`.

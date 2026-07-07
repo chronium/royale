@@ -98,6 +98,19 @@ public sealed class HeadlessServerSimulation : IDisposable
         return players.TryGetValue(playerId, out player);
     }
 
+    public void AcknowledgePlayerInputSequence(ServerPlayerId playerId, uint inputSequence)
+    {
+        ThrowIfDisposed();
+
+        if (!players.TryGetValue(playerId, out AuthoritativePlayerState? player))
+            throw new InvalidOperationException($"Cannot acknowledge input for unknown player '{playerId}'.");
+
+        players[playerId] = player with
+        {
+            LastProcessedInputSequence = inputSequence,
+        };
+    }
+
     public ServerSnapshot CreateSnapshot(ServerPlayerId? recipientPlayerId = null)
     {
         ThrowIfDisposed();

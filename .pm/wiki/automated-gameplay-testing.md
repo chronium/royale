@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-05T15:18:15.6422560Z
+modifiedAt: 2026-07-07T05:15:52.5665910Z
 ---
 
 ## Overview
@@ -61,6 +61,10 @@ It must not become a runtime dependency of:
 * Network protocol libraries
 
 The authoritative server should remain able to run without WattleScript present.
+
+Initial integration lives in `tests/Royale.Gameplay.Tests`. The project references the pinned interpreter source at `thirdparty/repos/wattlescript/src/WattleScript.Interpreter/WattleScript.Interpreter.csproj`; no runtime project under `src/` should reference WattleScript.
+
+The initial test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, and executes scenario source with `DoString`. This is only a smoke-test host for now; scenario APIs, server lifecycle control, scripted players, tick execution, assertions, replay artifacts, and transport scenarios are deferred to later `TEST` tasks.
 
 ## Scenario API
 

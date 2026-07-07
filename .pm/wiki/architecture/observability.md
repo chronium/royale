@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-07T17:35:52.6989260Z
+modifiedAt: 2026-07-07T17:54:42.2914090Z
 ---
 
 ## Overview
@@ -20,6 +20,24 @@ The planned stack is:
 - Grafana for dashboards and approved development actions
 
 Client observability can be added later, but the first implementation should focus on the dedicated server.
+
+## Server OpenTelemetry v1
+
+`OBS-001` adds the dedicated server OpenTelemetry foundation in `Royale.Diagnostics`.
+
+The server uses `RoyaleTelemetry.CreateServer(LogLevel.Information)` during startup. This bootstrap owns the logger factory, trace provider, and meter provider lifetime. ZLogger console output remains enabled on every server run, including when OTLP export is disabled or unavailable.
+
+Default telemetry identity:
+
+- Service name: `royale-server`, unless `OTEL_SERVICE_NAME` is configured.
+- Activity source name: `Royale.Server`.
+- Meter name: `Royale.Server`.
+
+OTLP export is disabled by default. Export is enabled only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set to a non-empty absolute URI and `OTEL_SDK_DISABLED` is not `true` case-insensitively. When `OTEL_SDK_DISABLED=true`, no OTLP log exporter, trace provider, or meter provider is created even if an endpoint is present.
+
+The OpenTelemetry SDK/exporter continues to read standard environment variables such as protocol, headers, service/resource attributes, and signal-specific endpoint settings. The bootstrap sets a 1 second local-development default for OTLP exporter and processor shutdown timeouts so an unreachable collector does not stall short server runs. Explicit timeout environment variables override that default, including `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT`, `OTEL_EXPORTER_OTLP_TRACES_TIMEOUT`, `OTEL_EXPORTER_OTLP_METRICS_TIMEOUT`, `OTEL_BSP_EXPORT_TIMEOUT`, `OTEL_BLRP_EXPORT_TIMEOUT`, and `OTEL_METRIC_EXPORT_TIMEOUT`.
+
+The server emits one bounded startup/run/shutdown activity named `royale.server.run`. It is tagged with port, map, tick rate, headless mode, run mode, and ticks run when available. Per-tick tracing and concrete gameplay metrics are intentionally out of scope for `OBS-001`; `OBS-002` owns server metrics and structured gameplay events.
 
 ## Goals
 

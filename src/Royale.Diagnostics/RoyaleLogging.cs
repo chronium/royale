@@ -33,7 +33,7 @@ public static class RoyaleLogging
         });
     }
 
-    private static void ConfigureZLoggerOptions(ZLoggerOptions options)
+    internal static void ConfigureZLoggerOptions(ZLoggerOptions options)
     {
         options.UsePlainTextFormatter(formatter =>
         {

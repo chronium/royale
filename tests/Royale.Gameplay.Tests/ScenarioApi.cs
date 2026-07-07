@@ -10,6 +10,7 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
     internal const int MaxClockWaitTicks = 10000;
 
     private readonly Dictionary<uint, ScenarioPlayerApi> playersById = [];
+    private readonly List<ScenarioEventApi> recordedEvents = [];
     private InProcessServerSession? session;
 
     public ScenarioApi()
@@ -17,9 +18,10 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         server = new ScenarioServerApi(this);
         players = new ScenarioPlayersApi(this);
         observe = new ScenarioObservationsApi(this);
-        assert = new ScenarioAssertApi();
+        assert = new ScenarioAssertApi(this);
         clock = new ScenarioClockApi(this);
         artifacts = new ScenarioArtifactsApi();
+        events = new ScenarioEventsApi(this);
     }
 
     public ScenarioServerApi server { get; }
@@ -33,6 +35,8 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
     public ScenarioClockApi clock { get; }
 
     public ScenarioArtifactsApi artifacts { get; }
+
+    public ScenarioEventsApi events { get; }
 
     internal bool IsRunning => session is { IsDisposed: false };
 
@@ -51,12 +55,15 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
             throw new ScriptRuntimeException("scenario server is already running.");
 
         session = InProcessServerSession.Create(mapId);
+        RecordEvent("server.started", detail: mapId);
     }
 
     internal void StopServer()
     {
         if (session is null)
             return;
+
+        RecordEvent("server.stopped");
 
         foreach (ScenarioPlayerApi player in playersById.Values)
             player.MarkDisconnected();
@@ -87,25 +94,34 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal bool WaitUntil(ScriptExecutionContext context, int maxTicks, DynValue predicate)
     {
-        if (maxTicks < 0 || maxTicks > MaxClockWaitTicks)
-            throw new ScriptRuntimeException(
-                $"scenario.clock.waitUntil requires maxTicks from 0 to {MaxClockWaitTicks}.");
+        return WaitUntil(
+            context,
+            maxTicks,
+            predicate,
+            "scenario.clock.waitUntil",
+            timeoutMessage: null,
+            timeoutThrows: false,
+            description: null);
+    }
 
-        RequirePredicate(predicate);
-        RequireRunningSession();
+    internal void AssertEventually(
+        ScriptExecutionContext context,
+        int maxTicks,
+        DynValue predicate,
+        string description)
+    {
+        string checkedDescription = string.IsNullOrWhiteSpace(description)
+            ? "condition"
+            : description;
 
-        if (EvaluatePredicate(context, predicate))
-            return true;
-
-        for (int i = 0; i < maxTicks; i++)
-        {
-            StepRunningServer(1);
-
-            if (EvaluatePredicate(context, predicate))
-                return true;
-        }
-
-        return false;
+        WaitUntil(
+            context,
+            maxTicks,
+            predicate,
+            "scenario.assert.eventually",
+            $"scenario.assert.eventually failed after {maxTicks} ticks: {checkedDescription}.",
+            timeoutThrows: true,
+            checkedDescription);
     }
 
     private void StepRunningServer(int count)
@@ -113,23 +129,66 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         InProcessServerSession runningSession = RequireRunningSession();
 
         for (int i = 0; i < count; i++)
+        {
             runningSession.Step();
+            RecordEvent("server.stepped");
+        }
     }
 
-    private static void RequirePredicate(DynValue predicate)
+    private bool WaitUntil(
+        ScriptExecutionContext context,
+        int maxTicks,
+        DynValue predicate,
+        string apiName,
+        string? timeoutMessage,
+        bool timeoutThrows,
+        string? description)
+    {
+        if (maxTicks < 0 || maxTicks > MaxClockWaitTicks)
+            throw new ScriptRuntimeException($"{apiName} requires maxTicks from 0 to {MaxClockWaitTicks}.");
+
+        RequirePredicate(predicate, apiName);
+        RequireRunningSession();
+
+        if (EvaluatePredicate(context, predicate, apiName))
+        {
+            RecordEvent("clock.wait.satisfied", detail: description);
+            return true;
+        }
+
+        for (int i = 0; i < maxTicks; i++)
+        {
+            StepRunningServer(1);
+
+            if (EvaluatePredicate(context, predicate, apiName))
+            {
+                RecordEvent("clock.wait.satisfied", detail: description);
+                return true;
+            }
+        }
+
+        RecordEvent("clock.wait.timeout", detail: description);
+
+        if (timeoutThrows)
+            throw new ScriptRuntimeException(timeoutMessage ?? $"{apiName} timed out after {maxTicks} ticks.");
+
+        return false;
+    }
+
+    private static void RequirePredicate(DynValue predicate, string apiName)
     {
         if (predicate.Type is not (DataType.Function or DataType.ClrFunction))
-            throw new ScriptRuntimeException("scenario.clock.waitUntil requires a predicate function.");
+            throw new ScriptRuntimeException($"{apiName} requires a predicate function.");
     }
 
-    private static bool EvaluatePredicate(ScriptExecutionContext context, DynValue predicate)
+    private static bool EvaluatePredicate(ScriptExecutionContext context, DynValue predicate, string apiName)
     {
         DynValue result = context.GetScript().Call(predicate);
 
         if (result.Type != DataType.Boolean)
         {
             throw new ScriptRuntimeException(
-                $"scenario.clock.waitUntil predicate must return a boolean, got {result.Type.ToLuaTypeString()}.");
+                $"{apiName} predicate must return a boolean, got {result.Type.ToLuaTypeString()}.");
         }
 
         return result.Boolean;
@@ -142,6 +201,7 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         var player = new ScenarioPlayerApi(connection);
 
         playersById.Add(player.playerId, player);
+        RecordEvent("player.connected", player.playerId);
 
         return player;
     }
@@ -154,6 +214,7 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         runningSession.DisconnectClient(connectedPlayer.Connection);
         connectedPlayer.MarkDisconnected();
         playersById.Remove(connectedPlayer.playerId);
+        RecordEvent("player.disconnected", connectedPlayer.playerId);
     }
 
     internal bool EnqueueInputCommand(ScenarioPlayerApi player, DynValue commandTable)
@@ -162,7 +223,13 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
         PlayerInputCommand command = ParseInputCommand(commandTable);
 
-        return runningSession.TryEnqueueInputCommand(connectedPlayer.Connection, command);
+        bool accepted = runningSession.TryEnqueueInputCommand(connectedPlayer.Connection, command);
+        RecordEvent(
+            accepted ? "player.input.accepted" : "player.input.rejected",
+            connectedPlayer.playerId,
+            $"sequence={command.Sequence}");
+
+        return accepted;
     }
 
     internal ServerSnapshot GetLatestSnapshot(ScenarioPlayerApi player)
@@ -182,6 +249,20 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
     public void Dispose()
     {
         StopServer();
+    }
+
+    internal IReadOnlyList<ScenarioEventApi> RecordedEvents => recordedEvents;
+
+    internal ScenarioEventApi? LatestEvent => recordedEvents.Count == 0 ? null : recordedEvents[^1];
+
+    internal bool HasEvent(string type) =>
+        recordedEvents.Any(e => string.Equals(e.type, type, StringComparison.Ordinal));
+
+    internal void ClearEvents() => recordedEvents.Clear();
+
+    private void RecordEvent(string type, uint? playerId = null, string? detail = null)
+    {
+        recordedEvents.Add(new ScenarioEventApi(type, CurrentTick, playerId, detail));
     }
 
     private InProcessServerSession RequireRunningSession() =>
@@ -311,7 +392,7 @@ public sealed class ScenarioObservationsApi(ScenarioApi scenario) : ScenarioScri
     public ScenarioSnapshotApi latest(ScenarioPlayerApi player) => new(scenario.GetLatestSnapshot(player));
 }
 
-public sealed class ScenarioAssertApi : ScenarioScriptObject
+public sealed class ScenarioAssertApi(ScenarioApi scenario) : ScenarioScriptObject
 {
     public void equal(DynValue expected, DynValue actual)
     {
@@ -321,6 +402,55 @@ public sealed class ScenarioAssertApi : ScenarioScriptObject
                 $"scenario.assert.equal failed: expected {Format(expected)}, got {Format(actual)}.");
         }
     }
+
+    public void near(DynValue expected, DynValue actual, DynValue tolerance)
+    {
+        double expectedNumber = ReadNumber(expected, "expected");
+        double actualNumber = ReadNumber(actual, "actual");
+        double toleranceNumber = ReadNumber(tolerance, "tolerance");
+
+        if (!double.IsFinite(toleranceNumber) || toleranceNumber < 0.0)
+            throw new ScriptRuntimeException("scenario.assert.near requires a finite non-negative tolerance.");
+
+        double delta = Math.Abs(expectedNumber - actualNumber);
+
+        if (delta > toleranceNumber)
+        {
+            throw new ScriptRuntimeException(
+                "scenario.assert.near failed: " +
+                $"expected {Format(expected)}, got {Format(actual)}, tolerance {Format(tolerance)}, delta " +
+                delta.ToString("R", System.Globalization.CultureInfo.InvariantCulture) +
+                ".");
+        }
+    }
+
+    public void state(ScriptExecutionContext context, string name, DynValue predicate)
+    {
+        string checkedName = string.IsNullOrWhiteSpace(name) ? "state" : name;
+        RequireAssertPredicate(predicate, "scenario.assert.state");
+
+        DynValue result = context.GetScript().Call(predicate);
+        if (result.Type != DataType.Boolean)
+        {
+            throw new ScriptRuntimeException(
+                $"scenario.assert.state predicate must return a boolean, got {result.Type.ToLuaTypeString()}.");
+        }
+
+        if (!result.Boolean)
+            throw new ScriptRuntimeException($"scenario.assert.state failed: {checkedName}.");
+    }
+
+    public void @event(string type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+            throw new ScriptRuntimeException("scenario.assert.event requires a non-empty event type.");
+
+        if (!scenario.HasEvent(type))
+            throw new ScriptRuntimeException($"scenario.assert.event failed: missing event '{type}'.");
+    }
+
+    public void eventually(ScriptExecutionContext context, int maxTicks, DynValue predicate, string description) =>
+        scenario.AssertEventually(context, maxTicks, predicate, description);
 
     public void @true(DynValue value)
     {
@@ -346,6 +476,23 @@ public sealed class ScenarioAssertApi : ScenarioScriptObject
             DataType.Number => expected.Number.Equals(actual.Number),
             _ => ReferenceEquals(expected.UserData?.Object, actual.UserData?.Object),
         };
+    }
+
+    private static double ReadNumber(DynValue value, string fieldName)
+    {
+        if (value.Type != DataType.Number)
+            throw new ScriptRuntimeException($"scenario.assert.near {fieldName} must be a number.");
+
+        if (!double.IsFinite(value.Number))
+            throw new ScriptRuntimeException($"scenario.assert.near {fieldName} must be finite.");
+
+        return value.Number;
+    }
+
+    private static void RequireAssertPredicate(DynValue predicate, string apiName)
+    {
+        if (predicate.Type is not (DataType.Function or DataType.ClrFunction))
+            throw new ScriptRuntimeException($"{apiName} requires a predicate function.");
     }
 
     private static string Format(DynValue value) =>
@@ -391,6 +538,28 @@ public sealed class ScenarioArtifactsApi : ScenarioScriptObject
     }
 }
 
+public sealed class ScenarioEventsApi(ScenarioApi scenario) : ScenarioScriptObject
+{
+    public int count => scenario.RecordedEvents.Count;
+
+    public string[] types => scenario.RecordedEvents.Select(e => e.type).ToArray();
+
+    public ScenarioEventApi? latest => scenario.LatestEvent;
+
+    public void clear() => scenario.ClearEvents();
+}
+
+public sealed class ScenarioEventApi(string type, ulong tick, uint? playerId, string? detail) : ScenarioScriptObject
+{
+    public string type { get; } = type;
+
+    public ulong tick { get; } = tick;
+
+    public uint? playerId { get; } = playerId;
+
+    public string? detail { get; } = detail;
+}
+
 public sealed class ScenarioPlayerApi : ScenarioScriptObject
 {
     internal ScenarioPlayerApi(InProcessClientConnection connection)
@@ -430,6 +599,109 @@ public sealed class ScenarioSnapshotApi(ServerSnapshot snapshot) : ScenarioScrip
     public int connectedPlayerCount => snapshot.Players.Count;
 
     public int livingPlayerCount => snapshot.Match.LivingPlayerCount;
+
+    public ScenarioPlayerSnapshotApi[] players => snapshot.Players
+        .OrderBy(p => p.PlayerId)
+        .Select(p => new ScenarioPlayerSnapshotApi(p))
+        .ToArray();
+
+    public ScenarioMatchSnapshotApi match => new(snapshot.Match);
+
+    public ScenarioSafeZoneSnapshotApi safeZone => new(snapshot.SafeZone);
+
+    public ScenarioPlayerSnapshotApi? player(uint playerId)
+    {
+        foreach (PlayerSnapshotState player in snapshot.Players.OrderBy(p => p.PlayerId))
+        {
+            if (player.PlayerId == playerId)
+                return new ScenarioPlayerSnapshotApi(player);
+        }
+
+        return null;
+    }
+}
+
+public sealed class ScenarioPlayerSnapshotApi(PlayerSnapshotState player) : ScenarioScriptObject
+{
+    public uint playerId => player.PlayerId;
+
+    public ScenarioVector3Api position => new(player.Position);
+
+    public ScenarioVector3Api velocity => new(player.Velocity);
+
+    public ScenarioLookSnapshotApi look => new(player.YawRadians, player.PitchRadians);
+
+    public int currentHealth => player.CurrentHealth;
+
+    public int maxHealth => player.MaxHealth;
+
+    public ScenarioHealthSnapshotApi health => new(player.CurrentHealth, player.MaxHealth);
+
+    public bool alive => player.Alive;
+
+    public ScenarioWeaponSnapshotApi weapon => new(player.Weapon);
+}
+
+public sealed class ScenarioVector3Api(Vector3 vector) : ScenarioScriptObject
+{
+    public float x => vector.X;
+
+    public float y => vector.Y;
+
+    public float z => vector.Z;
+}
+
+public sealed class ScenarioLookSnapshotApi(float yawRadians, float pitchRadians) : ScenarioScriptObject
+{
+    public float yawRadians { get; } = yawRadians;
+
+    public float pitchRadians { get; } = pitchRadians;
+}
+
+public sealed class ScenarioHealthSnapshotApi(int current, int max) : ScenarioScriptObject
+{
+    public int current { get; } = current;
+
+    public int max { get; } = max;
+}
+
+public sealed class ScenarioWeaponSnapshotApi(WeaponSnapshotState weapon) : ScenarioScriptObject
+{
+    public string weaponId => weapon.WeaponId;
+
+    public int ammoInMagazine => weapon.AmmoInMagazine;
+
+    public int reserveAmmo => weapon.ReserveAmmo;
+
+    public ulong nextAllowedFireTick => weapon.NextAllowedFireTick;
+
+    public ulong? lastFiredTick => weapon.LastFiredTick;
+
+    public bool isReloading => weapon.IsReloading;
+
+    public ulong? reloadCompleteTick => weapon.ReloadCompleteTick;
+}
+
+public sealed class ScenarioMatchSnapshotApi(MatchSnapshotState match) : ScenarioScriptObject
+{
+    public string phase => match.Phase.ToString();
+
+    public ulong phaseStartedTick => match.PhaseStartedTick;
+
+    public int livingPlayerCount => match.LivingPlayerCount;
+
+    public uint? winnerPlayerId => match.WinnerPlayerId;
+}
+
+public sealed class ScenarioSafeZoneSnapshotApi(SafeZoneSnapshotState safeZone) : ScenarioScriptObject
+{
+    public ScenarioVector3Api center => new(safeZone.Center);
+
+    public float currentRadius => safeZone.CurrentRadius;
+
+    public float targetRadius => safeZone.TargetRadius;
+
+    public ulong lastUpdatedTick => safeZone.LastUpdatedTick;
 }
 
 [WattleScriptHideMember("__new")]

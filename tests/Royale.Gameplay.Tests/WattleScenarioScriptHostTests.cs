@@ -63,7 +63,8 @@ public sealed class WattleScenarioScriptHostTests
                 and scenario.observe != nil
                 and scenario.assert != nil
                 and scenario.clock != nil
-                and scenario.artifacts != nil;
+                and scenario.artifacts != nil
+                and scenario.events != nil;
             """;
 
         DynValue result = new WattleScenarioScriptHost().Execute(source);
@@ -563,6 +564,180 @@ public sealed class WattleScenarioScriptHostTests
     }
 
     [Fact]
+    public void ScenarioAssertNearPassesWithinTolerance()
+    {
+        DynValue result = new WattleScenarioScriptHost().Execute(
+            "scenario.assert.near(1.0, 1.05, 0.1); return true;");
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioAssertNearFailsOutsideToleranceWithDiagnosticValues()
+    {
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute("scenario.assert.near(1.0, 1.2, 0.1);"));
+
+        Assert.Contains("scenario.assert.near failed", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("expected 1", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("got 1.2", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("tolerance 0.1", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("scenario.assert.near(\"1\", 1, 0.1);")]
+    [InlineData("scenario.assert.near(1, \"1\", 0.1);")]
+    [InlineData("scenario.assert.near(1, 1, \"0.1\");")]
+    [InlineData("scenario.assert.near(1, 1, -0.1);")]
+    public void ScenarioAssertNearRejectsInvalidArguments(string statement)
+    {
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(statement));
+    }
+
+    [Fact]
+    public void ScenarioAssertStatePassesForTruePredicate()
+    {
+        const string source = """
+            var ready = true;
+            scenario.assert.state("ready flag", function() {
+                return ready;
+            });
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioAssertStateFailsWithSuppliedStateName()
+    {
+        const string source = """
+            scenario.assert.state("player is alive", function() {
+                return false;
+            });
+            """;
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(source));
+
+        Assert.Contains("player is alive", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("scenario.assert.state(\"bad\", nil);")]
+    [InlineData("scenario.assert.state(\"bad\", 42);")]
+    [InlineData("scenario.assert.state(\"bad\", function() { return 42; });")]
+    [InlineData("scenario.assert.state(\"bad\", function() { error(\"predicate failure\"); });")]
+    public void ScenarioAssertStateRejectsInvalidPredicates(string statement)
+    {
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(statement));
+    }
+
+    [Fact]
+    public void ScenarioAssertEventPassesForRecordedHostEvent()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            scenario.assert.event("server.started");
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioAssertEventFailsForMissingHostEvent()
+    {
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute("scenario.assert.event(\"player.connected\");"));
+
+        Assert.Contains("player.connected", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScenarioAssertEventuallySucceedsImmediatelyWithoutAdvancing()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+
+            scenario.assert.eventually(5, function() {
+                return scenario.clock.tick == 0;
+            }, "already true");
+
+            scenario.assert.equal(0, scenario.clock.tick);
+            scenario.assert.event("clock.wait.satisfied");
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioAssertEventuallySucceedsAfterAdvancingTicks()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+
+            scenario.assert.eventually(5, function() {
+                return scenario.clock.tick == 3;
+            }, "tick reached");
+
+            scenario.assert.equal(3, scenario.clock.tick);
+            scenario.assert.event("server.stepped");
+            scenario.assert.event("clock.wait.satisfied");
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioAssertEventuallyThrowsAfterTimeoutAndAdvancesExactlyMaxTicks()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            scenario.assert.eventually(4, function() {
+                return false;
+            }, "never true");
+            """;
+
+        using var scenario = new ScenarioApi();
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(source, scenario));
+
+        Assert.Contains("never true", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(4UL, scenario.clock.tick);
+        Assert.Equal(4, scenario.events.types.Count(t => t == "server.stepped"));
+        Assert.Equal("clock.wait.timeout", scenario.events.latest?.type);
+    }
+
+    [Theory]
+    [InlineData("scenario.assert.eventually(-1, function() { return true; }, \"bad\");")]
+    [InlineData("scenario.assert.eventually(10001, function() { return true; }, \"bad\");")]
+    [InlineData("scenario.assert.eventually(1, nil, \"bad\");")]
+    [InlineData("scenario.assert.eventually(1, 42, \"bad\");")]
+    [InlineData("scenario.assert.eventually(1, function() { return 42; }, \"bad\");")]
+    [InlineData("scenario.assert.eventually(1, function() { error(\"predicate failure\"); }, \"bad\");")]
+    public void ScenarioAssertEventuallyRejectsInvalidArgumentsOrPredicateFailures(string statement)
+    {
+        string source = $$"""
+            scenario.server.start("graybox");
+            {{statement}}
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
     public void ScenarioArtifactsRecordInMemoryMetadata()
     {
         const string source = """
@@ -584,6 +759,112 @@ public sealed class WattleScenarioScriptHostTests
         Assert.True(result.Boolean);
         Assert.Equal("tick=0", scenario.artifacts.Records["snapshot"]);
         Assert.Equal("ok", scenario.artifacts.Records["summary"]);
+    }
+
+    [Fact]
+    public void ScenarioSnapshotExposesReadOnlyPlayerMatchAndSafeZoneState()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var first = scenario.players.connect();
+            var second = scenario.players.connect();
+            scenario.clock.waitTicks(1);
+
+            var snapshot = scenario.observe.latest(first);
+            var players = snapshot.players;
+            var firstPlayer = snapshot.player(first.playerId);
+            var secondPlayer = snapshot.player(second.playerId);
+
+            scenario.assert.equal(first.playerId, players[1].playerId);
+            scenario.assert.equal(second.playerId, players[2].playerId);
+            scenario.assert.equal(first.playerId, firstPlayer.playerId);
+            scenario.assert.equal(second.playerId, secondPlayer.playerId);
+            scenario.assert.equal(nil, snapshot.player(9999));
+
+            scenario.assert.near(firstPlayer.position.x, players[1].position.x, 0.0001);
+            scenario.assert.near(firstPlayer.position.y, players[1].position.y, 0.0001);
+            scenario.assert.near(firstPlayer.position.z, players[1].position.z, 0.0001);
+            scenario.assert.near(firstPlayer.velocity.x, players[1].velocity.x, 0.0001);
+            scenario.assert.near(firstPlayer.velocity.y, players[1].velocity.y, 0.0001);
+            scenario.assert.near(firstPlayer.velocity.z, players[1].velocity.z, 0.0001);
+            scenario.assert.near(firstPlayer.look.yawRadians, players[1].look.yawRadians, 0.0001);
+            scenario.assert.near(firstPlayer.look.pitchRadians, players[1].look.pitchRadians, 0.0001);
+
+            scenario.assert.equal(firstPlayer.currentHealth, firstPlayer.health.current);
+            scenario.assert.equal(firstPlayer.maxHealth, firstPlayer.health.max);
+            scenario.assert.isTrue(firstPlayer.health.current > 0);
+            scenario.assert.isTrue(firstPlayer.alive);
+            scenario.assert.isTrue(firstPlayer.weapon.weaponId != nil);
+            scenario.assert.isTrue(firstPlayer.weapon.ammoInMagazine >= 0);
+            scenario.assert.isTrue(firstPlayer.weapon.reserveAmmo >= 0);
+            scenario.assert.isTrue(firstPlayer.weapon.nextAllowedFireTick >= 0);
+            scenario.assert.equal(false, firstPlayer.weapon.isReloading);
+
+            scenario.assert.equal(snapshot.livingPlayerCount, snapshot.match.livingPlayerCount);
+            scenario.assert.equal("WaitingForPlayers", snapshot.match.phase);
+            scenario.assert.equal(nil, snapshot.match.winnerPlayerId);
+            scenario.assert.isTrue(snapshot.safeZone.currentRadius > 0);
+            scenario.assert.isTrue(snapshot.safeZone.targetRadius > 0);
+            scenario.assert.isTrue(snapshot.safeZone.center.x != nil);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioNestedSnapshotWrappersDoNotExposeDirectMutation()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            var snapshot = scenario.observe.latest(player);
+            snapshot.player(player.playerId).position.x = 99;
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
+    public void ScenarioEventsExposeHistoryAndCanBeCleared()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            var rejected = scenario.players.input(player, {
+                sequence = 40,
+                clientTick = 400,
+                moveX = 2.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0
+            });
+
+            scenario.assert.equal(false, rejected);
+            scenario.assert.equal("player.input.rejected", scenario.events.latest.type);
+            scenario.assert.equal(player.playerId, scenario.events.latest.playerId);
+            scenario.assert.equal("sequence=40", scenario.events.latest.detail);
+            scenario.assert.event("server.started");
+            scenario.assert.event("player.connected");
+            scenario.assert.event("player.input.rejected");
+
+            var countBeforeClear = scenario.events.count;
+            var types = scenario.events.types;
+            scenario.assert.equal("server.started", types[1]);
+            scenario.assert.isTrue(countBeforeClear >= 3);
+
+            scenario.events.clear();
+            scenario.assert.equal(0, scenario.events.count);
+            scenario.assert.equal(nil, scenario.events.latest);
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
     }
 
     [Fact]

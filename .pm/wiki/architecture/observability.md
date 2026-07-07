@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-07T17:54:42.2914090Z
+modifiedAt: 2026-07-07T18:18:19.6988320Z
 ---
 
 ## Overview
@@ -38,6 +38,12 @@ OTLP export is disabled by default. Export is enabled only when `OTEL_EXPORTER_O
 The OpenTelemetry SDK/exporter continues to read standard environment variables such as protocol, headers, service/resource attributes, and signal-specific endpoint settings. The bootstrap sets a 1 second local-development default for OTLP exporter and processor shutdown timeouts so an unreachable collector does not stall short server runs. Explicit timeout environment variables override that default, including `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT`, `OTEL_EXPORTER_OTLP_TRACES_TIMEOUT`, `OTEL_EXPORTER_OTLP_METRICS_TIMEOUT`, `OTEL_BSP_EXPORT_TIMEOUT`, `OTEL_BLRP_EXPORT_TIMEOUT`, and `OTEL_METRIC_EXPORT_TIMEOUT`.
 
 The server emits one bounded startup/run/shutdown activity named `royale.server.run`. It is tagged with port, map, tick rate, headless mode, run mode, and ticks run when available. Per-tick tracing and concrete gameplay metrics are intentionally out of scope for `OBS-001`; `OBS-002` owns server metrics and structured gameplay events.
+
+## Sandbox Validation Note
+
+When `OTEL_EXPORTER_OTLP_ENDPOINT` is set, short `dotnet run` server smoke tests may hang inside the Codex sandbox even if the same command works outside the sandbox. Agents should not immediately treat this as an application bug.
+
+If an OTLP-enabled server smoke has no server output and does not complete, stop the stuck process, rerun the same command with an elevated shell, and use the elevated result for validation. This preserves the useful check that an unreachable or absent collector does not break normal server startup while accounting for sandbox networking/exporter behavior.
 
 ## Goals
 

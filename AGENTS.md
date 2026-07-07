@@ -177,6 +177,8 @@ dotnet restore <solution>.slnx -p:CI_DONT_TARGET_ANDROID=1
 
 Any command that requires NuGet package access or restore may require an elevated shell in sandboxed environments.
 
+Server smoke tests with `OTEL_EXPORTER_OTLP_ENDPOINT` set may hang inside the Codex sandbox even when the same command succeeds normally outside it. If an OTLP-enabled `dotnet run` smoke appears stuck with no server output, treat it as likely sandbox networking/exporter behavior: stop the stuck process, rerun the same command with an elevated shell, and record whether the elevated run passes before diagnosing application code.
+
 Do not invent build, lint, format, or test commands. If no command exists yet, say so. Once commands are introduced, document them here and in the wiki when appropriate.
 
 Client shader builds require the `shadercross` executable to be available on `PATH`. The client project compiles HLSL sources under `src/Royale.Client/Shaders/` to SPIR-V (`.spv`) and Metal (`.msl`) outputs after build, and copies the original HLSL files for Direct3D/DXIL-facing development until a DXIL flow is explicitly chosen. `SDL_shadercross` is a local build tool dependency and is not vendored through `thirdparty`.

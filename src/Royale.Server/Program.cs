@@ -19,15 +19,15 @@ try
 {
     ServerLaunchOptions options = ServerLaunchOptions.Parse(args);
     var descriptor = ServerDescriptor.Create();
-    using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(options.MapId);
+    using NetworkServerRuntime runtime = NetworkServerRuntime.Listen(options.MapId, options.Port);
     string runMode = options.RunTicks is int runTicks
         ? $"finite {runTicks} ticks"
         : "until shutdown";
 
     logger.ZLogInformation(
-        $"Royale server starting. Protocol {ProtocolConstants.Version}, port {options.Port}, map {simulation.MapId}, colliders {simulation.StaticColliderCount}, tick {SimulationSettings.TickRateHz} Hz, headless {descriptor.IsHeadless}, run {runMode}.");
+        $"Royale server starting. Protocol {ProtocolConstants.Version}, port {options.Port}, map {runtime.MapId}, tick {SimulationSettings.TickRateHz} Hz, headless {descriptor.IsHeadless}, run {runMode}, UDP listen enabled.");
 
-    ServerSimulationRunResult result = await ServerSimulationLoop.RunAsync(simulation, options, shutdown.Token);
+    ServerSimulationRunResult result = await ServerSimulationLoop.RunAsync(runtime, options, shutdown.Token);
 
     logger.ZLogInformation($"Royale server stopped after {result.TicksRun} ticks.");
 }

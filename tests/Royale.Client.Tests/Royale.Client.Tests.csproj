@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Royale.Client\Royale.Client.csproj" />
+    <ProjectReference Include="..\..\src\Royale.Network\Royale.Network.csproj" />
   </ItemGroup>
 
 </Project>

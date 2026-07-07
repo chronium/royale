@@ -1,6 +1,7 @@
 using System.Numerics;
 using Royale.Client.Gameplay;
 using Royale.Content;
+using Royale.Protocol;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;
@@ -15,6 +16,8 @@ public static class DebugSceneBuilder
     private const float ImpactMarkerSizeMeters = 0.22f;
 
     private static readonly Vector4 PlayerCapsuleColor = new(0.20f, 0.95f, 0.45f, 1.0f);
+    private static readonly Vector4 NetworkLocalPlayerCapsuleColor = new(0.20f, 0.72f, 1.0f, 1.0f);
+    private static readonly Vector4 NetworkRemotePlayerCapsuleColor = new(1.0f, 0.35f, 0.85f, 1.0f);
     private static readonly Vector4 TrainingDummyCapsuleColor = new(1.0f, 0.32f, 0.25f, 1.0f);
     private static readonly Vector4 SpawnColor = new(1.0f, 0.78f, 0.20f, 1.0f);
     private static readonly Vector4 SafeZoneColor = new(0.20f, 0.72f, 1.0f, 1.0f);
@@ -23,7 +26,10 @@ public static class DebugSceneBuilder
     private static readonly Vector4 StaticImpactColor = new(1.0f, 0.18f, 0.10f, 1.0f);
     private static readonly Vector4 TargetImpactColor = new(0.62f, 1.0f, 0.70f, 1.0f);
 
-    public static DebugPrimitiveList Build(GameMap map, LocalPlayerController? localPlayer)
+    public static DebugPrimitiveList Build(
+        GameMap map,
+        LocalPlayerController? localPlayer,
+        ServerSnapshot? networkSnapshot = null)
     {
         ArgumentNullException.ThrowIfNull(map);
 
@@ -37,10 +43,31 @@ public static class DebugSceneBuilder
             AddWeaponFeedback(primitives, localPlayer.WeaponFeedback.ActiveShot);
         }
 
+        if (networkSnapshot is not null)
+            AddSnapshotPlayerCapsules(primitives, networkSnapshot);
+
         AddSpawnMarkers(primitives, map);
         AddSafeZoneBoundary(primitives, map);
 
         return primitives;
+    }
+
+    public static void AddSnapshotPlayerCapsules(
+        DebugPrimitiveList primitives,
+        ServerSnapshot snapshot,
+        KinematicCharacterSettings? characterSettings = null)
+    {
+        ArgumentNullException.ThrowIfNull(primitives);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        KinematicCharacterSettings settings = characterSettings ?? new KinematicCharacterSettings();
+        foreach (PlayerSnapshotState player in snapshot.Players)
+        {
+            Vector4 color = snapshot.LocalPlayerId == player.PlayerId
+                ? NetworkLocalPlayerCapsuleColor
+                : NetworkRemotePlayerCapsuleColor;
+            AddCapsuleAtFeet(primitives, player.Position, settings.Radius, settings.Height, color);
+        }
     }
 
     private static void AddTrainingDummyCapsule(DebugPrimitiveList primitives, TrainingDummy trainingDummy)
@@ -65,6 +92,20 @@ public static class DebugSceneBuilder
             feet + new Vector3(0.0f, height - radius, 0.0f),
             radius,
             PlayerCapsuleColor);
+    }
+
+    private static void AddCapsuleAtFeet(
+        DebugPrimitiveList primitives,
+        Vector3 feet,
+        float radius,
+        float height,
+        Vector4 color)
+    {
+        primitives.AddCapsule(
+            feet + new Vector3(0.0f, radius, 0.0f),
+            feet + new Vector3(0.0f, height - radius, 0.0f),
+            radius,
+            color);
     }
 
     private static void AddWeaponFeedback(DebugPrimitiveList primitives, WeaponFeedbackShot? activeShot)

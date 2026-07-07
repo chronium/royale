@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Royale.Client.Gameplay;
 using Royale.Client.Input;
 using Royale.Client.Launch;
+using Royale.Client.Networking;
 using Royale.Client.Presentation;
 using Royale.Client.Rendering;
 using Royale.Client.Rendering.Cameras;
@@ -54,6 +55,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private SdlGpuDevice? gpuDevice;
     private ImGuiBackend? imguiBackend;
     private LocalPlayerController? localPlayer;
+    private NetworkClientRuntime? networkClient;
     private GameMap? loadedMap;
     private PlayerInputSample lastGameplayInput;
 
@@ -141,6 +143,12 @@ public sealed unsafe class SdlApplication : IDisposable
 
     private void FixedUpdate(FixedTickTime time)
     {
+        if (networkClient is not null)
+        {
+            networkClient.FixedUpdate(lastGameplayInput, time.Tick);
+            return;
+        }
+
         if (localPlayer is null)
             return;
 
@@ -161,11 +169,11 @@ public sealed unsafe class SdlApplication : IDisposable
 
         RenderCamera renderCamera = cameraMode.IsFreecam
             ? freeCamera.ToRenderCamera()
-            : localPlayer?.ToRenderCamera() ?? gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
+            : CreateGameplayRenderCamera();
 
         DebugPrimitiveList? debugPrimitives = loadedMap is null
             ? null
-            : DebugSceneBuilder.Build(loadedMap, localPlayer);
+            : DebugSceneBuilder.Build(loadedMap, localPlayer, networkClient?.State.LatestSnapshot);
 
         IReadOnlyList<WorldTextBillboard>? worldTextBillboards = localPlayer is null
             ? null
@@ -204,11 +212,15 @@ public sealed unsafe class SdlApplication : IDisposable
         logger.ZLogInformation($"Loading map {options.MapId}.");
         GameMap map = MapCatalog.LoadById(options.MapId);
         loadedMap = map;
-        localPlayer = LocalPlayerController.Create(map);
+        if (options.Mode == ClientLaunchMode.Offline)
+            localPlayer = LocalPlayerController.Create(map);
+        else
+            networkClient = NetworkClientRuntime.Connect(options.ConnectHost!, options.Port);
+
         StaticMeshGeometry crateSmokeGeometry = SimpleMeshStaticMeshLoader.LoadFromFile(
             StaticMeshAssetPaths.GetKenneyPrototypeKitCratePath(AppContext.BaseDirectory));
         StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, crateSmokeGeometry);
-        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and local spawn {localPlayer.SpawnPoint.Id}.");
+        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes.");
 
         logger.ZLogInformation($"Creating SDL window.");
         Window = SdlWindow.Create(
@@ -357,6 +369,7 @@ public sealed unsafe class SdlApplication : IDisposable
     {
         bool relativeMouseModeEnabled = Window?.RelativeMouseMode.Enabled == true;
         lastGameplayInput = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled);
+        networkClient?.Poll();
 
         if (cameraMode.IsFreecam)
         {
@@ -368,6 +381,22 @@ public sealed unsafe class SdlApplication : IDisposable
 
         if (localPlayer?.Alive == true)
             localPlayer.UpdateLook(lastGameplayInput);
+        else
+            networkClient?.ApplyLook(lastGameplayInput);
+    }
+
+    private RenderCamera CreateGameplayRenderCamera()
+    {
+        if (localPlayer is not null)
+            return localPlayer.ToRenderCamera();
+
+        if (networkClient is not null)
+            return NetworkSnapshotPresentation.CreateRenderCamera(
+                networkClient.State,
+                networkClient.LookState,
+                gameplayView);
+
+        return gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
     }
 
     private void UpdateWindowTitle(FrameTime frameTime)
@@ -398,6 +427,8 @@ public sealed unsafe class SdlApplication : IDisposable
 
         localPlayer?.Dispose();
         localPlayer = null;
+        networkClient?.Dispose();
+        networkClient = null;
         loadedMap = null;
 
         Window?.Dispose();

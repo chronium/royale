@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T14:38:58.4948350Z
+modifiedAt: 2026-07-07T17:04:52.7550580Z
 ---
 
 ## Networking Layers
@@ -49,11 +49,9 @@ The connection layer manages:
 * Connection state
 * Disconnect reasons
 
-Client and server launch options already expose the default network port contract. Both sides default to port `7777`. The client accepts `--connect <host>` and `--port <port>` to describe the intended remote endpoint, and the server accepts `--port <port>` to select its listen port.
+Client and server launch options expose the default network port contract. Both sides default to port `7777`. The client accepts `--connect <host>` and `--port <port>` to connect to a remote endpoint, and the server accepts `--port <port>` to select its listen port.
 
-UDP packet transport exists in `Royale.Network`, but executable launch wiring and higher-level connection behavior are still deferred. At this stage, `--connect` is parsed and logged by the client so later networking tasks can attach handshake, framing, session state, and protocol compatibility behavior without changing the launch contract.
-
-`Royale.Network` now provides reusable handshake handlers on top of `INetworkTransport` and the protocol frame:
+`Royale.Network` provides reusable handshake handlers on top of `INetworkTransport` and the protocol frame:
 
 * `NetworkHandshakeClient` starts in `Pending`, sends `ClientHello` with `SessionId = 0`, and transitions to `Accepted`, `Rejected`, or `Disconnected`.
 * `NetworkHandshakeServer` consumes pre-session `ClientHello`, validates the framed protocol major version plus build/content compatibility fields, allocates a nonzero session id, and replies with `ServerAccept`.
@@ -61,7 +59,11 @@ UDP packet transport exists in `Royale.Network`, but executable launch wiring an
 * `ServerReject` is sent with `SessionId = 0` for malformed frames where a response is possible, unexpected pre-session message types, unsupported protocol major versions, incompatible build/content values, and accept callback failures.
 * Handshake packets use reliable ordered delivery on channel `0`.
 
-The server accept callback returns `NetworkHandshakeAcceptResult`, which can be populated from `InProcessServerSession.ConnectClient()` without giving the client direct access to arbitrary server gameplay methods. This connects handshake acceptance to server-owned player allocation and the existing initial snapshot queue. `ServerSnapshotSender` can then consume `NetworkHandshakeServer.AcceptedPeers` plus a per-peer snapshot provider to frame accepted-session snapshot packets without owning simulation or executable startup wiring.
+`Royale.Server` owns `NetworkServerRuntime`, which starts from the dedicated server process, polls `LiteNetLibNetworkTransport`, runs `NetworkHandshakeServer`, maps accepted peers to authoritative in-process session connections, queues accepted `ClientInput` commands for the matching player, steps the authoritative session once per fixed tick, sends due snapshots, and removes the peer/player mapping on disconnect.
+
+`Royale.Client` owns `NetworkClientRuntime` for `--connect`. It starts a client UDP transport on an ephemeral local port, calls `Connect`, and creates `NetworkHandshakeClient` only after the transport reports the server peer as connected so `ClientHello` is sent on an established peer. After `ServerAccept`, the runtime creates `ClientInputSender`; each fixed client tick sends one input command with normalized move intent, jump/fire buttons, immediate local yaw/pitch, and a monotonic client command sequence.
+
+This path preserves the dependency boundary: the SDL client references `Royale.Network` but not `Royale.Server`; the dedicated server references `Royale.Network` but not SDL, GPU, ImGui, client rendering, or client UI.
 
 ## Protocol
 
@@ -112,19 +114,21 @@ Handshake payload serialization exists for `ClientHello`, `ServerAccept`, and `S
 
 Snapshot deserialization rejects malformed payloads, oversized player counts, oversized weapon ids, invalid enum values, invalid nullable or boolean markers, truncated data, and trailing bytes.
 
-Event serialization, executable launch wiring, client snapshot receiving, interpolation, reconciliation, and snapshot delta compression remain deferred.
+Event serialization, client disconnect messages, server disconnect messages, snapshot delta compression, and sophisticated acknowledgement policy remain deferred.
 
 ## Replication
 
 The replication layer converts authoritative simulation state into network snapshots and applies snapshots to client-side representations.
 
-Early snapshots are full snapshots and can be simple and redundant. Optimization should come after protocol behavior is correct and observable.
+Early snapshots are full snapshots and intentionally redundant. Optimization should come after protocol behavior is correct and observable.
 
-`ServerSnapshotSender` is the first reusable server-side snapshot sending layer. It accepts an `INetworkTransport`, accepted peer/session metadata, and a per-peer `ServerSnapshot` provider. It frames packets as `ProtocolMessageType.ServerSnapshot` with the accepted nonzero `SessionId`, uses protocol packet sequence numbers, and sends via `NetworkDelivery.Sequenced` on snapshot channel `1`.
+`ServerSnapshotSender` is the reusable server-side snapshot sending layer. It accepts an `INetworkTransport`, accepted peer/session metadata, and a per-peer `ServerSnapshot` provider. It frames packets as `ProtocolMessageType.ServerSnapshot` with the accepted nonzero `SessionId`, uses protocol packet sequence numbers, and sends via `NetworkDelivery.Sequenced` on snapshot channel `1`.
 
-The sender emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. It does not process client input, run the server loop, own authoritative simulation state, or wire executable client/server startup.
+The sender emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. In the executable server runtime, the snapshot provider drains the recipient's authoritative session queue and sends the latest available recipient-specific snapshot so acknowledgements and local-player identity remain server-owned.
 
-Client-side snapshot receiving, interpolation, reconciliation display, delta compression, loss handling policy, and executable launch wiring remain deferred.
+The executable client decodes `ServerSnapshot` packets into a minimal latest-snapshot state. Connect-mode presentation uses that latest authoritative state directly: local and remote players are rendered as debug capsules in debug render modes, with the local player color distinct from remote players. The connect-mode gameplay camera uses the authoritative local snapshot position plus immediate local look input; before the first local snapshot, it falls back to a stable origin camera.
+
+Smooth interpolation, local prediction, reconciliation/replay display, event replication, delta compression, and bad-network policy remain deferred to their dedicated networking tasks.
 
 ## Protocol Versioning
 

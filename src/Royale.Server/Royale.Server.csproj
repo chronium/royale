@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Royale.Simulation\Royale.Simulation.csproj" />
     <ProjectReference Include="..\Royale.Protocol\Royale.Protocol.csproj" />
+    <ProjectReference Include="..\Royale.Network\Royale.Network.csproj" />
     <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />
     <ProjectReference Include="..\Royale.Box3D\Royale.Box3D.csproj" />
     <ProjectReference Include="..\Royale.Diagnostics\Royale.Diagnostics.csproj" />

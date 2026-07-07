@@ -13,7 +13,7 @@ try
     logger.ZLogInformation($"Client startup beginning. Mode {options.Mode}, map {options.MapId}, port {options.Port}.");
 
     if (options.Mode == ClientLaunchMode.Connect)
-        logger.ZLogInformation($"Client remote endpoint selected: {options.ConnectHost}:{options.Port}. Networking transport is not implemented yet.");
+        logger.ZLogInformation($"Client remote endpoint selected: {options.ConnectHost}:{options.Port}. Networking transport will connect over UDP.");
 
     using var application = new SdlApplication(
         options,

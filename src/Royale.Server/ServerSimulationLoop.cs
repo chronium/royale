@@ -21,6 +21,20 @@ public static class ServerSimulationLoop
         return RunUntilCancelledAsync(simulation, cancellationToken);
     }
 
+    public static Task<ServerSimulationRunResult> RunAsync(
+        NetworkServerRuntime runtime,
+        ServerLaunchOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (options.RunTicks is int finiteTickCount)
+            return RunFiniteAsync(runtime, finiteTickCount, cancellationToken);
+
+        return RunUntilCancelledAsync(runtime, cancellationToken);
+    }
+
     private static Task<ServerSimulationRunResult> RunFiniteAsync(
         HeadlessServerSimulation simulation,
         int runTicks,
@@ -35,8 +49,40 @@ public static class ServerSimulationLoop
         return Task.FromResult(new ServerSimulationRunResult((ulong)runTicks));
     }
 
+    private static Task<ServerSimulationRunResult> RunFiniteAsync(
+        NetworkServerRuntime runtime,
+        int runTicks,
+        CancellationToken cancellationToken)
+    {
+        for (int tick = 0; tick < runTicks; tick++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            runtime.Step();
+        }
+
+        return Task.FromResult(new ServerSimulationRunResult((ulong)runTicks));
+    }
+
     private static async Task<ServerSimulationRunResult> RunUntilCancelledAsync(
         HeadlessServerSimulation simulation,
+        CancellationToken cancellationToken)
+    {
+        return await RunUntilCancelledAsync(
+            () => simulation.Step(),
+            cancellationToken);
+    }
+
+    private static async Task<ServerSimulationRunResult> RunUntilCancelledAsync(
+        NetworkServerRuntime runtime,
+        CancellationToken cancellationToken)
+    {
+        return await RunUntilCancelledAsync(
+            () => runtime.Step(),
+            cancellationToken);
+    }
+
+    private static async Task<ServerSimulationRunResult> RunUntilCancelledAsync(
+        Action step,
         CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -54,7 +100,7 @@ public static class ServerSimulationLoop
             int catchUpTicks = 0;
             while (accumulatedSeconds >= fixedDeltaSeconds && catchUpTicks < MaxCatchUpTicksPerCycle)
             {
-                simulation.Step();
+                step();
                 ticksRun++;
                 catchUpTicks++;
                 accumulatedSeconds -= fixedDeltaSeconds;

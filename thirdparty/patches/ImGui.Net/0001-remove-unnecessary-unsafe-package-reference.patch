@@ -1,0 +1,12 @@
+diff --git a/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj b/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj
+index 10bc494..0f7cdc9 100644
+--- a/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj
++++ b/Generator/Evergine.Bindings.Imgui/Evergine.Bindings.Imgui.csproj
+@@ -15,7 +15,6 @@
+ 
+ 	<ItemGroup>
+ 		<PackageReference Include="Evergine.Mathematics" Version="2025.10.21.3204" />
+-		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+ 	</ItemGroup>
+ 
+ 	<ItemGroup>

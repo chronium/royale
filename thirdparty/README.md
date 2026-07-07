@@ -16,7 +16,7 @@ This directory contains the committed dependency-management files for native and
 | --- | --- | --- | --- |
 | SDL3-CS | `https://github.com/ppy/SDL3-CS` | `a0a5276a874c0c48db705696ab7e2adc8b5db0a1` | C# bindings and native availability for SDL3. |
 | box3d | `https://github.com/erincatto/box3d` | `540ea387b0c02bf714fbfdcc8fb88c039c35fe6f` | Physics library source for future project-specific native builds and bindings. |
-| ImGui.Net | `https://github.com/EvergineTeam/ImGui.Net` | `1f97beecfc9b83e1549e9782757cf85b1777cb9d` | C# ImGui bindings for client development UI. |
+| ImGui.Net | `https://github.com/EvergineTeam/ImGui.Net` | `1f97beecfc9b83e1549e9782757cf85b1777cb9d` | C# ImGui bindings for client development UI. Patched to remove an unnecessary `System.Runtime.CompilerServices.Unsafe` package reference that causes SDK warning `NU1510`. |
 | BlurgText | `https://github.com/CallumDev/blurgtext` | `ea49c33b27ad55cc811dc8be4c9829ed4367d936` | Game-facing text outside ImGui. |
 | SimpleMesh | `https://github.com/CallumDev/SimpleMesh` | `9f46341e35fa5876fbea7b96bd021bc3abd7842d` | Managed mesh import source staged for future client rendering work. |
 | WattleScript | `https://github.com/WattleScript/wattlescript` | `b8ccc1930733c25c8a25e6087fc29a4c555562fe` | Interpreter source staged for automated gameplay test orchestration. |

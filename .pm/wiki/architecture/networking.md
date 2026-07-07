@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T10:11:36.8837580Z
+modifiedAt: 2026-07-07T10:26:56.9916280Z
 ---
 
 ## Networking Layers
@@ -61,7 +61,7 @@ UDP packet transport exists in `Royale.Network`, but executable launch wiring an
 * `ServerReject` is sent with `SessionId = 0` for malformed frames where a response is possible, unexpected pre-session message types, unsupported protocol major versions, incompatible build/content values, and accept callback failures.
 * Handshake packets use reliable ordered delivery on channel `0`.
 
-The server accept callback returns `NetworkHandshakeAcceptResult`, which can be populated from `InProcessServerSession.ConnectClient()` without giving the client direct access to arbitrary server gameplay methods. This connects handshake acceptance to server-owned player allocation and the existing initial snapshot queue while leaving full snapshot serialization and streaming to later replication work.
+The server accept callback returns `NetworkHandshakeAcceptResult`, which can be populated from `InProcessServerSession.ConnectClient()` without giving the client direct access to arbitrary server gameplay methods. This connects handshake acceptance to server-owned player allocation and the existing initial snapshot queue. `ServerSnapshotSender` can then consume `NetworkHandshakeServer.AcceptedPeers` plus a per-peer snapshot provider to frame accepted-session snapshot packets without owning simulation or executable startup wiring.
 
 ## Protocol
 
@@ -104,13 +104,23 @@ The frame parser validates only wire framing concerns: minimum header length, pa
 
 Handshake payload serialization exists for `ClientHello`, `ServerAccept`, and `ServerReject`. Handshake strings are UTF-8 with one-byte length prefixes and fixed maximum encoded lengths. Current deterministic development compatibility fields are `BuildId = "dev-build"` and `ContentVersion = "dev-content-1"`. `ServerRejectReason` values are stable wire values.
 
-Input message serialization, snapshot serialization, event serialization, client launch wiring, and server snapshot streaming remain deferred.
+`ServerSnapshotPayloadSerializer` serializes full `ServerSnapshot` payloads with little-endian primitive fields. Nullable `uint` and `ulong` snapshot fields use explicit one-byte presence markers: `0` for absent and `1` for present, followed by the value only when present. Weapon ids are UTF-8 strings with one-byte length prefixes. Snapshot payloads are bounded by `ProtocolConstants.MaxSnapshotPlayers = 128` and `ProtocolConstants.MaxSnapshotWeaponIdLength = 64`.
+
+Snapshot deserialization rejects malformed payloads, oversized player counts, oversized weapon ids, invalid enum values, invalid nullable or boolean markers, truncated data, and trailing bytes.
+
+Input message serialization, event serialization, executable launch wiring, client snapshot receiving, interpolation, reconciliation, and snapshot delta compression remain deferred.
 
 ## Replication
 
 The replication layer converts authoritative simulation state into network snapshots and applies snapshots to client-side representations.
 
-Early snapshots can be simple and redundant. Optimization should come after protocol behavior is correct and observable.
+Early snapshots are full snapshots and can be simple and redundant. Optimization should come after protocol behavior is correct and observable.
+
+`ServerSnapshotSender` is the first reusable server-side snapshot sending layer. It accepts an `INetworkTransport`, accepted peer/session metadata, and a per-peer `ServerSnapshot` provider. It frames packets as `ProtocolMessageType.ServerSnapshot` with the accepted nonzero `SessionId`, uses protocol packet sequence numbers, and sends via `NetworkDelivery.Sequenced` on snapshot channel `1`.
+
+The sender emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. It does not process client input, run the server loop, own authoritative simulation state, or wire executable client/server startup.
+
+Client-side snapshot receiving, interpolation, reconciliation display, delta compression, loss handling policy, and executable launch wiring remain deferred.
 
 ## Protocol Versioning
 
@@ -163,4 +173,4 @@ Clients submit structured `PlayerInputCommand` intent through the session queue 
 
 Each `InProcessServerSession.Step` drains queued valid commands per connected client, keeps only the latest drained command for each player for that server tick, passes those commands to `HeadlessServerSimulation.Step(...)`, and enqueues a recipient-specific snapshot for every connected client. The latest processed command sequence becomes the recipient's top-level snapshot acknowledgement.
 
-SERVER-006 makes this path authoritative for local/synthetic clients: queued command intent now drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. It still does not add real UDP transport, serialization, handshake, loss simulation, client launch wiring, client prediction, reconciliation, interpolation, snapshot send-rate throttling, winner selection, combat events, respawn, reload, or match reset. The SDL client still does not reference `Royale.Server`.
+The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests, but executable client/server startup, client prediction, reconciliation, interpolation, winner selection, combat events, respawn, reload, and match reset remain deferred. The SDL client still does not reference `Royale.Server`.

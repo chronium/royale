@@ -86,4 +86,300 @@ public sealed class ServerSnapshotTests
         Assert.False(player.Alive);
         Assert.Equal(weapon, player.Weapon);
     }
+
+    [Fact]
+    public void SnapshotPayloadRoundTripsFullRecipientState()
+    {
+        ServerSnapshot snapshot = CreateSnapshot(
+            localPlayerId: 7,
+            acknowledgedInputSequence: 42,
+            players:
+            [
+                CreatePlayer(7, "rifle", alive: true, lastFiredTick: 120, reloadCompleteTick: null),
+                CreatePlayer(8, "shotgun-\u2603", alive: false, lastFiredTick: null, reloadCompleteTick: 160),
+            ],
+            match: new MatchSnapshotState(
+                ServerSnapshotMatchPhase.Completed,
+                PhaseStartedTick: 60,
+                LivingPlayerCount: 1,
+                WinnerPlayerId: 7),
+            safeZone: new SafeZoneSnapshotState(
+                new Vector3(10.0f, 0.0f, -5.0f),
+                CurrentRadius: 100.0f,
+                TargetRadius: 50.0f,
+                LastUpdatedTick: 90));
+        byte[] payload = new byte[ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize];
+
+        Assert.True(ServerSnapshotPayloadSerializer.TryWriteSnapshot(snapshot, payload, out int bytesWritten));
+        Assert.True(ServerSnapshotPayloadSerializer.TryReadSnapshot(
+            payload.AsSpan(0, bytesWritten),
+            out ServerSnapshot? decoded));
+
+        Assert.NotNull(decoded);
+        AssertSnapshotEqual(snapshot, decoded!);
+    }
+
+    [Fact]
+    public void SnapshotPayloadRoundTripsWithoutRecipientIdentity()
+    {
+        ServerSnapshot snapshot = CreateSnapshot(
+            localPlayerId: null,
+            acknowledgedInputSequence: null,
+            players: [],
+            match: new MatchSnapshotState(
+                ServerSnapshotMatchPhase.WaitingForPlayers,
+                PhaseStartedTick: 0,
+                LivingPlayerCount: 0,
+                WinnerPlayerId: null),
+            safeZone: new SafeZoneSnapshotState(Vector3.Zero, 0.0f, 0.0f, 0));
+
+        ServerSnapshot decoded = RoundTrip(snapshot);
+
+        AssertSnapshotEqual(snapshot, decoded);
+    }
+
+    [Fact]
+    public void SnapshotPayloadUsesStableLittleEndianLayoutForRepresentativeValues()
+    {
+        ServerSnapshot snapshot = CreateSnapshot(
+            localPlayerId: 0x0A0B0C0D,
+            acknowledgedInputSequence: 0x01020304,
+            players: [],
+            match: new MatchSnapshotState(
+                ServerSnapshotMatchPhase.InProgress,
+                PhaseStartedTick: 0x1122334455667788,
+                LivingPlayerCount: -2,
+                WinnerPlayerId: null),
+            safeZone: new SafeZoneSnapshotState(
+                new Vector3(1.0f, -2.5f, 3.25f),
+                CurrentRadius: 4.5f,
+                TargetRadius: -8.0f,
+                LastUpdatedTick: 0x99AABBCCDDEEFF00));
+        byte[] payload = WriteSnapshot(snapshot);
+
+        Assert.Equal(
+            [
+                0x7B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x01, 0x0D, 0x0C, 0x0B, 0x0A,
+                0x01, 0x04, 0x03, 0x02, 0x01,
+                0x00, 0x00,
+                0x01,
+                0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,
+                0xFE, 0xFF, 0xFF, 0xFF,
+                0x00,
+                0x00, 0x00, 0x80, 0x3F,
+                0x00, 0x00, 0x20, 0xC0,
+                0x00, 0x00, 0x50, 0x40,
+                0x00, 0x00, 0x90, 0x40,
+                0x00, 0x00, 0x00, 0xC1,
+                0x00, 0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99,
+            ],
+            payload);
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsInvalidMatchPhase()
+    {
+        byte[] payload = WriteSnapshot(CreateMinimalSnapshot());
+        int matchPhaseOffset = FindMatchPhaseOffset(payload);
+        payload[matchPhaseOffset] = 0xFF;
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsInvalidNullableMarker()
+    {
+        byte[] payload = WriteSnapshot(CreateMinimalSnapshot());
+        payload[sizeof(ulong)] = 2;
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsInvalidBooleanMarker()
+    {
+        byte[] payload = WriteSnapshot(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [CreatePlayer(1, "rifle", alive: true, lastFiredTick: null, reloadCompleteTick: null)],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+        int aliveOffset = 8 + 5 + 1 + 2 + 4 + 12 + 12 + 4 + 4 + 4 + 4;
+        payload[aliveOffset] = 2;
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsTruncatedPayload()
+    {
+        byte[] payload = WriteSnapshot(CreateMinimalSnapshot());
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload.AsSpan(0, payload.Length - 1), out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsTrailingBytes()
+    {
+        byte[] payload = WriteSnapshot(CreateMinimalSnapshot());
+        byte[] withTrailingByte = [.. payload, 0xFF];
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(withTrailingByte, out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsOversizedPlayerCount()
+    {
+        byte[] payload = new byte[8 + 1 + 1 + 2];
+        payload[10] = (byte)(ProtocolConstants.MaxSnapshotPlayers + 1);
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsOversizedWeaponId()
+    {
+        string oversizedWeaponId = new('w', ProtocolConstants.MaxSnapshotWeaponIdLength + 1);
+        ServerSnapshot snapshot = CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [CreatePlayer(1, oversizedWeaponId, alive: true, lastFiredTick: null, reloadCompleteTick: null)],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone());
+        byte[] payload = new byte[ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize];
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryWriteSnapshot(snapshot, payload, out int bytesWritten));
+        Assert.Equal(0, bytesWritten);
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsDestinationTooSmall()
+    {
+        ServerSnapshot snapshot = CreateMinimalSnapshot();
+        Span<byte> destination = stackalloc byte[1];
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryWriteSnapshot(snapshot, destination, out int bytesWritten));
+        Assert.Equal(0, bytesWritten);
+    }
+
+    [Fact]
+    public void SnapshotPayloadConstantsBoundFullPayloads()
+    {
+        Assert.Equal(128, ProtocolConstants.MaxSnapshotPlayers);
+        Assert.Equal(64, ProtocolConstants.MaxSnapshotWeaponIdLength);
+        Assert.True(ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize > ProtocolConstants.PacketHeaderSize);
+    }
+
+    private static ServerSnapshot RoundTrip(ServerSnapshot snapshot)
+    {
+        byte[] payload = WriteSnapshot(snapshot);
+
+        Assert.True(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out ServerSnapshot? decoded));
+        Assert.NotNull(decoded);
+        return decoded!;
+    }
+
+    private static byte[] WriteSnapshot(ServerSnapshot snapshot)
+    {
+        byte[] payload = new byte[ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize];
+        Assert.True(ServerSnapshotPayloadSerializer.TryWriteSnapshot(snapshot, payload, out int bytesWritten));
+        return payload.AsSpan(0, bytesWritten).ToArray();
+    }
+
+    private static ServerSnapshot CreateMinimalSnapshot() => CreateSnapshot(
+        localPlayerId: null,
+        acknowledgedInputSequence: null,
+        players: [],
+        match: DefaultMatch(),
+        safeZone: DefaultSafeZone());
+
+    private static ServerSnapshot CreateSnapshot(
+        uint? localPlayerId,
+        uint? acknowledgedInputSequence,
+        IReadOnlyList<PlayerSnapshotState> players,
+        MatchSnapshotState match,
+        SafeZoneSnapshotState safeZone) => new(
+        ServerTick: 123,
+        localPlayerId,
+        acknowledgedInputSequence,
+        players,
+        match,
+        safeZone);
+
+    private static PlayerSnapshotState CreatePlayer(
+        uint playerId,
+        string weaponId,
+        bool alive,
+        ulong? lastFiredTick,
+        ulong? reloadCompleteTick) => new(
+        playerId,
+        new Vector3(1.0f + playerId, 2.0f, 3.0f),
+        new Vector3(4.0f, 5.0f, 6.0f),
+        YawRadians: 0.5f,
+        PitchRadians: -0.25f,
+        CurrentHealth: alive ? 80 : 0,
+        MaxHealth: 100,
+        alive,
+        new WeaponSnapshotState(
+            weaponId,
+            AmmoInMagazine: 27,
+            ReserveAmmo: 90,
+            NextAllowedFireTick: 130,
+            lastFiredTick,
+            IsReloading: reloadCompleteTick.HasValue,
+            reloadCompleteTick));
+
+    private static MatchSnapshotState DefaultMatch() => new(
+        ServerSnapshotMatchPhase.InProgress,
+        PhaseStartedTick: 60,
+        LivingPlayerCount: 0,
+        WinnerPlayerId: null);
+
+    private static SafeZoneSnapshotState DefaultSafeZone() => new(
+        Center: Vector3.Zero,
+        CurrentRadius: 100.0f,
+        TargetRadius: 50.0f,
+        LastUpdatedTick: 90);
+
+    private static int FindMatchPhaseOffset(byte[] payload)
+    {
+        int offset = sizeof(ulong);
+        offset += payload[offset] == 1 ? sizeof(byte) + sizeof(uint) : sizeof(byte);
+        offset += payload[offset] == 1 ? sizeof(byte) + sizeof(uint) : sizeof(byte);
+        ushort playerCount = (ushort)(payload[offset] | (payload[offset + 1] << 8));
+        offset += sizeof(ushort);
+
+        for (int i = 0; i < playerCount; i++)
+        {
+            const int playerBeforeWeaponBytes =
+                sizeof(uint) +
+                (sizeof(float) * 3) +
+                (sizeof(float) * 3) +
+                sizeof(float) +
+                sizeof(float) +
+                sizeof(int) +
+                sizeof(int) +
+                sizeof(byte);
+            offset += playerBeforeWeaponBytes;
+            int weaponIdByteLength = payload[offset];
+            offset += sizeof(byte) + weaponIdByteLength;
+            offset += sizeof(int) + sizeof(int) + sizeof(ulong);
+            offset += payload[offset++] == 1 ? sizeof(ulong) : 0;
+            offset += sizeof(byte);
+            offset += payload[offset++] == 1 ? sizeof(ulong) : 0;
+        }
+
+        return offset;
+    }
+
+    private static void AssertSnapshotEqual(ServerSnapshot expected, ServerSnapshot actual)
+    {
+        Assert.Equal(expected.ServerTick, actual.ServerTick);
+        Assert.Equal(expected.LocalPlayerId, actual.LocalPlayerId);
+        Assert.Equal(expected.AcknowledgedInputSequence, actual.AcknowledgedInputSequence);
+        Assert.Equal(expected.Players, actual.Players);
+        Assert.Equal(expected.Match, actual.Match);
+        Assert.Equal(expected.SafeZone, actual.SafeZone);
+    }
 }

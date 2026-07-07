@@ -14,4 +14,6 @@ public static class ProtocolConstants
     public const int MaxContentVersionLength = 64;
     public const int MaxMapIdLength = 64;
     public const int MaxRejectDetailLength = 128;
+    public const int MaxSnapshotPlayers = 128;
+    public const int MaxSnapshotWeaponIdLength = 64;
 }

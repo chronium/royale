@@ -2,6 +2,7 @@ using Royale.Content;
 using Royale.Network;
 using Royale.Protocol;
 using Royale.Server;
+using System.Numerics;
 
 namespace Royale.Server.Tests;
 
@@ -46,6 +47,73 @@ public sealed class InProcessServerHandshakeTests
         Assert.Equal(accept.PlayerId, snapshot.LocalPlayerId);
     }
 
+    [Fact]
+    public void SnapshotSenderCanUseAcceptedHandshakePeerAndInProcessSnapshotQueue()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        FakeNetworkTransport transport = new();
+        var handshake = new NetworkHandshakeServer(
+            transport,
+            _ =>
+            {
+                InProcessClientConnection connection = session.ConnectClient();
+                return new NetworkHandshakeAcceptResult(
+                    connection.ConnectionId.Value,
+                    connection.PlayerId.Value,
+                    session.CurrentTick,
+                    session.MapId);
+            });
+        NetworkPeerId peerId = new(1);
+
+        handshake.PacketReceived(
+            peerId,
+            FrameClientHello(),
+            NetworkDelivery.ReliableOrdered,
+            channel: 0);
+        ServerAccept accept = ReadAccept(Assert.Single(transport.SentPackets).Payload);
+        InProcessClientConnection client = new(
+            new ServerConnectionId(accept.ConnectionId),
+            new ServerPlayerId(accept.PlayerId));
+        _ = session.DrainSnapshots(client);
+        Assert.True(session.TryEnqueueInputCommand(client, ValidCommand(sequence: 9)));
+        session.Step();
+        session.Step();
+        session.Step();
+        transport.SentPackets.Clear();
+        var sender = new ServerSnapshotSender(
+            transport,
+            handshake.AcceptedPeers,
+            (_, accepted) =>
+            {
+                var recipient = new InProcessClientConnection(
+                    new ServerConnectionId(accepted.ConnectionId),
+                    new ServerPlayerId(accepted.PlayerId));
+                IReadOnlyList<ServerSnapshot> snapshots = session.DrainSnapshots(recipient);
+                return snapshots.Count == 0 ? null : snapshots[^1];
+            });
+
+        int sent = sender.SendDueSnapshots(session.CurrentTick);
+
+        SentPacket packet = Assert.Single(transport.SentPackets);
+        Assert.Equal(1, sent);
+        Assert.Equal(peerId, packet.PeerId);
+        Assert.Equal(NetworkDelivery.Sequenced, packet.Delivery);
+        Assert.Equal(ServerSnapshotSender.SnapshotChannel, packet.Channel);
+        Assert.True(ProtocolPacketFramer.TryReadPacket(
+            packet.Payload,
+            out ProtocolPacketHeader header,
+            out ReadOnlySpan<byte> payload,
+            out ProtocolFrameError error));
+        Assert.Equal(ProtocolFrameError.None, error);
+        Assert.Equal(ProtocolMessageType.ServerSnapshot, header.MessageType);
+        Assert.Equal(accept.SessionId, header.SessionId);
+        Assert.True(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out ServerSnapshot? snapshot));
+        Assert.NotNull(snapshot);
+        Assert.Equal(accept.PlayerId, snapshot!.LocalPlayerId);
+        Assert.Equal(3UL, snapshot.ServerTick);
+        Assert.Equal(9U, snapshot.AcknowledgedInputSequence);
+    }
+
     private static byte[] FrameClientHello()
     {
         Span<byte> payload = stackalloc byte[HandshakePayloadSerializer.MaxClientHelloPayloadSize];
@@ -87,6 +155,14 @@ public sealed class InProcessServerHandshakeTests
         Assert.Equal(header.SessionId, accept!.SessionId);
         return accept;
     }
+
+    private static PlayerInputCommand ValidCommand(uint sequence) => new(
+        sequence,
+        ClientTick: sequence + 100,
+        Move: Vector2.Zero,
+        YawRadians: 0.0f,
+        PitchRadians: 0.0f,
+        Buttons: InputButtons.None);
 
     private sealed class FakeNetworkTransport : INetworkTransport
     {

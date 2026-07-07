@@ -114,6 +114,54 @@ public sealed class InProcessServerHandshakeTests
         Assert.Equal(9U, snapshot.AcknowledgedInputSequence);
     }
 
+    [Fact]
+    public void InputReceiverCanQueueHandshakePeerInputIntoInProcessSession()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        FakeNetworkTransport serverTransport = new();
+        var handshake = new NetworkHandshakeServer(
+            serverTransport,
+            _ =>
+            {
+                InProcessClientConnection connection = session.ConnectClient();
+                return new NetworkHandshakeAcceptResult(
+                    connection.ConnectionId.Value,
+                    connection.PlayerId.Value,
+                    session.CurrentTick,
+                    session.MapId);
+            });
+        NetworkPeerId peerId = new(1);
+        handshake.PacketReceived(
+            peerId,
+            FrameClientHello(),
+            NetworkDelivery.ReliableOrdered,
+            channel: 0);
+        ServerAccept accept = ReadAccept(Assert.Single(serverTransport.SentPackets).Payload);
+        InProcessClientConnection client = new(
+            new ServerConnectionId(accept.ConnectionId),
+            new ServerPlayerId(accept.PlayerId));
+        _ = session.DrainSnapshots(client);
+        var receiver = new ServerInputReceiver(
+            handshake.AcceptedPeers,
+            (_, accepted, command) =>
+            {
+                var recipient = new InProcessClientConnection(
+                    new ServerConnectionId(accepted.ConnectionId),
+                    new ServerPlayerId(accepted.PlayerId));
+                Assert.True(session.TryEnqueueInputCommand(recipient, command));
+            });
+        FakeNetworkTransport clientTransport = new();
+        var inputSender = new ClientInputSender(clientTransport, peerId, accept);
+
+        Assert.True(inputSender.TrySend(ValidCommand(sequence: 12)));
+        SentPacket inputPacket = Assert.Single(clientTransport.SentPackets);
+        receiver.PacketReceived(peerId, inputPacket.Payload, inputPacket.Delivery, inputPacket.Channel);
+        session.Step();
+
+        ServerSnapshot snapshot = session.DrainSnapshots(client)[^1];
+        Assert.Equal(12U, snapshot.AcknowledgedInputSequence);
+    }
+
     private static byte[] FrameClientHello()
     {
         Span<byte> payload = stackalloc byte[HandshakePayloadSerializer.MaxClientHelloPayloadSize];

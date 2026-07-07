@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-06T20:04:30.6378790Z
+modifiedAt: 2026-07-06T20:15:28.2097840Z
 ---
 
 ## Simulation Model
@@ -190,6 +190,27 @@ public readonly record struct PlayerInputSample(
 `PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` is button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled. For the local offline player, the client converts `Move` through the current gameplay yaw before passing a world X/Z movement vector to `KinematicCharacterController`. Assigning sequence numbers and sending network input commands remain later server/network tasks.
 
 Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`. Mouse deltas adjust yaw and clamped pitch with finite-value guards so invalid device deltas do not corrupt local look state.
+
+## Server Snapshots
+
+SERVER-005 defines the first protocol-owned server snapshot DTOs in `Royale.Protocol` and a server-owned mapper in `HeadlessServerSimulation.CreateSnapshot`. The DTOs are transfer shapes shared by client and server; they do not move gameplay authority out of `Royale.Server`.
+
+`ServerSnapshot` contains:
+
+* `ServerTick`
+* optional `LocalPlayerId`
+* optional top-level `AcknowledgedInputSequence`
+* ordered replicated player states
+* match state
+* safe-zone state
+
+Snapshots are recipient-specific only for acknowledgement and local-player identity. When `CreateSnapshot` is called without a recipient, `LocalPlayerId` and `AcknowledgedInputSequence` are `null`. When a recipient is supplied, it must be an active server player; unknown recipients fail explicitly. The acknowledgement comes from the recipient player's `LastProcessedInputSequence` and remains `null` until future command processing updates that authoritative field.
+
+Player snapshot entries are sorted by player id for deterministic tests and future wire stability. Each player entry contains replicated gameplay state only: player id, position, velocity, yaw, pitch, current health, max health, alive state, and weapon state. Weapon state includes weapon id, magazine ammo, reserve ammo, next allowed fire tick, last fired tick, reload state, and optional reload completion tick.
+
+Snapshot match state uses `ServerSnapshotMatchPhase`, a protocol enum mapped from the server authority `MatchPhase`. Match snapshots include phase, phase start tick, living-player count, and optional winner player id. Safe-zone snapshots include center, current radius, target radius, and last updated tick.
+
+Snapshots deliberately exclude server connection ids, spawn reservations, collision internals, client presentation state, rendering data, and UI data. SERVER-005 defines DTOs and server-side mapping only; serialization, UDP transport, snapshot send cadence, interpolation, prediction, reconciliation, and input processing remain future work.
 
 ## Client-Side Prediction
 

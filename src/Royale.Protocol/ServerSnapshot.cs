@@ -1,0 +1,50 @@
+using System.Numerics;
+
+namespace Royale.Protocol;
+
+public sealed record ServerSnapshot(
+    ulong ServerTick,
+    uint? LocalPlayerId,
+    uint? AcknowledgedInputSequence,
+    IReadOnlyList<PlayerSnapshotState> Players,
+    MatchSnapshotState Match,
+    SafeZoneSnapshotState SafeZone);
+
+public readonly record struct PlayerSnapshotState(
+    uint PlayerId,
+    Vector3 Position,
+    Vector3 Velocity,
+    float YawRadians,
+    float PitchRadians,
+    int CurrentHealth,
+    int MaxHealth,
+    bool Alive,
+    WeaponSnapshotState Weapon);
+
+public readonly record struct WeaponSnapshotState(
+    string WeaponId,
+    int AmmoInMagazine,
+    int ReserveAmmo,
+    ulong NextAllowedFireTick,
+    ulong? LastFiredTick,
+    bool IsReloading,
+    ulong? ReloadCompleteTick);
+
+public readonly record struct MatchSnapshotState(
+    ServerSnapshotMatchPhase Phase,
+    ulong PhaseStartedTick,
+    int LivingPlayerCount,
+    uint? WinnerPlayerId);
+
+public readonly record struct SafeZoneSnapshotState(
+    Vector3 Center,
+    float CurrentRadius,
+    float TargetRadius,
+    ulong LastUpdatedTick);
+
+public enum ServerSnapshotMatchPhase
+{
+    WaitingForPlayers,
+    InProgress,
+    Completed,
+}

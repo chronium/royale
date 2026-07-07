@@ -1,4 +1,5 @@
 using Royale.Content;
+using Royale.Protocol;
 using Royale.Server;
 using Royale.Simulation.Combat;
 
@@ -138,6 +139,108 @@ public sealed class HeadlessServerSimulationTests
         Assert.True(simulation.TryGetPlayer(player.PlayerId, out AuthoritativePlayerState? steppedPlayer));
         Assert.NotNull(steppedPlayer);
         Assert.Null(steppedPlayer.LastProcessedInputSequence);
+    }
+
+    [Fact]
+    public void CreateSnapshotFromFreshSimulationContainsEmptyAuthoritativeState()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+
+        ServerSnapshot snapshot = simulation.CreateSnapshot();
+
+        Assert.Equal(0UL, snapshot.ServerTick);
+        Assert.Null(snapshot.LocalPlayerId);
+        Assert.Null(snapshot.AcknowledgedInputSequence);
+        Assert.Empty(snapshot.Players);
+        Assert.Equal(ServerSnapshotMatchPhase.WaitingForPlayers, snapshot.Match.Phase);
+        Assert.Equal(0UL, snapshot.Match.PhaseStartedTick);
+        Assert.Equal(0, snapshot.Match.LivingPlayerCount);
+        Assert.Null(snapshot.Match.WinnerPlayerId);
+        Assert.Equal(MapStaticBoxTransforms.ToVector3(map.SafeZone.Center), snapshot.SafeZone.Center);
+        Assert.Equal(map.SafeZone.Radius, snapshot.SafeZone.CurrentRadius);
+        Assert.Equal(map.SafeZone.Radius, snapshot.SafeZone.TargetRadius);
+        Assert.Equal(0UL, snapshot.SafeZone.LastUpdatedTick);
+    }
+
+    [Fact]
+    public void CreateSnapshotOrdersPlayersByAuthoritativePlayerId()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        simulation.AddPlayer();
+        simulation.AddPlayer();
+        simulation.AddPlayer();
+
+        ServerSnapshot snapshot = simulation.CreateSnapshot();
+
+        Assert.Collection(
+            snapshot.Players,
+            player => Assert.Equal(1U, player.PlayerId),
+            player => Assert.Equal(2U, player.PlayerId),
+            player => Assert.Equal(3U, player.PlayerId));
+    }
+
+    [Fact]
+    public void CreateSnapshotMapsAuthoritativePlayerMatchAndSafeZoneState()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        AuthoritativePlayerState player = simulation.AddPlayer();
+
+        simulation.Step();
+
+        ServerSnapshot snapshot = simulation.CreateSnapshot();
+        PlayerSnapshotState playerSnapshot = Assert.Single(snapshot.Players);
+
+        Assert.Equal(1UL, snapshot.ServerTick);
+        Assert.Equal(player.PlayerId.Value, playerSnapshot.PlayerId);
+        Assert.Equal(player.Character.Position, playerSnapshot.Position);
+        Assert.Equal(player.Character.Velocity, playerSnapshot.Velocity);
+        Assert.Equal(player.Look.YawRadians, playerSnapshot.YawRadians);
+        Assert.Equal(player.Look.PitchRadians, playerSnapshot.PitchRadians);
+        Assert.Equal(player.Health.CurrentHealth, playerSnapshot.CurrentHealth);
+        Assert.Equal(player.Health.MaxHealth, playerSnapshot.MaxHealth);
+        Assert.Equal(player.Health.Alive, playerSnapshot.Alive);
+        Assert.Equal(player.Weapon.WeaponId, playerSnapshot.Weapon.WeaponId);
+        Assert.Equal(player.Weapon.AmmoInMagazine, playerSnapshot.Weapon.AmmoInMagazine);
+        Assert.Equal(player.Weapon.ReserveAmmo, playerSnapshot.Weapon.ReserveAmmo);
+        Assert.Equal(player.Weapon.Fire.NextAllowedFireTick, playerSnapshot.Weapon.NextAllowedFireTick);
+        Assert.Equal(player.Weapon.Fire.LastFiredTick, playerSnapshot.Weapon.LastFiredTick);
+        Assert.Equal(player.Weapon.IsReloading, playerSnapshot.Weapon.IsReloading);
+        Assert.Equal(player.Weapon.ReloadCompleteTick, playerSnapshot.Weapon.ReloadCompleteTick);
+        Assert.Equal(ServerSnapshotMatchPhase.WaitingForPlayers, snapshot.Match.Phase);
+        Assert.Equal(simulation.MatchState.PhaseStartedTick, snapshot.Match.PhaseStartedTick);
+        Assert.Equal(simulation.MatchState.LivingPlayerCount, snapshot.Match.LivingPlayerCount);
+        Assert.Null(snapshot.Match.WinnerPlayerId);
+        Assert.Equal(MapStaticBoxTransforms.ToVector3(map.SafeZone.Center), snapshot.SafeZone.Center);
+        Assert.Equal(simulation.SafeZoneState.CurrentRadius, snapshot.SafeZone.CurrentRadius);
+        Assert.Equal(simulation.SafeZoneState.TargetRadius, snapshot.SafeZone.TargetRadius);
+        Assert.Equal(simulation.SafeZoneState.LastUpdatedTick, snapshot.SafeZone.LastUpdatedTick);
+    }
+
+    [Fact]
+    public void CreateSnapshotForRecipientCarriesTopLevelAcknowledgementOnly()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        AuthoritativePlayerState player = simulation.AddPlayer();
+
+        ServerSnapshot snapshot = simulation.CreateSnapshot(player.PlayerId);
+        PlayerSnapshotState playerSnapshot = Assert.Single(snapshot.Players);
+
+        Assert.Equal(player.PlayerId.Value, snapshot.LocalPlayerId);
+        Assert.Null(snapshot.AcknowledgedInputSequence);
+        Assert.Equal(player.PlayerId.Value, playerSnapshot.PlayerId);
+    }
+
+    [Fact]
+    public void CreateSnapshotForUnknownRecipientFailsExplicitly()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => simulation.CreateSnapshot(new ServerPlayerId(999)));
+
+        Assert.Contains("unknown recipient player", exception.Message);
     }
 
     [Fact]

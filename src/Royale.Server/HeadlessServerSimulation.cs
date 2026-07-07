@@ -1,4 +1,5 @@
 using Royale.Content;
+using Royale.Protocol;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Movement;
 using Royale.Simulation.World;
@@ -97,6 +98,36 @@ public sealed class HeadlessServerSimulation : IDisposable
         return players.TryGetValue(playerId, out player);
     }
 
+    public ServerSnapshot CreateSnapshot(ServerPlayerId? recipientPlayerId = null)
+    {
+        ThrowIfDisposed();
+
+        uint? localPlayerId = null;
+        uint? acknowledgedInputSequence = null;
+
+        if (recipientPlayerId is ServerPlayerId playerId)
+        {
+            if (!players.TryGetValue(playerId, out AuthoritativePlayerState? recipient))
+                throw new InvalidOperationException($"Cannot create snapshot for unknown recipient player '{playerId}'.");
+
+            localPlayerId = playerId.Value;
+            acknowledgedInputSequence = recipient.LastProcessedInputSequence;
+        }
+
+        PlayerSnapshotState[] playerSnapshots = players.Values
+            .OrderBy(player => player.PlayerId.Value)
+            .Select(CreatePlayerSnapshot)
+            .ToArray();
+
+        return new ServerSnapshot(
+            CurrentTick,
+            localPlayerId,
+            acknowledgedInputSequence,
+            playerSnapshots,
+            CreateMatchSnapshot(MatchState),
+            CreateSafeZoneSnapshot(SafeZoneState));
+    }
+
     public void Step()
     {
         ThrowIfDisposed();
@@ -150,6 +181,51 @@ public sealed class HeadlessServerSimulation : IDisposable
             LastProcessedInputSequence = null,
         };
     }
+
+    private static PlayerSnapshotState CreatePlayerSnapshot(AuthoritativePlayerState player) =>
+        new(
+            player.PlayerId.Value,
+            player.Character.Position,
+            player.Character.Velocity,
+            player.Look.YawRadians,
+            player.Look.PitchRadians,
+            player.Health.CurrentHealth,
+            player.Health.MaxHealth,
+            player.Health.Alive,
+            CreateWeaponSnapshot(player.Weapon));
+
+    private static WeaponSnapshotState CreateWeaponSnapshot(AuthoritativeWeaponState weapon) =>
+        new(
+            weapon.WeaponId,
+            weapon.AmmoInMagazine,
+            weapon.ReserveAmmo,
+            weapon.Fire.NextAllowedFireTick,
+            weapon.Fire.LastFiredTick,
+            weapon.IsReloading,
+            weapon.ReloadCompleteTick);
+
+    private static MatchSnapshotState CreateMatchSnapshot(AuthoritativeMatchState match) =>
+        new(
+            MapMatchPhase(match.Phase),
+            match.PhaseStartedTick,
+            match.LivingPlayerCount,
+            match.WinnerPlayerId?.Value);
+
+    private static SafeZoneSnapshotState CreateSafeZoneSnapshot(AuthoritativeSafeZoneState safeZone) =>
+        new(
+            safeZone.Center,
+            safeZone.CurrentRadius,
+            safeZone.TargetRadius,
+            safeZone.LastUpdatedTick);
+
+    private static ServerSnapshotMatchPhase MapMatchPhase(MatchPhase phase) =>
+        phase switch
+        {
+            MatchPhase.WaitingForPlayers => ServerSnapshotMatchPhase.WaitingForPlayers,
+            MatchPhase.InProgress => ServerSnapshotMatchPhase.InProgress,
+            MatchPhase.Completed => ServerSnapshotMatchPhase.Completed,
+            _ => throw new ArgumentOutOfRangeException(nameof(phase), phase, "Unknown match phase."),
+        };
 
     private static AuthoritativeSafeZoneState CreateSafeZoneState(GameMap map) =>
         new(

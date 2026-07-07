@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Royale.Protocol\Royale.Protocol.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\LiteNetLib\LiteNetLib\LiteNetLib.csproj" />
   </ItemGroup>
 

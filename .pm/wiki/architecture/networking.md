@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T09:55:52.7713460Z
+modifiedAt: 2026-07-07T10:11:36.8837580Z
 ---
 
 ## Networking Layers
@@ -53,11 +53,21 @@ Client and server launch options already expose the default network port contrac
 
 UDP packet transport exists in `Royale.Network`, but executable launch wiring and higher-level connection behavior are still deferred. At this stage, `--connect` is parsed and logged by the client so later networking tasks can attach handshake, framing, session state, and protocol compatibility behavior without changing the launch contract.
 
+`Royale.Network` now provides reusable handshake handlers on top of `INetworkTransport` and the protocol frame:
+
+* `NetworkHandshakeClient` starts in `Pending`, sends `ClientHello` with `SessionId = 0`, and transitions to `Accepted`, `Rejected`, or `Disconnected`.
+* `NetworkHandshakeServer` consumes pre-session `ClientHello`, validates the framed protocol major version plus build/content compatibility fields, allocates a nonzero session id, and replies with `ServerAccept`.
+* `ServerAccept` carries the assigned `SessionId`, `ConnectionId`, `PlayerId`, `ServerTick`, and `MapId` bootstrap fields.
+* `ServerReject` is sent with `SessionId = 0` for malformed frames where a response is possible, unexpected pre-session message types, unsupported protocol major versions, incompatible build/content values, and accept callback failures.
+* Handshake packets use reliable ordered delivery on channel `0`.
+
+The server accept callback returns `NetworkHandshakeAcceptResult`, which can be populated from `InProcessServerSession.ConnectClient()` without giving the client direct access to arbitrary server gameplay methods. This connects handshake acceptance to server-owned player allocation and the existing initial snapshot queue while leaving full snapshot serialization and streaming to later replication work.
+
 ## Protocol
 
 The protocol layer serializes and deserializes messages.
 
-`Royale.Protocol` defines the v1 binary packet frame. It is transport-independent and does not reference `Royale.Network` or LiteNetLib. Payload serialization remains message-specific and is deferred to later networking tasks; NET-002 only defines the fixed packet header plus helpers for writing and reading a header with an opaque payload span.
+`Royale.Protocol` defines the v1 binary packet frame. It is transport-independent and does not reference `Royale.Network` or LiteNetLib.
 
 Every packet begins with this 29-byte little-endian header:
 
@@ -86,11 +96,15 @@ Initial message type values are:
 8 ServerDisconnect
 ```
 
-`SessionId = 0` is reserved for pre-session packets such as `ClientHello` and pre-session `ServerReject`. Accepted-session packets use a nonzero server-assigned `ulong` session id. NET-003 will enforce handshake, connection, and session state rules.
+`SessionId = 0` is reserved for pre-session packets such as `ClientHello` and pre-session `ServerReject`. Accepted-session packets use a nonzero server-assigned `ulong` session id.
 
 `AcknowledgedSequence` is the latest remote packet sequence received. `AcknowledgementMask` bit 0 acknowledges `AcknowledgedSequence - 1`; bit 31 acknowledges `AcknowledgedSequence - 32`. Sequence comparison uses wrapping `uint` arithmetic so acknowledgement coverage remains well-defined across sequence wraparound.
 
-The frame parser validates only wire framing concerns: minimum header length, packet magic, supported major version, and known message type. Handshake compatibility, session rules, transport behavior, input message serialization, snapshot serialization, event serialization, client launch wiring, and server snapshot sending are deferred.
+The frame parser validates only wire framing concerns: minimum header length, packet magic, supported major version, and known message type.
+
+Handshake payload serialization exists for `ClientHello`, `ServerAccept`, and `ServerReject`. Handshake strings are UTF-8 with one-byte length prefixes and fixed maximum encoded lengths. Current deterministic development compatibility fields are `BuildId = "dev-build"` and `ContentVersion = "dev-content-1"`. `ServerRejectReason` values are stable wire values.
+
+Input message serialization, snapshot serialization, event serialization, client launch wiring, and server snapshot streaming remain deferred.
 
 ## Replication
 
@@ -100,20 +114,18 @@ Early snapshots can be simple and redundant. Optimization should come after prot
 
 ## Protocol Versioning
 
-Every connection handshake should include a protocol version.
+Connection compatibility is checked during handshake.
 
-A client and server with incompatible versions should fail clearly rather than attempting to continue.
+The v1 frame header carries the protocol major/minor version. `ProtocolPacketFramer` rejects unsupported major versions, and the handshake server maps that failure to `ServerRejectReason.UnsupportedProtocolVersion` when it can reply to the peer.
 
-For example:
+`ClientHello` also carries deterministic development compatibility fields:
 
 ```text
-Protocol major version
-Protocol minor version
-Build identifier
-Content or map version
+BuildId = "dev-build"
+ContentVersion = "dev-content-1"
 ```
 
-The first implementation does not need sophisticated backwards compatibility. It only needs explicit incompatibility detection.
+A server rejects mismatched build ids with `IncompatibleBuild` and mismatched content versions with `IncompatibleContent`. Sophisticated backwards compatibility remains out of scope for the first implementation; incompatible clients and servers fail clearly rather than attempting to continue.
 
 ## In-Process Development Mode
 

@@ -21,6 +21,7 @@ tracks:
   PORT: Packaging and platform delivery
   TEST: Automated gameplay testing
   BUG: Bugs
+  OBS: Observability and operations
 milestones:
   M0: Cross-platform technical skeleton
   M1: Gray-box physics sandbox

@@ -1,0 +1,30 @@
+scenario.server.start("graybox");
+
+var player = scenario.players.connect();
+var before = scenario.observe.latest(player);
+
+var accepted = scenario.players.input(player, {
+    sequence = 303,
+    clientTick = 3003,
+    moveX = 2.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+});
+
+scenario.assert.equal(false, accepted);
+scenario.assert.event("player.input.rejected");
+
+scenario.clock.waitTicks(1);
+var after = scenario.observe.latest(player);
+var playerBefore = before.player(player.playerId);
+var playerAfter = after.player(player.playerId);
+
+scenario.assert.equal(nil, after.acknowledgedInputSequence);
+scenario.assert.equal(1, after.connectedPlayerCount);
+scenario.assert.equal(1, after.livingPlayerCount);
+scenario.assert.near(playerBefore.position.x, playerAfter.position.x, 0.0001);
+scenario.assert.near(playerBefore.position.y, playerAfter.position.y, 0.0001);
+scenario.assert.near(playerBefore.position.z, playerAfter.position.z, 0.0001);
+
+return true;

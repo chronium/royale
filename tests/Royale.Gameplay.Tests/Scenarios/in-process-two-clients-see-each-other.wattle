@@ -1,0 +1,27 @@
+scenario.server.start("graybox");
+
+var first = scenario.players.connect();
+var second = scenario.players.connect();
+
+scenario.assert.eventually(5, function() {
+    var firstSnapshot = scenario.observe.latest(first);
+    var secondSnapshot = scenario.observe.latest(second);
+
+    return firstSnapshot.localPlayerId == first.playerId
+        and secondSnapshot.localPlayerId == second.playerId
+        and firstSnapshot.connectedPlayerCount == 2
+        and secondSnapshot.connectedPlayerCount == 2
+        and firstSnapshot.player(first.playerId) != nil
+        and firstSnapshot.player(second.playerId) != nil
+        and secondSnapshot.player(first.playerId) != nil
+        and secondSnapshot.player(second.playerId) != nil;
+}, "both clients receive snapshots containing both players");
+
+var firstSnapshot = scenario.observe.latest(first);
+var secondSnapshot = scenario.observe.latest(second);
+
+scenario.assert.equal(2, scenario.players.count);
+scenario.assert.equal(2, firstSnapshot.livingPlayerCount);
+scenario.assert.equal(2, secondSnapshot.livingPlayerCount);
+
+return true;

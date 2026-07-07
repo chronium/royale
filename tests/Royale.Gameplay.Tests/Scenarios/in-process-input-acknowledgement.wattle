@@ -1,0 +1,40 @@
+scenario.server.start("graybox");
+
+var first = scenario.players.connect();
+var second = scenario.players.connect();
+
+scenario.assert.isTrue(scenario.players.input(first, {
+    sequence = 101,
+    clientTick = 1001,
+    moveX = 0.0,
+    moveY = 1.0,
+    yawRadians = 0.25,
+    pitchRadians = 0.0
+}));
+
+scenario.assert.isTrue(scenario.players.input(second, {
+    sequence = 202,
+    clientTick = 2002,
+    moveX = 1.0,
+    moveY = 0.0,
+    yawRadians = 1.0,
+    pitchRadians = 0.0,
+    fire = true
+}));
+
+scenario.assert.eventually(5, function() {
+    var firstSnapshot = scenario.observe.latest(first);
+    var secondSnapshot = scenario.observe.latest(second);
+
+    return firstSnapshot.acknowledgedInputSequence == 101
+        and secondSnapshot.acknowledgedInputSequence == 202;
+}, "queued input commands are acknowledged by authoritative snapshots");
+
+var firstSnapshot = scenario.observe.latest(first);
+var secondSnapshot = scenario.observe.latest(second);
+
+scenario.assert.equal(101, firstSnapshot.acknowledgedInputSequence);
+scenario.assert.equal(202, secondSnapshot.acknowledgedInputSequence);
+scenario.assert.event("player.input.accepted");
+
+return true;

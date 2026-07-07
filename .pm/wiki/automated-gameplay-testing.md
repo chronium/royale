@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-07T06:36:20.4132290Z
+modifiedAt: 2026-07-07T06:47:27.5933920Z
 ---
 
 ## Overview
@@ -172,6 +172,16 @@ The same scenario model should eventually run against:
 * In-process transport
 * Simulated adverse-network transport
 * Real UDP transport
+
+## File-Backed Scenarios
+
+Reusable Wattle scenario files live under `tests/Royale.Gameplay.Tests/Scenarios/` and are copied to the gameplay test output with `CopyToOutputDirectory=PreserveNewest`.
+
+`WattleScenarioRunner` discovers `.wattle` files from `Scenarios` under `AppContext.BaseDirectory` by default. Set `ROYALE_SCENARIO_DIR` to point at another directory when iterating on copied, edited, or temporary scenarios without changing source files or rebuilding the project.
+
+File-backed scenarios execute through `WattleScenarioScriptHost` and the existing `ScenarioApi`. They preserve the in-process command/snapshot boundary: scripts connect clients, enqueue protocol-shaped input commands, advance the authoritative server by bounded ticks, and assert against snapshots or test-host events. They must not call server simulation internals directly.
+
+Initial in-process scenario coverage includes two connected clients observing both player snapshots, queued input commands being acknowledged by authoritative snapshots, and protocol-invalid input being rejected without acknowledging or moving the player.
 
 ## Replay Artifacts
 

@@ -8,6 +8,15 @@ public sealed class ProtocolConstantsTests
     public void DefinesInitialProtocolVersion()
     {
         Assert.Equal(1, ProtocolConstants.Version);
+        Assert.Equal(1, ProtocolConstants.ProtocolMajorVersion);
+        Assert.Equal(0, ProtocolConstants.ProtocolMinorVersion);
+    }
+
+    [Fact]
+    public void DefinesPacketHeaderLayoutConstants()
+    {
+        Assert.Equal(0x4C594F52U, ProtocolConstants.PacketMagic);
+        Assert.Equal(29, ProtocolConstants.PacketHeaderSize);
     }
 
     [Fact]

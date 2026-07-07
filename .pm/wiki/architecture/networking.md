@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-07T08:45:01.6582150Z
+modifiedAt: 2026-07-07T09:55:52.7713460Z
 ---
 
 ## Networking Layers
@@ -57,18 +57,40 @@ UDP packet transport exists in `Royale.Network`, but executable launch wiring an
 
 The protocol layer serializes and deserializes messages.
 
-Initial message types may include:
+`Royale.Protocol` defines the v1 binary packet frame. It is transport-independent and does not reference `Royale.Network` or LiteNetLib. Payload serialization remains message-specific and is deferred to later networking tasks; NET-002 only defines the fixed packet header plus helpers for writing and reading a header with an opaque payload span.
+
+Every packet begins with this 29-byte little-endian header:
 
 ```text
-ClientHello
-ServerAccept
-ServerReject
-ClientInput
-ServerSnapshot
-ServerEvent
-ClientDisconnect
-ServerDisconnect
+Offset  Size  Field
+0       4     Magic, bytes "ROYL" on the wire (`0x4C594F52` as a little-endian uint32)
+4       2     MajorVersion, currently 1
+6       2     MinorVersion, currently 0
+8       8     SessionId
+16      1     MessageType
+17      4     Sequence
+21      4     AcknowledgedSequence
+25      4     AcknowledgementMask
 ```
+
+Initial message type values are:
+
+```text
+1 ClientHello
+2 ServerAccept
+3 ServerReject
+4 ClientInput
+5 ServerSnapshot
+6 ServerEvent
+7 ClientDisconnect
+8 ServerDisconnect
+```
+
+`SessionId = 0` is reserved for pre-session packets such as `ClientHello` and pre-session `ServerReject`. Accepted-session packets use a nonzero server-assigned `ulong` session id. NET-003 will enforce handshake, connection, and session state rules.
+
+`AcknowledgedSequence` is the latest remote packet sequence received. `AcknowledgementMask` bit 0 acknowledges `AcknowledgedSequence - 1`; bit 31 acknowledges `AcknowledgedSequence - 32`. Sequence comparison uses wrapping `uint` arithmetic so acknowledgement coverage remains well-defined across sequence wraparound.
+
+The frame parser validates only wire framing concerns: minimum header length, packet magic, supported major version, and known message type. Handshake compatibility, session rules, transport behavior, input message serialization, snapshot serialization, event serialization, client launch wiring, and server snapshot sending are deferred.
 
 ## Replication
 

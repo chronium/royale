@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-08T08:09:03.7123010Z
+modifiedAt: 2026-07-08T12:23:31.5113210Z
 ---
 
 ## Networking Layers
@@ -35,6 +35,12 @@ The same higher-level connection code should work with:
 * In-process transport
 * Test transport
 * Simulated-loss transport
+
+`SimulatedNetworkTransport` is a game-owned `INetworkTransport` wrapper for deterministic bad-network testing. It sits below handshake, input, snapshot, prediction, and reconciliation code and above any concrete inner transport, including LiteNetLib, in-process, or test transports. Lifecycle calls (`Start`, `Connect`, `Disconnect`, disposal) are delegated to the inner transport. Connected, disconnected, socket error, and latency update events pass through immediately. Only outbound `Send` payloads and inbound `PacketReceived` events are copied and optionally delayed, jittered, dropped, duplicated, or reordered according to `SimulatedNetworkConditions`.
+
+The default simulated condition is `SimulatedNetworkConditions.None`, which applies no impairment. Non-default conditions support fixed latency, symmetric jitter around that latency, loss probability, duplicate probability, reorder probability, and an optional random seed for deterministic tests. The wrapper uses `TimeProvider`, so tests can advance simulated time without sleeping.
+
+Runtime controls for this wrapper are intentionally deferred. Client/server CLI flags, WattleScript scenario controls, debug UI toggles, and observability actions should be added by later tasks without changing protocol framing or gameplay authority boundaries.
 
 ## Connection
 

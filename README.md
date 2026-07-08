@@ -145,6 +145,8 @@ dotnet run --project src/Royale.Server/Royale.Server.csproj -- --map graybox --r
 
 Real networking, player state, and match flow are still planned work. See the PM board for current task state.
 
+For local OpenTelemetry collection, the Kustomize-managed development stack lives under `deploy/observability/`. See `deploy/observability/local/README.md` and the `architecture/observability` wiki page for overlay and port-forward instructions.
+
 ## Project Management And Documentation
 
 This repository keeps its PM board and wiki in `.pm/`.

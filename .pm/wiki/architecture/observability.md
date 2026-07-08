@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-07T19:39:20.9327320Z
+modifiedAt: 2026-07-08T05:15:54.3269710Z
 ---
 
 ## Overview
@@ -130,38 +130,95 @@ Tracing should not add meaningful overhead to fixed-timestep simulation.
 
 ## Kubernetes Deployment Shape
 
-The local development observability stack should use separate Kubernetes Deployments and Services, not a single all-in-one pod.
+`OBS-004` adds a Kustomize-managed local development observability stack under `deploy/observability/`.
 
-Expected workloads are:
-
-- Grafana Deployment and Service
-- Prometheus Deployment, Service, and persistent storage where needed
-- Loki Deployment, Service, and persistent storage where needed
-- Tempo Deployment, Service, and persistent storage where needed
-- OpenTelemetry Collector Deployment and Service
-
-These resources should be deployable as one unit through Kustomize.
-
-Repository layout should follow this shape unless a task explicitly changes it:
+Committed layout:
 
 ```text
 deploy/
   observability/
     base/
+      config/
+        prometheus.yml
+        loki.yaml
+        tempo.yaml
+        otel-collector.yaml
       namespace.yaml
-      otel-collector.yaml
+      grafana.yaml
       prometheus.yaml
       loki.yaml
       tempo.yaml
-      grafana.yaml
-      dashboards/
-      datasources/
+      otel-collector.yaml
       kustomization.yaml
     local/
+      config/
+        prometheus.yml.example
+        loki.yaml.example
+        tempo.yaml.example
+        otel-collector.yaml.example
+      .gitignore
       kustomization.yaml.example
+      README.md
 ```
 
-Machine-specific overlays, secrets, hostnames, storage classes, local ports, and private configuration should not be committed.
+The base deploys into the `royale-observability` namespace. It uses separate Deployments and Services for Grafana, Prometheus, Loki, Tempo, and the OpenTelemetry Collector. Service and Deployment manifests do not embed application configuration payloads directly; `base/kustomization.yaml` generates ConfigMaps from the standalone files under `base/config/` with stable names.
+
+Generated ConfigMaps:
+
+- `prometheus-config` from `base/config/prometheus.yml`
+- `loki-config` from `base/config/loki.yaml`
+- `tempo-config` from `base/config/tempo.yaml`
+- `otel-collector-config` from `base/config/otel-collector.yaml`
+
+Grafana, Prometheus, Loki, and Tempo use default-StorageClass PVCs by default:
+
+- Grafana: `grafana-data`, `1Gi`
+- Prometheus: `prometheus-data`, `5Gi`
+- Loki: `loki-data`, `5Gi`
+- Tempo: `tempo-data`, `5Gi`
+
+Pinned base images:
+
+- `grafana/grafana:13.1.0`
+- `prom/prometheus:v3.13.0`
+- `grafana/loki:3.7.3`
+- `grafana/tempo:2.10.7`
+- `otel/opentelemetry-collector-contrib:0.156.0`
+
+Service ports:
+
+- Grafana: HTTP `3000`
+- Prometheus: HTTP `9090`
+- Loki: HTTP `3100`, gRPC `9095`
+- Tempo: HTTP `3200`, OTLP gRPC `4317`, OTLP HTTP `4318`
+- OpenTelemetry Collector: OTLP gRPC `4317`, OTLP HTTP `4318`, Prometheus scrape endpoint `9464`, health check `13133`
+
+Collector routing:
+
+- Metrics: OTLP receiver to Prometheus exporter on `:9464`; Prometheus scrapes `otel-collector:9464`.
+- Traces: OTLP receiver to Tempo over OTLP gRPC at `tempo:4317`.
+- Logs: OTLP receiver to Loki over OTLP HTTP at `http://loki:3100/otlp`, relying on Loki `3.7.3` OTLP ingestion support.
+
+Grafana datasource provisioning and dashboards remain out of scope for `OBS-004`; `OBS-005` owns those committed templates.
+
+The local overlay is intentionally machine-specific. `deploy/observability/local/.gitignore` ignores `kustomization.yaml`, copied local config definitions under `local/config/`, secret YAML files, local patch directories, and other local override files. Developers should copy `kustomization.yaml.example` to `kustomization.yaml`. To replace generated ConfigMaps locally, copy the matching `local/config/*.example` file to the ignored non-example filename and uncomment the corresponding `configMapGenerator behavior: replace` block in the local kustomization. Storage classes, resource limits, local port policy, secrets, and local config definitions stay uncommitted.
+
+Validation commands:
+
+```sh
+kubectl kustomize deploy/observability/base
+cp deploy/observability/local/kustomization.yaml.example deploy/observability/local/kustomization.yaml
+kubectl kustomize deploy/observability/local
+kubectl apply --dry-run=client -k deploy/observability/local
+```
+
+Optional local-cluster use:
+
+```sh
+kubectl apply -k deploy/observability/local
+kubectl -n royale-observability get pods,svc,pvc
+kubectl -n royale-observability port-forward svc/grafana 3000:3000
+```
 
 ## Grafana Actions
 

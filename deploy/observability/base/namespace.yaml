@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: royale-observability
+  labels:
+    app.kubernetes.io/part-of: royale
+    app.kubernetes.io/name: royale-observability

@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: royale-observability
+resources:
+  - namespace.yaml
+  - grafana.yaml
+  - prometheus.yaml
+  - loki.yaml
+  - tempo.yaml
+  - otel-collector.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=config/prometheus.yml
+    options:
+      labels:
+        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/part-of: royale-observability
+  - name: loki-config
+    files:
+      - loki.yaml=config/loki.yaml
+    options:
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: royale-observability
+  - name: tempo-config
+    files:
+      - tempo.yaml=config/tempo.yaml
+    options:
+      labels:
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/part-of: royale-observability
+  - name: otel-collector-config
+    files:
+      - otel-collector.yaml=config/otel-collector.yaml
+    options:
+      labels:
+        app.kubernetes.io/name: otel-collector
+        app.kubernetes.io/part-of: royale-observability
+generatorOptions:
+  disableNameSuffixHash: true
+images:
+  - name: grafana/grafana
+    newTag: 13.1.0
+  - name: prom/prometheus
+    newTag: v3.13.0
+  - name: grafana/loki
+    newTag: 3.7.3
+  - name: grafana/tempo
+    newTag: 2.10.7
+  - name: otel/opentelemetry-collector-contrib
+    newTag: 0.156.0

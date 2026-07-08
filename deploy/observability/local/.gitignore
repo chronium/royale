@@ -1,0 +1,11 @@
+kustomization.yaml
+config/*.yaml
+config/*.yml
+!config/*.example
+*.secret.yaml
+*.secrets.yaml
+secret-*.yaml
+secrets/
+patches/
+values.local.yaml
+*.local.yaml

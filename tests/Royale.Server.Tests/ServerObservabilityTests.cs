@@ -6,6 +6,7 @@ using Royale.Diagnostics;
 using Royale.Network;
 using Royale.Protocol;
 using Royale.Server;
+using Royale.Simulation.Combat;
 
 namespace Royale.Server.Tests;
 
@@ -205,6 +206,146 @@ public sealed class ServerObservabilityTests
     }
 
     [Fact]
+    public void PlayerDebugLogsEmitAtBoundedCadenceWithStructuredState()
+    {
+        CapturingLoggerProvider provider = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Trace);
+            builder.AddProvider(provider);
+        });
+        using ServerObservability observability = new(loggerFactory, playerDebugLogIntervalTicks: 3);
+        FakeNetworkTransport transport = new();
+        NetworkPeerId peer = new(7);
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(CreateOpenArenaMap()),
+            observability);
+        ServerAccept accept = ConnectClient(runtime, transport, peer);
+        provider.Entries.Clear();
+
+        transport.QueuePacket(
+            peer,
+            FrameInputPacket(accept.SessionId, ValidCommand(sequence: 17) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                YawRadians = MathF.PI / 2.0f,
+                PitchRadians = 0.25f,
+            }),
+            NetworkDelivery.Sequenced,
+            ClientInputSender.InputChannel);
+        runtime.Step();
+        Assert.DoesNotContain(
+            provider.Entries,
+            entry => entry.Message.StartsWith("Authoritative player debug state:", StringComparison.Ordinal));
+
+        runtime.Step();
+
+        LogEntry playerDebug = Assert.Single(
+            provider.Entries,
+            entry => entry.Message.StartsWith("Authoritative player debug state:", StringComparison.Ordinal));
+        Assert.Equal(3UL, playerDebug.Properties["ServerTick"]);
+        Assert.Equal(7, playerDebug.Properties["PeerId"]);
+        Assert.Equal(accept.ConnectionId, playerDebug.Properties["ConnectionId"]);
+        Assert.Equal(accept.PlayerId, playerDebug.Properties["PlayerId"]);
+        Assert.Equal(MathF.PI / 2.0f, playerDebug.Properties["YawRadians"]);
+        Assert.Equal(0.25f, playerDebug.Properties["PitchRadians"]);
+        Assert.Equal(HealthState.DefaultPlayer.CurrentHealth, playerDebug.Properties["CurrentHealth"]);
+        Assert.Equal(HealthState.DefaultPlayer.MaxHealth, playerDebug.Properties["MaxHealth"]);
+        Assert.Equal(true, playerDebug.Properties["Alive"]);
+        Assert.Equal(WeaponCatalog.DefaultRifle.Id, playerDebug.Properties["WeaponId"]);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize, playerDebug.Properties["AmmoInMagazine"]);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize * 3, playerDebug.Properties["ReserveAmmo"]);
+        Assert.Equal(false, playerDebug.Properties["IsReloading"]);
+        Assert.Equal(17U, playerDebug.Properties["LastProcessedInputSequence"]);
+        Assert.Equal(0, playerDebug.Properties["QueuedInputCount"]);
+        Assert.True((float)playerDebug.Properties["PositionX"]! > 0.01f);
+        Assert.True(playerDebug.Properties.ContainsKey("VelocityX"));
+    }
+
+    [Fact]
+    public void PlayerDebugLogsSkipWhenNoPlayers()
+    {
+        CapturingLoggerProvider provider = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Trace);
+            builder.AddProvider(provider);
+        });
+        using ServerObservability observability = new(loggerFactory, playerDebugLogIntervalTicks: 1);
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(ContentCatalog.DefaultMapId),
+            observability);
+
+        runtime.Step();
+        runtime.Step();
+
+        Assert.DoesNotContain(
+            provider.Entries,
+            entry => entry.Message.StartsWith("Authoritative player debug state:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PlayerDebugLogsDoNotIntroducePerPlayerMetricLabels()
+    {
+        using MetricRecorder metrics = new(
+            "royale.server.connections.accepted",
+            "royale.server.players.connected",
+            "royale.server.players.active",
+            "royale.server.match.living_players",
+            "royale.server.match.phase",
+            "royale.server.inputs.queue_depth",
+            "royale.server.tick.duration",
+            "royale.server.snapshots.sent",
+            "royale.server.packets.received",
+            "royale.server.packets.invalid",
+            "royale.server.connections.disconnected",
+            "royale.server.handshakes.rejected");
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace));
+        using ServerObservability observability = new(loggerFactory, playerDebugLogIntervalTicks: 1);
+        FakeNetworkTransport transport = new();
+        NetworkPeerId peer = new(3);
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(ContentCatalog.DefaultMapId),
+            observability);
+        ServerAccept accept = ConnectClient(runtime, transport, peer);
+
+        transport.QueuePacket(
+            peer,
+            FrameInputPacket(accept.SessionId, ValidCommand(sequence: 5)),
+            NetworkDelivery.Sequenced,
+            ClientInputSender.InputChannel);
+        runtime.Step();
+        metrics.CollectObservable();
+
+        string[] forbiddenMetricLabels =
+        [
+            "peer",
+            "peer_id",
+            "connection",
+            "connection_id",
+            "player",
+            "player_id",
+            "endpoint",
+            "position",
+            "health",
+            "ammo",
+        ];
+        foreach (MetricMeasurement measurement in metrics.Measurements)
+        {
+            foreach (string label in forbiddenMetricLabels)
+            {
+                Assert.DoesNotContain(
+                    measurement.Tags.Keys,
+                    key => string.Equals(key, label, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+    }
+
+    [Fact]
     public void StructuredLogsIncludeConnectionIdentifiersWhereAvailable()
     {
         CapturingLoggerProvider provider = new();
@@ -339,6 +480,34 @@ public sealed class ServerObservabilityTests
         YawRadians: 0.0f,
         PitchRadians: 0.0f,
         Buttons: InputButtons.None);
+
+    private static GameMap CreateOpenArenaMap() => new()
+    {
+        Id = "observability-open-arena",
+        Name = "Observability Open Arena",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "floor",
+                Position = new MapVector3(0.0f, -0.1f, 0.0f),
+                Size = new MapVector3(30.0f, 0.2f, 30.0f),
+            },
+        ],
+        SafeZone = new SafeZoneDefinition
+        {
+            Center = new MapVector3(0.0f, 0.0f, 0.0f),
+            Radius = 50.0f,
+        },
+    };
 
     private sealed class MetricRecorder : IDisposable
     {

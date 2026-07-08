@@ -2,6 +2,7 @@ using System.Numerics;
 using Royale.Content;
 using Royale.Protocol;
 using Royale.Server;
+using Royale.Simulation.Combat;
 
 namespace Royale.Server.Tests;
 
@@ -27,6 +28,61 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(1, snapshot.Match.LivingPlayerCount);
         Assert.Equal(client.PlayerId.Value, Assert.Single(snapshot.Players).PlayerId);
         Assert.False(session.TryDequeueSnapshot(client, out _));
+    }
+
+    [Fact]
+    public void PlayerDebugStateReportsAuthoritativePlayerAfterConnect()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+
+        InProcessClientConnection client = session.ConnectClient();
+
+        ServerPlayerDebugState debugState = Assert.Single(session.GetPlayerDebugStates());
+        Assert.Equal(0UL, debugState.ServerTick);
+        Assert.Null(debugState.PeerId);
+        Assert.Equal(client.ConnectionId.Value, debugState.ConnectionId);
+        Assert.Equal(client.PlayerId.Value, debugState.PlayerId);
+        Assert.Equal(HealthState.DefaultPlayer.CurrentHealth, debugState.CurrentHealth);
+        Assert.Equal(HealthState.DefaultPlayer.MaxHealth, debugState.MaxHealth);
+        Assert.True(debugState.Alive);
+        Assert.Equal(WeaponCatalog.DefaultRifle.Id, debugState.WeaponId);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize, debugState.AmmoInMagazine);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize * 3, debugState.ReserveAmmo);
+        Assert.False(debugState.IsReloading);
+        Assert.Null(debugState.LastProcessedInputSequence);
+        Assert.Equal(0, debugState.QueuedInputCount);
+    }
+
+    [Fact]
+    public void PlayerDebugStateReportsQueuedInputAndProcessedAuthoritativeState()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection client = session.ConnectClient();
+        ServerPlayerDebugState initial = Assert.Single(session.GetPlayerDebugStates());
+
+        Assert.True(session.TryEnqueueInputCommand(
+            client,
+            ValidCommand(sequence: 17) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                YawRadians = MathF.PI / 2.0f,
+                PitchRadians = 0.25f,
+            }));
+
+        ServerPlayerDebugState queued = Assert.Single(session.GetPlayerDebugStates());
+        Assert.Equal(1, queued.QueuedInputCount);
+        Assert.Null(queued.LastProcessedInputSequence);
+
+        session.Step();
+
+        ServerPlayerDebugState processed = Assert.Single(session.GetPlayerDebugStates());
+        Assert.Equal(1UL, processed.ServerTick);
+        Assert.Equal(0, processed.QueuedInputCount);
+        Assert.Equal(17U, processed.LastProcessedInputSequence);
+        Assert.True(processed.Position.X > initial.Position.X + 0.01f);
+        Assert.Equal(MathF.PI / 2.0f, processed.YawRadians);
+        Assert.Equal(0.25f, processed.PitchRadians);
+        Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize, processed.AmmoInMagazine);
     }
 
     [Fact]

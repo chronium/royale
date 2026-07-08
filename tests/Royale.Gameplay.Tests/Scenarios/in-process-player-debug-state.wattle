@@ -1,0 +1,44 @@
+scenario.server.start("graybox");
+
+var player = scenario.players.connect();
+var initial = scenario.observe.debugPlayer(player);
+
+scenario.assert.equal(scenario.server.tick, initial.serverTick);
+scenario.assert.equal(nil, initial.peerId);
+scenario.assert.equal(player.connectionId, initial.connectionId);
+scenario.assert.equal(player.playerId, initial.playerId);
+scenario.assert.equal(100, initial.health.current);
+scenario.assert.equal(100, initial.health.max);
+scenario.assert.isTrue(initial.alive);
+scenario.assert.isTrue(initial.weapon.weaponId != nil);
+scenario.assert.isTrue(initial.weapon.ammoInMagazine > 0);
+scenario.assert.isTrue(initial.weapon.reserveAmmo > 0);
+scenario.assert.equal(false, initial.weapon.isReloading);
+scenario.assert.equal(nil, initial.lastProcessedInputSequence);
+scenario.assert.equal(0, initial.queuedInputCount);
+
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 303,
+    clientTick = 3003,
+    moveX = 0.0,
+    moveY = 1.0,
+    yawRadians = 1.5,
+    pitchRadians = 0.25
+}));
+
+var queued = scenario.observe.debugPlayer(player);
+scenario.assert.equal(1, queued.queuedInputCount);
+scenario.assert.equal(nil, queued.lastProcessedInputSequence);
+
+scenario.clock.waitTicks(1);
+
+var processed = scenario.observe.debugPlayer(player);
+scenario.assert.equal(1, processed.serverTick);
+scenario.assert.equal(0, processed.queuedInputCount);
+scenario.assert.equal(303, processed.lastProcessedInputSequence);
+scenario.assert.equal(1.5, processed.look.yawRadians);
+scenario.assert.equal(0.25, processed.look.pitchRadians);
+scenario.assert.isTrue(processed.position.x != initial.position.x or processed.position.z != initial.position.z);
+scenario.assert.equal(initial.weapon.ammoInMagazine, processed.weapon.ammoInMagazine);
+
+return true;

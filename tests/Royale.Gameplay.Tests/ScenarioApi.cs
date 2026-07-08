@@ -246,6 +246,21 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
                 $"No snapshot has been produced for scenario player '{connectedPlayer.playerId}'.");
     }
 
+    internal ServerPlayerDebugState GetPlayerDebugState(ScenarioPlayerApi player)
+    {
+        InProcessServerSession runningSession = RequireRunningSession();
+        ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
+
+        foreach (ServerPlayerDebugState debugState in runningSession.GetPlayerDebugStates())
+        {
+            if (debugState.PlayerId == connectedPlayer.playerId)
+                return debugState;
+        }
+
+        throw new ScriptRuntimeException(
+            $"No debug state was available for scenario player '{connectedPlayer.playerId}'.");
+    }
+
     public void Dispose()
     {
         StopServer();
@@ -390,6 +405,8 @@ public sealed class ScenarioObservationsApi(ScenarioApi scenario) : ScenarioScri
     public int livingPlayerCount => scenario.LivingPlayerCount;
 
     public ScenarioSnapshotApi latest(ScenarioPlayerApi player) => new(scenario.GetLatestSnapshot(player));
+
+    public ScenarioPlayerDebugStateApi debugPlayer(ScenarioPlayerApi player) => new(scenario.GetPlayerDebugState(player));
 }
 
 public sealed class ScenarioAssertApi(ScenarioApi scenario) : ScenarioScriptObject
@@ -640,6 +657,48 @@ public sealed class ScenarioPlayerSnapshotApi(PlayerSnapshotState player) : Scen
     public bool alive => player.Alive;
 
     public ScenarioWeaponSnapshotApi weapon => new(player.Weapon);
+}
+
+public sealed class ScenarioPlayerDebugStateApi(ServerPlayerDebugState player) : ScenarioScriptObject
+{
+    public ulong serverTick => player.ServerTick;
+
+    public int? peerId => player.PeerId;
+
+    public uint connectionId => player.ConnectionId;
+
+    public uint playerId => player.PlayerId;
+
+    public ScenarioVector3Api position => new(player.Position);
+
+    public ScenarioVector3Api velocity => new(player.Velocity);
+
+    public ScenarioLookSnapshotApi look => new(player.YawRadians, player.PitchRadians);
+
+    public int currentHealth => player.CurrentHealth;
+
+    public int maxHealth => player.MaxHealth;
+
+    public ScenarioHealthSnapshotApi health => new(player.CurrentHealth, player.MaxHealth);
+
+    public bool alive => player.Alive;
+
+    public ScenarioPlayerDebugWeaponApi weapon => new(player);
+
+    public uint? lastProcessedInputSequence => player.LastProcessedInputSequence;
+
+    public int queuedInputCount => player.QueuedInputCount;
+}
+
+public sealed class ScenarioPlayerDebugWeaponApi(ServerPlayerDebugState player) : ScenarioScriptObject
+{
+    public string weaponId => player.WeaponId;
+
+    public int ammoInMagazine => player.AmmoInMagazine;
+
+    public int reserveAmmo => player.ReserveAmmo;
+
+    public bool isReloading => player.IsReloading;
 }
 
 public sealed class ScenarioVector3Api(Vector3 vector) : ScenarioScriptObject

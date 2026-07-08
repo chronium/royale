@@ -4,11 +4,14 @@ using Microsoft.Extensions.Logging;
 using Royale.Diagnostics;
 using Royale.Network;
 using Royale.Protocol;
+using Royale.Simulation.World;
 
 namespace Royale.Server;
 
 public sealed class ServerObservability : IDisposable
 {
+    public const int DefaultPlayerDebugLogIntervalTicks = SimulationSettings.TickRateHz;
+
     private static readonly object InstancesLock = new();
     private static readonly MatchPhase[] MatchPhases = Enum.GetValues<MatchPhase>();
     private static readonly List<ServerObservability> Instances = [];
@@ -68,6 +71,7 @@ public sealed class ServerObservability : IDisposable
             description: "Handshake attempts rejected by the server.");
 
     private readonly ILogger logger;
+    private readonly int playerDebugLogIntervalTicks;
     private int connectedPlayers;
     private int activePlayers;
     private int livingPlayers;
@@ -76,11 +80,19 @@ public sealed class ServerObservability : IDisposable
     private MatchPhase? lastObservedMatchPhase;
     private bool disposed;
 
-    public ServerObservability(ILoggerFactory loggerFactory)
+    public ServerObservability(
+        ILoggerFactory loggerFactory,
+        int playerDebugLogIntervalTicks = DefaultPlayerDebugLogIntervalTicks)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
+        if (playerDebugLogIntervalTicks <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(playerDebugLogIntervalTicks),
+                playerDebugLogIntervalTicks,
+                "Player debug log interval must be positive.");
 
         logger = loggerFactory.CreateLogger("Royale.Server.Observability");
+        this.playerDebugLogIntervalTicks = playerDebugLogIntervalTicks;
 
         lock (InstancesLock)
             Instances.Add(this);
@@ -214,6 +226,45 @@ public sealed class ServerObservability : IDisposable
 
         SnapshotsSentCounter.Add(count);
         logger.LogInformation("Snapshot batch sent: count {SnapshotCount}.", count);
+    }
+
+    public void PlayerDebugStates(IReadOnlyList<ServerPlayerDebugState> players)
+    {
+        ArgumentNullException.ThrowIfNull(players);
+
+        if (players.Count == 0 ||
+            players[0].ServerTick == 0 ||
+            players[0].ServerTick % (ulong)playerDebugLogIntervalTicks != 0)
+        {
+            return;
+        }
+
+        foreach (ServerPlayerDebugState player in players)
+        {
+            logger.LogInformation(
+                "Authoritative player debug state: server_tick {ServerTick}, peer_id {PeerId}, connection_id {ConnectionId}, player_id {PlayerId}, position ({PositionX}, {PositionY}, {PositionZ}), velocity ({VelocityX}, {VelocityY}, {VelocityZ}), yaw {YawRadians}, pitch {PitchRadians}, health {CurrentHealth}/{MaxHealth}, alive {Alive}, weapon {WeaponId}, ammo {AmmoInMagazine}/{ReserveAmmo}, reloading {IsReloading}, last_input {LastProcessedInputSequence}, queued_inputs {QueuedInputCount}.",
+                player.ServerTick,
+                player.PeerId,
+                player.ConnectionId,
+                player.PlayerId,
+                player.Position.X,
+                player.Position.Y,
+                player.Position.Z,
+                player.Velocity.X,
+                player.Velocity.Y,
+                player.Velocity.Z,
+                player.YawRadians,
+                player.PitchRadians,
+                player.CurrentHealth,
+                player.MaxHealth,
+                player.Alive,
+                player.WeaponId,
+                player.AmmoInMagazine,
+                player.ReserveAmmo,
+                player.IsReloading,
+                player.LastProcessedInputSequence,
+                player.QueuedInputCount);
+        }
     }
 
     public void Dispose()

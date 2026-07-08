@@ -39,6 +39,24 @@ public sealed class InProcessServerSession : IDisposable
     public static InProcessServerSession Create(GameMap map) =>
         new(HeadlessServerSimulation.Create(map));
 
+    public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates(
+        IReadOnlyDictionary<ServerPlayerId, int>? peerIdsByPlayerId = null)
+    {
+        ThrowIfDisposed();
+
+        return simulation.Players.Values
+            .OrderBy(player => player.PlayerId.Value)
+            .Select(player => CreatePlayerDebugState(
+                player,
+                peerIdsByPlayerId,
+                clients.TryGetValue(
+                    player.ConnectionId ?? default,
+                    out InProcessClientState? client)
+                    ? client.InputCommands.Count
+                    : 0))
+            .ToArray();
+    }
+
     public InProcessClientConnection ConnectClient()
     {
         ThrowIfDisposed();
@@ -135,6 +153,36 @@ public sealed class InProcessServerSession : IDisposable
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+    }
+
+    private ServerPlayerDebugState CreatePlayerDebugState(
+        AuthoritativePlayerState player,
+        IReadOnlyDictionary<ServerPlayerId, int>? peerIdsByPlayerId,
+        int queuedInputCount)
+    {
+        int? peerId = peerIdsByPlayerId is not null &&
+            peerIdsByPlayerId.TryGetValue(player.PlayerId, out int mappedPeerId)
+            ? mappedPeerId
+            : null;
+
+        return new ServerPlayerDebugState(
+            CurrentTick,
+            peerId,
+            player.ConnectionId?.Value ?? 0,
+            player.PlayerId.Value,
+            player.Character.Position,
+            player.Character.Velocity,
+            player.Look.YawRadians,
+            player.Look.PitchRadians,
+            player.Health.CurrentHealth,
+            player.Health.MaxHealth,
+            player.Health.Alive,
+            player.Weapon.WeaponId,
+            player.Weapon.AmmoInMagazine,
+            player.Weapon.ReserveAmmo,
+            player.Weapon.IsReloading,
+            player.LastProcessedInputSequence,
+            queuedInputCount);
     }
 
     private sealed class InProcessClientState(ServerConnectionId connectionId, ServerPlayerId playerId)

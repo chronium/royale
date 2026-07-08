@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-08T05:42:23.9130420Z
+modifiedAt: 2026-07-08T06:04:14.7171760Z
 ---
 
 ## Overview
@@ -74,6 +74,16 @@ Counters are expected to appear with Prometheus counter suffixes, for example `r
 Metric labels must remain low-cardinality. Peer IDs, connection IDs, player IDs, endpoint addresses, positions, health, ammunition, and other per-player values are not allowed as metric labels. Peer, connection, and player IDs are allowed in structured server logs when they are needed to debug a lifecycle event.
 
 Structured server event logs currently cover peer connect/disconnect, accepted clients, handshake rejects, invalid accepted-input packets or commands, snapshot batches, and observed match phase changes. The dedicated server keeps these events server-owned; client rendering, SDL, GPU, and ImGui code remain outside the server observability path.
+
+## Per-Player Debug State
+
+`OBS-003` exposes authoritative per-player debug state through bounded structured server logs, not through protocol snapshots, HTTP debug surfaces, or Prometheus metric labels.
+
+`Royale.Server` owns the debug projection with one read-only state value per authoritative player. The projection includes server tick, optional network peer ID, connection ID, player ID, position, velocity, yaw, pitch, health, max health, alive state, weapon ID, magazine ammo, reserve ammo, reload state, last processed input sequence, and queued input count.
+
+`NetworkServerRuntime` emits one structured log event per player at a fixed low cadence through `ServerObservability`. The default cadence is once per second at the 60 Hz server tick rate. No events are emitted when there are no players. These logs are intended for Loki/Grafana inspection of authoritative state while keeping gameplay authority inside the server runtime.
+
+The metrics cardinality rule is explicit: per-player values, including peer ID, connection ID, player ID, position, health, ammunition, and input sequence values, must not be added as Prometheus metric labels. If new per-player diagnostics are needed before an explicit debug endpoint exists, prefer additional bounded structured logs or test artifacts.
 
 ## Sandbox Validation Note
 

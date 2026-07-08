@@ -42,6 +42,13 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
 
     public IReadOnlyDictionary<NetworkPeerId, ServerAccept> AcceptedPeers => handshakeServer.AcceptedPeers;
 
+    public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates()
+    {
+        ThrowIfDisposed();
+
+        return session.GetPlayerDebugStates(CreatePeerIdsByPlayerId());
+    }
+
     public static NetworkServerRuntime Listen(string mapId, int port, ServerObservability? observability = null)
     {
         var transport = new LiteNetLibNetworkTransport();
@@ -69,6 +76,7 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         sentSnapshots = snapshotSender.SendDueSnapshots(session.CurrentTick);
         observability?.SnapshotsSent(sentSnapshots);
         UpdateObservabilityState();
+        observability?.PlayerDebugStates(GetPlayerDebugStates());
         observability?.TickCompleted(Stopwatch.GetElapsedTime(started));
         return sentSnapshots;
     }
@@ -187,6 +195,11 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
             session.MatchPhase,
             session.QueuedInputCommandCount);
     }
+
+    private Dictionary<ServerPlayerId, int> CreatePeerIdsByPlayerId() =>
+        peerConnections.ToDictionary(
+            pair => pair.Value.PlayerId,
+            pair => pair.Key.Value);
 
     private static ProtocolMessageType? TryReadMessageType(ReadOnlySpan<byte> packet)
     {

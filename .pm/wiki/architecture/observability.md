@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-08T06:04:14.7171760Z
+modifiedAt: 2026-07-08T06:31:22.7567390Z
 ---
 
 ## Overview
@@ -288,6 +288,8 @@ dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore -- --ma
 
 After one Prometheus scrape interval, query Prometheus for `royale_server_players_connected` and `royale_server_tick_duration_milliseconds_count`, query Loki with `{service_name="royale-server"}`, and query Tempo with TraceQL `{resource.service.name="royale-server"}`. The dashboards should appear in Grafana without manual import.
 
+`deploy/observability/local/port-forward.sh` is the preferred local helper for opening development access to Grafana, Prometheus, Loki, Tempo, and the OpenTelemetry Collector. It forwards Grafana `3000`, Prometheus `9090`, Loki `3100`, Tempo `3200`, Collector OTLP gRPC `4317`, and Collector OTLP HTTP `4318`; it runs in the foreground and cleans up all port-forwards on interrupt. These forwards remain developer-local processes and are not part of the Kubernetes deployment itself.
+
 ## Grafana Actions
 
 Grafana actions may be used for development operations, but only through an explicit server-side admin command surface.
@@ -316,3 +318,5 @@ The OBS track owns this work:
 - `OBS-005` adds Grafana datasources and starter dashboards.
 - `OBS-006` adds the secured development admin command surface.
 - `OBS-007` wires Grafana actions to approved admin commands.
+
+- `OBS-008` adds the local observability port-forward helper.

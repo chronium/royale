@@ -44,15 +44,12 @@ kubectl -n royale-observability get pods,svc,pvc
 Forward local ports as needed:
 
 ```sh
-kubectl -n royale-observability port-forward svc/grafana 3000:3000
-kubectl -n royale-observability port-forward svc/prometheus 9090:9090
-kubectl -n royale-observability port-forward svc/loki 3100:3100
-kubectl -n royale-observability port-forward svc/tempo 3200:3200
-kubectl -n royale-observability port-forward svc/otel-collector 4317:4317
-kubectl -n royale-observability port-forward svc/otel-collector 4318:4318
+deploy/observability/local/port-forward.sh
 ```
 
 Grafana is available at `http://127.0.0.1:3000` after port-forwarding.
+The helper forwards Grafana, Prometheus, Loki, Tempo, and both Collector OTLP
+ports. It runs in the foreground and stops all forwards when interrupted.
 The base stack provisions the `Royale` dashboard folder automatically with:
 
 - `Royale Server Overview`

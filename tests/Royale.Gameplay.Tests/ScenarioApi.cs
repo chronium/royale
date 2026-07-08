@@ -11,7 +11,7 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     private readonly Dictionary<uint, ScenarioPlayerApi> playersById = [];
     private readonly List<ScenarioEventApi> recordedEvents = [];
-    private InProcessServerSession? session;
+    private IScenarioRuntime? runtime;
 
     public ScenarioApi()
     {
@@ -38,13 +38,13 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     public ScenarioEventsApi events { get; }
 
-    internal bool IsRunning => session is { IsDisposed: false };
+    internal bool IsRunning => runtime is { IsDisposed: false };
 
-    internal ulong CurrentTick => session?.CurrentTick ?? 0UL;
+    internal ulong CurrentTick => runtime?.CurrentTick ?? 0UL;
 
-    internal int ConnectedPlayerCount => session?.ConnectedClientCount ?? 0;
+    internal int ConnectedPlayerCount => runtime?.ConnectedPlayerCount ?? 0;
 
-    internal int LivingPlayerCount => session?.ActivePlayerCount ?? 0;
+    internal int LivingPlayerCount => runtime?.LivingPlayerCount ?? 0;
 
     internal void StartServer(string mapId)
     {
@@ -54,13 +54,25 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         if (IsRunning)
             throw new ScriptRuntimeException("scenario server is already running.");
 
-        session = InProcessServerSession.Create(mapId);
+        runtime = StartRuntime(() => InProcessScenarioRuntime.Start(mapId), "scenario.server.start");
+        RecordEvent("server.started", detail: mapId);
+    }
+
+    internal void StartUdpServer(string mapId)
+    {
+        if (string.IsNullOrWhiteSpace(mapId))
+            throw new ScriptRuntimeException("scenario.server.startUdp requires a non-empty map id.");
+
+        if (IsRunning)
+            throw new ScriptRuntimeException("scenario server is already running.");
+
+        runtime = StartRuntime(() => UdpScenarioRuntime.Start(mapId), "scenario.server.startUdp");
         RecordEvent("server.started", detail: mapId);
     }
 
     internal void StopServer()
     {
-        if (session is null)
+        if (runtime is null)
             return;
 
         RecordEvent("server.stopped");
@@ -69,8 +81,8 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
             player.MarkDisconnected();
 
         playersById.Clear();
-        session.Dispose();
-        session = null;
+        runtime.Dispose();
+        runtime = null;
     }
 
     internal void StepServer(int count)
@@ -126,11 +138,11 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     private void StepRunningServer(int count)
     {
-        InProcessServerSession runningSession = RequireRunningSession();
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
 
         for (int i = 0; i < count; i++)
         {
-            runningSession.Step();
+            runningRuntime.Step();
             RecordEvent("server.stepped");
         }
     }
@@ -148,7 +160,7 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
             throw new ScriptRuntimeException($"{apiName} requires maxTicks from 0 to {MaxClockWaitTicks}.");
 
         RequirePredicate(predicate, apiName);
-        RequireRunningSession();
+        RequireRunningRuntime();
 
         if (EvaluatePredicate(context, predicate, apiName))
         {
@@ -196,9 +208,9 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal ScenarioPlayerApi ConnectPlayer()
     {
-        InProcessServerSession runningSession = RequireRunningSession();
-        InProcessClientConnection connection = runningSession.ConnectClient();
-        var player = new ScenarioPlayerApi(connection);
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
+        ScenarioPlayerHandle handle = runningRuntime.ConnectPlayer();
+        var player = new ScenarioPlayerApi(handle);
 
         playersById.Add(player.playerId, player);
         RecordEvent("player.connected", player.playerId);
@@ -208,10 +220,10 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal void DisconnectPlayer(ScenarioPlayerApi player)
     {
-        InProcessServerSession runningSession = RequireRunningSession();
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
         ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
 
-        runningSession.DisconnectClient(connectedPlayer.Connection);
+        runningRuntime.DisconnectPlayer(connectedPlayer.Handle);
         connectedPlayer.MarkDisconnected();
         playersById.Remove(connectedPlayer.playerId);
         RecordEvent("player.disconnected", connectedPlayer.playerId);
@@ -219,11 +231,11 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal bool EnqueueInputCommand(ScenarioPlayerApi player, DynValue commandTable)
     {
-        InProcessServerSession runningSession = RequireRunningSession();
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
         ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
         PlayerInputCommand command = ParseInputCommand(commandTable);
 
-        bool accepted = runningSession.TryEnqueueInputCommand(connectedPlayer.Connection, command);
+        bool accepted = runningRuntime.TrySendInput(connectedPlayer.Handle, command);
         RecordEvent(
             accepted ? "player.input.accepted" : "player.input.rejected",
             connectedPlayer.playerId,
@@ -234,12 +246,10 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal ServerSnapshot GetLatestSnapshot(ScenarioPlayerApi player)
     {
-        InProcessServerSession runningSession = RequireRunningSession();
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
         ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
-        IReadOnlyList<ServerSnapshot> snapshots = runningSession.DrainSnapshots(connectedPlayer.Connection);
-
-        if (snapshots.Count > 0)
-            connectedPlayer.UpdateLatestSnapshot(snapshots[^1]);
+        ServerSnapshot snapshot = runningRuntime.GetLatestSnapshot(connectedPlayer.Handle);
+        connectedPlayer.UpdateLatestSnapshot(snapshot);
 
         return connectedPlayer.LatestSnapshot
             ?? throw new ScriptRuntimeException(
@@ -248,10 +258,10 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal ServerPlayerDebugState GetPlayerDebugState(ScenarioPlayerApi player)
     {
-        InProcessServerSession runningSession = RequireRunningSession();
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
         ScenarioPlayerApi connectedPlayer = RequireConnectedPlayer(player);
 
-        foreach (ServerPlayerDebugState debugState in runningSession.GetPlayerDebugStates())
+        foreach (ServerPlayerDebugState debugState in runningRuntime.GetPlayerDebugStates())
         {
             if (debugState.PlayerId == connectedPlayer.playerId)
                 return debugState;
@@ -280,9 +290,25 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         recordedEvents.Add(new ScenarioEventApi(type, CurrentTick, playerId, detail));
     }
 
-    private InProcessServerSession RequireRunningSession() =>
-        session is { IsDisposed: false } runningSession
-            ? runningSession
+    private static IScenarioRuntime StartRuntime(Func<IScenarioRuntime> factory, string apiName)
+    {
+        try
+        {
+            return factory();
+        }
+        catch (ScriptRuntimeException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            throw new ScriptRuntimeException($"{apiName} failed: {ex.Message}");
+        }
+    }
+
+    private IScenarioRuntime RequireRunningRuntime() =>
+        runtime is { IsDisposed: false } runningRuntime
+            ? runningRuntime
             : throw new ScriptRuntimeException("scenario server is not running.");
 
     private ScenarioPlayerApi RequireConnectedPlayer(ScenarioPlayerApi? player)
@@ -381,6 +407,8 @@ public sealed class ScenarioServerApi(ScenarioApi scenario) : ScenarioScriptObje
     public ulong tick => scenario.CurrentTick;
 
     public void start(string mapId) => scenario.StartServer(mapId);
+
+    public void startUdp(string mapId) => scenario.StartUdpServer(mapId);
 
     public void stop() => scenario.StopServer();
 
@@ -579,29 +607,29 @@ public sealed class ScenarioEventApi(string type, ulong tick, uint? playerId, st
 
 public sealed class ScenarioPlayerApi : ScenarioScriptObject
 {
-    internal ScenarioPlayerApi(InProcessClientConnection connection)
+    internal ScenarioPlayerApi(ScenarioPlayerHandle handle)
     {
-        Connection = connection;
+        Handle = handle;
     }
 
-    public uint playerId => Connection.PlayerId.Value;
+    public uint playerId => Handle.PlayerId;
 
-    public uint connectionId => Connection.ConnectionId.Value;
+    public uint connectionId => Handle.ConnectionId;
 
-    public bool isConnected { get; private set; } = true;
+    public bool isConnected => Handle.IsConnected;
 
-    internal InProcessClientConnection Connection { get; }
+    internal ScenarioPlayerHandle Handle { get; }
 
-    internal ServerSnapshot? LatestSnapshot { get; private set; }
+    internal ServerSnapshot? LatestSnapshot => Handle.LatestSnapshot;
 
     internal void UpdateLatestSnapshot(ServerSnapshot snapshot)
     {
-        LatestSnapshot = snapshot;
+        Handle.UpdateLatestSnapshot(snapshot);
     }
 
     internal void MarkDisconnected()
     {
-        isConnected = false;
+        Handle.MarkDisconnected();
     }
 }
 

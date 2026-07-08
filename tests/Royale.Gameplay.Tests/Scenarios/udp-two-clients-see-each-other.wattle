@@ -1,0 +1,32 @@
+scenario.server.startUdp("graybox");
+
+var first = scenario.players.connect();
+var second = scenario.players.connect();
+
+scenario.assert.isTrue(first.connectionId != 0);
+scenario.assert.isTrue(first.playerId != 0);
+scenario.assert.isTrue(second.connectionId != 0);
+scenario.assert.isTrue(second.playerId != 0);
+
+scenario.assert.eventually(120, function() {
+    var firstSnapshot = scenario.observe.latest(first);
+    var secondSnapshot = scenario.observe.latest(second);
+
+    return firstSnapshot.localPlayerId == first.playerId
+        and secondSnapshot.localPlayerId == second.playerId
+        and firstSnapshot.connectedPlayerCount == 2
+        and secondSnapshot.connectedPlayerCount == 2
+        and firstSnapshot.player(first.playerId) != nil
+        and firstSnapshot.player(second.playerId) != nil
+        and secondSnapshot.player(first.playerId) != nil
+        and secondSnapshot.player(second.playerId) != nil;
+}, "both UDP clients receive snapshots containing both players");
+
+var firstSnapshot = scenario.observe.latest(first);
+var secondSnapshot = scenario.observe.latest(second);
+
+scenario.assert.equal(2, scenario.players.count);
+scenario.assert.equal(2, firstSnapshot.livingPlayerCount);
+scenario.assert.equal(2, secondSnapshot.livingPlayerCount);
+
+return true;

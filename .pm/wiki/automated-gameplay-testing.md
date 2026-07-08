@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-07T06:47:27.5933920Z
+modifiedAt: 2026-07-08T06:47:05.7971190Z
 ---
 
 ## Overview
@@ -64,7 +64,7 @@ The authoritative server should remain able to run without WattleScript present.
 
 Initial integration lives in `tests/Royale.Gameplay.Tests`. The project references the pinned interpreter source at `thirdparty/repos/wattlescript/src/WattleScript.Interpreter/WattleScript.Interpreter.csproj`; no runtime project under `src/` should reference WattleScript.
 
-The test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, registers the test-only scenario wrapper types as Wattle userdata, and exposes one global named `scenario`. The scenario API wraps `Royale.Server.InProcessServerSession` for server lifecycle, scripted player connection handles, read-only snapshot observation, script assertions, deterministic tick waits, clock inspection, test-host event history, and in-memory artifact metadata. WattleScript remains a test orchestration dependency only.
+The test host helper is `WattleScenarioScriptHost`. It creates `Script` with `CoreModules.Preset_HardSandboxWattle`, sets `script.Options.Syntax = ScriptSyntax.Wattle`, registers the test-only scenario wrapper types as Wattle userdata, and exposes one global named `scenario`. The scenario API uses a test-only runtime abstraction with an in-process implementation backed by `Royale.Server.InProcessServerSession` and a loopback UDP implementation backed by `Royale.Server.NetworkServerRuntime`, `Royale.Network.LiteNetLibNetworkTransport`, `Royale.Network.ClientInputSender`, and `Royale.Protocol` serializers. WattleScript remains a test orchestration dependency only.
 
 ## Scenario API
 
@@ -72,19 +72,20 @@ The script-visible API is narrow and sandboxed. Scripts receive one global objec
 
 Current `scenario` groups:
 
-* `scenario.server.start(mapId)` starts an in-process authoritative server for a map such as `graybox`.
-* `scenario.server.stop()` stops the in-process server and invalidates connected script player handles.
-* `scenario.server.step(count)` advances the authoritative server by a positive number of simulation ticks.
-* `scenario.server.isRunning` reports whether the in-process server is active.
+* `scenario.server.start(mapId)` starts the original in-process authoritative server runtime for a map such as `graybox`.
+* `scenario.server.startUdp(mapId)` starts a loopback UDP scenario runtime for a map such as `graybox`. The test host reserves an ephemeral local UDP port, starts `NetworkServerRuntime` with `LiteNetLibNetworkTransport` on `127.0.0.1`, and connects scripted clients with their own UDP transports bound to port `0`.
+* `scenario.server.stop()` stops the active scenario runtime and invalidates connected script player handles.
+* `scenario.server.step(count)` advances the active authoritative server runtime by a positive number of simulation ticks. In UDP mode each tick also polls client and server transports so packets and snapshots can move through the real socket path.
+* `scenario.server.isRunning` reports whether a scenario runtime is active.
 * `scenario.server.tick` reports the current authoritative server tick, or `0` when stopped.
-* `scenario.players.connect()` connects one scripted player and returns a player handle with read-only `playerId`, `connectionId`, and `isConnected` properties.
+* `scenario.players.connect()` connects one scripted player and returns a player handle with read-only `playerId`, `connectionId`, and `isConnected` properties. In UDP mode this call blocks until the handshake is accepted and the first decoded snapshot is available, with a bounded timeout.
 * `scenario.players.disconnect(player)` disconnects a connected script player handle.
-* `scenario.players.input(player, commandTable)` submits one low-level protocol-shaped input command through the in-process server boundary and returns `true` when accepted or `false` when the command is well-formed but rejected by protocol validation.
-* `scenario.players.count` reports the current connected script player count.
-* `scenario.observe.latest(player)` returns the latest read-only snapshot wrapper for a connected player.
+* `scenario.players.input(player, commandTable)` submits one low-level protocol-shaped input command. In in-process mode this enters the in-process server boundary. In UDP mode it is serialized and sent through `ClientInputSender` over `LiteNetLibNetworkTransport`. The call returns `true` when the command is locally valid and submitted, or `false` when the command is well-formed but rejected by protocol validation.
+* `scenario.players.count` reports the current connected scripted player count from the active runtime.
+* `scenario.observe.latest(player)` returns the latest read-only snapshot wrapper for a connected player. In UDP mode this snapshot is the latest decoded `ServerSnapshot` packet received by that scripted UDP client.
 * `scenario.observe.connectedPlayerCount` and `scenario.observe.livingPlayerCount` expose current server counts while the server is running.
 * `scenario.clock.tick` mirrors `scenario.server.tick`, or `0` before server start and after stop.
-* `scenario.clock.waitTicks(count)` advances the running in-process server by exactly `count` simulation ticks and returns the current tick. `count` must be from `1` through `scenario.clock.maxWaitTicks`.
+* `scenario.clock.waitTicks(count)` advances the running scenario runtime by exactly `count` simulation ticks and returns the current tick. `count` must be from `1` through `scenario.clock.maxWaitTicks`.
 * `scenario.clock.waitUntil(maxTicks, predicate)` evaluates a script predicate at the current tick, then advances up to `maxTicks` ticks until the predicate returns boolean `true`. It returns `true` on success and `false` after exactly `maxTicks` ticks when the predicate never succeeds. `maxTicks` may be `0` for a current-tick-only check.
 * `scenario.clock.maxWaitTicks` reports the fixed per-call wait cap, currently `10000` ticks.
 * `scenario.artifacts.record(name, value)` stores an in-memory string artifact value for the current host run.
@@ -93,11 +94,11 @@ Current `scenario` groups:
 Current assertion helpers:
 
 * `scenario.assert.equal(expected, actual)` throws a script runtime exception when simple script values differ.
-* `scenario.assert["true"](value)` and `scenario.assert.isTrue(value)` throw a script runtime exception unless `value` is the boolean `true`. The bracket spelling is required for the member named `true` because `true` is a Wattle keyword and cannot be parsed after `.` as a normal member name.
+* `scenario.assert["true"](value)` and `scenario.assert.isTrue(value)` throw a script runtime exception unless `value` is the boolean `true`. The bracket spelling is required for the member named `true` because `true` is a Wattle keyword and cannot be parsed after `.` as a normal member.
 * `scenario.assert.near(expected, actual, tolerance)` compares numeric values with an inclusive absolute tolerance and reports expected, actual, tolerance, and delta when it fails.
 * `scenario.assert.state(name, predicate)` evaluates a script predicate immediately and throws with the supplied state name when the predicate does not return `true`.
 * `scenario.assert.event(type)` throws unless a test-host event of the supplied type has already been recorded.
-* `scenario.assert.eventually(maxTicks, predicate, description)` evaluates a predicate at the current tick, then advances through the in-process server by up to `maxTicks` simulation ticks. It returns normally when the predicate becomes `true` and throws a script runtime exception with the supplied description after exactly `maxTicks` ticks when it never succeeds.
+* `scenario.assert.eventually(maxTicks, predicate, description)` evaluates a predicate at the current tick, then advances through the active scenario runtime by up to `maxTicks` simulation ticks. It returns normally when the predicate becomes `true` and throws a script runtime exception with the supplied description after exactly `maxTicks` ticks when it never succeeds.
 
 Snapshot wrappers expose read-only script data:
 
@@ -146,13 +147,15 @@ scenario.players.input(player, {
 
 Malformed command tables fail with a script runtime exception, including missing required numeric fields, non-number required fields, non-boolean button fields, missing player handles, disconnected players, and stopped servers. Protocol-invalid but well-formed commands return `false` and are not acknowledged by later snapshots.
 
-Clock waits and eventual assertions fail with script runtime exceptions for invalid tick counts, missing running servers, non-function predicates, non-boolean predicate results, and predicate exceptions. Wait helpers are deterministic server stepping utilities, not wall-clock sleeps.
+Clock waits and eventual assertions fail with script runtime exceptions for invalid tick counts, missing running servers, non-function predicates, non-boolean predicate results, and predicate exceptions. Wait helpers are deterministic server stepping utilities from the script perspective. UDP mode may use bounded internal wall-clock yields while stepping because real loopback packet delivery depends on OS socket polling.
 
 Current boundaries:
 
 * Scripts cannot directly mutate authoritative player state such as position, health, ammunition, match phase, safe-zone state, or winner.
-* The API does not expose `moveTo`, `lookAt`, `shootAt`, replay file output, real UDP transport, or adverse-network controls yet.
-* Scripts do not receive `PlayerInputCommand`, `InputButtons`, server simulation objects, or authoritative player state directly.
+* The API does not expose `moveTo`, `lookAt`, `shootAt`, replay file output, external dedicated-server process launching, or adverse-network controls yet.
+* UDP mode is loopback-only inside the gameplay test process. It exercises real UDP packets, LiteNetLib transport lifecycle, protocol framing, handshake, input serialization, and snapshot delivery, but it does not launch a separate `Royale.Server` process.
+* UDP mode does not add client-side prediction, reconciliation, interpolation, packet loss simulation, latency simulation, or other adverse-network controls.
+* Scripts do not receive `PlayerInputCommand`, `InputButtons`, server simulation objects, network transport objects, or authoritative player state directly.
 * Test-host events are not authoritative gameplay event types.
 * Artifact recording is in-memory metadata only; no files are written by `TEST-002`.
 * API calls that require a running server or connected player fail explicitly when used after stop or disconnect.
@@ -163,15 +166,17 @@ High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayIns
 
 Scenarios should advance using simulation ticks.
 
-Bounded waits are expressed in ticks, not arbitrary wall-clock sleeps. `scenario.clock.waitTicks` is for exact deterministic advancement. `scenario.clock.waitUntil` is for bounded polling of script-observable state and evaluates the predicate once before stepping, then once after each tick advanced. This keeps tests fast, reproducible, and independent of local machine speed.
+Bounded waits are expressed in ticks, not arbitrary wall-clock sleeps. `scenario.clock.waitTicks` is for exact deterministic advancement. `scenario.clock.waitUntil` is for bounded polling of script-observable state and evaluates the predicate once before stepping, then once after each tick advanced. This keeps in-process tests fast, reproducible, and independent of local machine speed.
 
 `scenario.assert.eventually` follows the same tick-based polling model as `scenario.clock.waitUntil`, but it throws on timeout instead of returning `false`, making it suitable for assertions that need bounded eventual consistency diagnostics.
+
+Loopback UDP mode keeps the same script-facing tick model, but the harness performs bounded internal socket polling and short wall-clock yields while advancing ticks. This is required because LiteNetLib and OS loopback delivery do not guarantee that packets sent immediately before a tight CPU-only tick loop will be visible to the receiver without giving the socket layer time to run.
 
 The same scenario model should eventually run against:
 
 * In-process transport
+* Real loopback UDP transport
 * Simulated adverse-network transport
-* Real UDP transport
 
 ## File-Backed Scenarios
 
@@ -179,9 +184,16 @@ Reusable Wattle scenario files live under `tests/Royale.Gameplay.Tests/Scenarios
 
 `WattleScenarioRunner` discovers `.wattle` files from `Scenarios` under `AppContext.BaseDirectory` by default. Set `ROYALE_SCENARIO_DIR` to point at another directory when iterating on copied, edited, or temporary scenarios without changing source files or rebuilding the project.
 
-File-backed scenarios execute through `WattleScenarioScriptHost` and the existing `ScenarioApi`. They preserve the in-process command/snapshot boundary: scripts connect clients, enqueue protocol-shaped input commands, advance the authoritative server by bounded ticks, and assert against snapshots or test-host events. They must not call server simulation internals directly.
+File-backed scenarios execute through `WattleScenarioScriptHost` and the existing `ScenarioApi`. They preserve the command/snapshot boundary: scripts connect clients, enqueue protocol-shaped input commands, advance the authoritative server by bounded ticks, and assert against snapshots or test-host events. They must not call server simulation internals directly.
 
-Initial in-process scenario coverage includes two connected clients observing both player snapshots, queued input commands being acknowledged by authoritative snapshots, and protocol-invalid input being rejected without acknowledging or moving the player.
+Initial in-process scenario coverage includes two connected clients observing both player snapshots, queued input commands being acknowledged by authoritative snapshots, player debug state inspection, and protocol-invalid input being rejected without acknowledging or moving the player.
+
+Initial loopback UDP scenario coverage includes two scripted UDP clients observing each other through decoded snapshots and a movement input command being serialized, delivered, acknowledged, and reflected in authoritative snapshot state.
+
+The current UDP scenarios are:
+
+* `udp-two-clients-see-each-other.wattle`
+* `udp-input-acknowledgement.wattle`
 
 ## Replay Artifacts
 

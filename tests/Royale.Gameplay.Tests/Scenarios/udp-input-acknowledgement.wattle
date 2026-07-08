@@ -1,0 +1,30 @@
+scenario.server.startUdp("graybox");
+
+var player = scenario.players.connect();
+var before = scenario.observe.latest(player);
+var playerBefore = before.player(player.playerId);
+
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 501,
+    clientTick = 5001,
+    moveX = 0.0,
+    moveY = 1.0,
+    yawRadians = 0.5,
+    pitchRadians = 0.0
+}));
+
+scenario.assert.eventually(180, function() {
+    var snapshot = scenario.observe.latest(player);
+    var playerAfter = snapshot.player(player.playerId);
+
+    return snapshot.acknowledgedInputSequence == 501
+        and (
+            playerAfter.position.x != playerBefore.position.x
+            or playerAfter.position.z != playerBefore.position.z
+        );
+}, "UDP input is acknowledged and moves the authoritative player");
+
+var after = scenario.observe.latest(player);
+scenario.assert.equal(501, after.acknowledgedInputSequence);
+
+return true;

@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Royale.Content\Royale.Content.csproj" />
+    <ProjectReference Include="..\..\src\Royale.Network\Royale.Network.csproj" />
     <ProjectReference Include="..\..\src\Royale.Protocol\Royale.Protocol.csproj" />
     <ProjectReference Include="..\..\src\Royale.Server\Royale.Server.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\wattlescript\src\WattleScript.Interpreter\WattleScript.Interpreter.csproj" />

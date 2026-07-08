@@ -89,6 +89,81 @@ public sealed class WattleScenarioScriptHostTests
     }
 
     [Fact]
+    public void ScenarioServerStartUdpRejectsInvalidMapId()
+    {
+        const string source = """
+            scenario.server.startUdp("missing-map");
+            """;
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(source));
+
+        Assert.Contains("scenario.server.startUdp failed", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScenarioServerStartUdpRejectsDuplicateStarts()
+    {
+        const string source = """
+            scenario.server.startUdp("graybox");
+            scenario.server.startUdp("graybox");
+            """;
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(source));
+
+        Assert.Contains("already running", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScenarioPlayersConnectOverUdpWithNonzeroIds()
+    {
+        const string source = """
+            scenario.server.startUdp("graybox");
+            var player = scenario.players.connect();
+            var snapshot = scenario.observe.latest(player);
+
+            scenario.assert.isTrue(player.connectionId != 0);
+            scenario.assert.isTrue(player.playerId != 0);
+            scenario.assert.equal(player.playerId, snapshot.localPlayerId);
+            scenario.assert.equal(1, scenario.players.count);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioUdpDisconnectAndStopDisposeRuntime()
+    {
+        const string source = """
+            scenario.server.startUdp("graybox");
+            var player = scenario.players.connect();
+
+            scenario.players.disconnect(player);
+            scenario.assert.equal(false, player.isConnected);
+            scenario.assert.equal(0, scenario.players.count);
+
+            scenario.server.stop();
+            scenario.assert.equal(false, scenario.server.isRunning);
+
+            scenario.server.startUdp("graybox");
+            var second = scenario.players.connect();
+            scenario.assert.isTrue(second.playerId != 0);
+            scenario.server.stop();
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
     public void ScenarioPlayersConnectAndObserveDistinctLocalPlayerIds()
     {
         const string source = """

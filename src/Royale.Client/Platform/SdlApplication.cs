@@ -44,6 +44,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private readonly GameplayView gameplayView = GameplayView.CreateDefault();
     private readonly ClientCameraModeController cameraMode = new();
     private readonly RenderViewModeController renderViewMode = new();
+    private readonly LocalPredictionSmoother networkPredictionSmoother = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
     private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
@@ -168,11 +169,12 @@ public sealed unsafe class SdlApplication : IDisposable
             ? options.ScreenshotPath
             : null;
 
+        PlayerSnapshotState? networkPresentationPlayer = TryGetNetworkPresentationPlayer(time);
         RenderCamera renderCamera = cameraMode.IsFreecam
             ? freeCamera.ToRenderCamera()
-            : CreateGameplayRenderCamera();
+            : CreateGameplayRenderCamera(networkPresentationPlayer);
 
-        ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot();
+        ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot(networkPresentationPlayer);
         DebugPrimitiveList? debugPrimitives = loadedMap is null
             ? null
             : DebugSceneBuilder.Build(loadedMap, localPlayer, networkPresentationSnapshot);
@@ -387,7 +389,7 @@ public sealed unsafe class SdlApplication : IDisposable
             networkClient?.ApplyLook(lastGameplayInput);
     }
 
-    private RenderCamera CreateGameplayRenderCamera()
+    private RenderCamera CreateGameplayRenderCamera(PlayerSnapshotState? networkPresentationPlayer)
     {
         if (localPlayer is not null)
             return localPlayer.ToRenderCamera();
@@ -397,25 +399,36 @@ public sealed unsafe class SdlApplication : IDisposable
                 networkClient.State,
                 networkClient.LookState,
                 gameplayView,
-                TryGetPredictedNetworkPlayer(networkClient));
+                networkPresentationPlayer);
 
         return gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
     }
 
-    private ServerSnapshot? CreateNetworkPresentationSnapshot()
+    private ServerSnapshot? CreateNetworkPresentationSnapshot(PlayerSnapshotState? networkPresentationPlayer)
     {
         if (networkClient is null)
             return null;
 
         return NetworkSnapshotPresentation.CreatePresentationSnapshot(
             networkClient.State,
-            TryGetPredictedNetworkPlayer(networkClient));
+            networkPresentationPlayer);
     }
 
-    private static PlayerSnapshotState? TryGetPredictedNetworkPlayer(NetworkClientRuntime networkClient) =>
-        networkClient.TryGetPredictedLocalPlayer(out PlayerSnapshotState player)
-            ? player
-            : null;
+    private PlayerSnapshotState? TryGetNetworkPresentationPlayer(FrameTime time)
+    {
+        if (networkClient is null ||
+            !networkClient.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer))
+        {
+            networkPredictionSmoother.Reset();
+            return null;
+        }
+
+        return networkPredictionSmoother.Update(
+            predictedPlayer,
+            networkClient.ReconciliationCount,
+            networkClient.LastPredictionCorrectionDistance,
+            time.DeltaSeconds);
+    }
 
     private void UpdateWindowTitle(FrameTime frameTime)
     {

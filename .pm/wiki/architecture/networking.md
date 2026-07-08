@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-08T07:21:36.2741880Z
+modifiedAt: 2026-07-08T07:38:56.6667890Z
 ---
 
 ## Networking Layers
@@ -136,7 +136,9 @@ Incoming authoritative local-player snapshots drop pending inputs acknowledged b
 
 `NetworkClientRuntime` exposes lightweight reconciliation diagnostics: pending input count, last correction distance, last replayed input count, and total reconciliation count.
 
-Smooth visual correction, remote-player interpolation, bad-network simulation policy, event replication, delta compression, and cosmetic smoothing remain outside this task unless already supported by existing presentation code.
+The SDL presentation path applies local-only correction smoothing to the predicted local player before rendering the gameplay camera and debug presentation snapshot. Smoothing preserves the previous displayed position across small reconciliation corrections and decays the offset over presentation frames. It does not change predicted simulation state, authoritative snapshots, network payloads, or server-owned gameplay state. Large corrections and dead local-player snapshots snap immediately.
+
+Remote-player interpolation, bad-network simulation policy, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
 
 ## Protocol Versioning
 

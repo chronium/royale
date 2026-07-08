@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-08T07:53:23.8340970Z
+modifiedAt: 2026-07-08T08:09:03.7123010Z
 ---
 
 ## Networking Layers
@@ -126,7 +126,7 @@ Early snapshots are full snapshots and intentionally redundant. Optimization sho
 
 The sender emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. In the executable server runtime, the snapshot provider drains the recipient's authoritative session queue and sends the latest available recipient-specific snapshot so acknowledgements and local-player identity remain server-owned.
 
-The executable client decodes `ServerSnapshot` packets into `ClientNetworkState.LatestSnapshot`, which remains authoritative-only. Connect-mode presentation may build a separate presentation snapshot that substitutes a predicted local player for rendering, but it does not mutate `LatestSnapshot`. Remote players remain snapshot-driven.
+The executable client decodes `ServerSnapshot` packets into `ClientNetworkState.LatestSnapshot`, which remains authoritative-only. Connect-mode presentation builds a separate presentation snapshot and does not mutate `LatestSnapshot`.
 
 `NetworkClientRuntime` owns local movement prediction and reconciliation for accepted UDP clients. After `ServerAccept`, it attempts to load client-side collision for the accepted `MapId` through an injectable map loader, defaulting to `MapCatalog.LoadById`. If that map or collision world cannot be created, prediction is disabled and presentation falls back to authoritative snapshots.
 
@@ -136,9 +136,17 @@ Incoming authoritative local-player snapshots drop pending inputs acknowledged b
 
 `NetworkClientRuntime` exposes lightweight reconciliation diagnostics: pending input count, last correction distance, last replayed input count, and total reconciliation count.
 
-The SDL presentation path applies local-only correction smoothing to the predicted local player before rendering the gameplay camera and debug presentation snapshot. Smoothing preserves the previous displayed position across small reconciliation corrections and decays the offset over presentation frames. It does not change predicted simulation state, authoritative snapshots, network payloads, or server-owned gameplay state. Large corrections and dead local-player snapshots snap immediately.
+The SDL presentation path applies local-only correction smoothing to the predicted local player before rendering the gameplay camera and debug presentation snapshot. Smoothing preserves the previous displayed position across small reconciliation corrections and decays the offset over presentation frames. It does not change predicted simulation state, authoritative snapshots, network payloads, or server-owned gameplay state.
 
-Remote-player interpolation, bad-network simulation policy, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
+Remote-player presentation uses `RemoteSnapshotInterpolator`, a client-side bounded snapshot history populated from received authoritative snapshots. The default interpolation delay is `6` server ticks, approximately `100 ms` at the 60 Hz simulation rate and the current 20 Hz snapshot cadence. Each render frame advances the interpolation presentation clock from render `deltaSeconds`, selects bracketing snapshots around the delayed target server tick, and interpolates remote-player position, velocity, yaw, and pitch. Yaw interpolation is shortest-angle and wrap-aware; pitch interpolation is linear.
+
+The local player is never remote-interpolated. Presentation first builds from the latest authoritative snapshot, applies interpolated remote transforms where valid bracketing samples exist, and then substitutes the smoothed predicted local player when available. Non-transform gameplay state such as health, alive state, weapon state, match state, and safe-zone state remains latest-authoritative in the presentation snapshot.
+
+Fallback behavior is intentionally conservative. With fewer than two usable snapshots, the client renders latest authoritative remote state. If a remote player is missing from either bracketing sample, the presentation transform falls back to the nearest buffered authoritative sample for that player. If the interpolation target runs beyond the buffered range, the nearest buffered transform is held; this task does not extrapolate remote players.
+
+`NetworkClientRuntime` exposes lightweight remote interpolation diagnostics: buffered snapshot count, interpolation delay ticks, last interpolation target tick, and whether the last render used interpolation or fallback.
+
+Bad-network simulation policy, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
 
 ## Protocol Versioning
 
@@ -193,4 +201,4 @@ Each `InProcessServerSession.Step` consumes at most one queued valid command per
 
 The snapshot cadence is unchanged: `ServerSnapshotSender` still emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. Server-side input hold/grace is intentionally deferred; queued commands are preserved in order rather than artificially extended.
 
-The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests. The SDL client still does not reference `Royale.Server`. Interpolation, winner selection, combat events, respawn, reload, and match reset remain deferred.
+The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests. The SDL client still does not reference `Royale.Server`. Winner selection, combat events, respawn, reload, and match reset remain deferred.

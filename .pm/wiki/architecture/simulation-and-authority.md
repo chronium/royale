@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-07T07:21:44.0136070Z
+modifiedAt: 2026-07-08T08:09:31.3955310Z
 ---
 
 ## Simulation Model
@@ -213,7 +213,7 @@ Player snapshot entries are sorted by player id for deterministic tests and futu
 
 Snapshots now reflect server-authoritative movement, look, rifle ammo/cadence, health, alive state, and living-player count after input application. Killed players remain in snapshots with `Alive == false` and health `0`. Snapshot DTOs still exclude server connection ids, spawn reservations, collision internals, client presentation state, rendering data, and UI data.
 
-Serialization, UDP transport, snapshot send cadence, interpolation, prediction, reconciliation, winner selection, combat events, reload replication, and match reset remain future work.
+Serialization, UDP transport, snapshot send cadence, client-side prediction, reconciliation, and remote-player interpolation are implemented for the current full-snapshot path. Winner selection, combat events, reload replication, and match reset remain future work.
 
 ## Client-Side Prediction
 
@@ -252,16 +252,18 @@ Debug tooling should expose:
 
 ## Remote-Player Interpolation
 
-Remote players are not predicted from local input. The client stores a short history of received snapshots and renders remote players slightly behind the latest server state.
+Remote players are not predicted from local input. The client stores a bounded history of received authoritative snapshots and renders remote-player transforms slightly behind the latest server state.
 
 ```text
 Server snapshot rate: 20 Hz
-Interpolation delay: approximately 100 ms
+Interpolation delay: 6 server ticks, approximately 100 ms
 ```
 
-The client selects two snapshots surrounding the render timestamp and interpolates between them. Position may initially use linear interpolation. Rotation may use quaternion interpolation.
+The render path advances a local presentation clock from frame `deltaSeconds`, subtracts the interpolation delay, and selects two buffered snapshots surrounding that target server tick. Position and velocity use linear interpolation. Yaw uses shortest-angle wrap-aware interpolation, and pitch uses linear interpolation.
 
-When snapshots are missing, the client may briefly extrapolate using the last known velocity, but long extrapolation should be avoided.
+The local player remains separate from remote interpolation: local presentation uses prediction, reconciliation, and local-only correction smoothing when available. `ClientNetworkState.LatestSnapshot` remains the immutable authoritative snapshot copy.
+
+If there are fewer than two usable snapshots, the client renders latest authoritative remote transforms. If a remote player is missing from either bracketing sample, that player falls back to the nearest buffered authoritative transform. If the target tick runs beyond buffered data, the client holds the nearest buffered sample and does not extrapolate remote players.
 
 ## State Ownership
 

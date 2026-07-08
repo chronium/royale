@@ -24,15 +24,19 @@ public static class NetworkSnapshotPresentation
 
     public static ServerSnapshot? CreatePresentationSnapshot(
         ClientNetworkState state,
-        PlayerSnapshotState? predictedLocalPlayer = null)
+        PlayerSnapshotState? predictedLocalPlayer = null,
+        RemoteSnapshotInterpolator? remoteSnapshotInterpolator = null)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (state.LatestSnapshot is not ServerSnapshot snapshot ||
+        ServerSnapshot? presentationSnapshot = remoteSnapshotInterpolator?.CreatePresentationSnapshot(state.LatestSnapshot) ??
+            state.LatestSnapshot;
+
+        if (presentationSnapshot is not ServerSnapshot snapshot ||
             predictedLocalPlayer is not PlayerSnapshotState predicted ||
             snapshot.LocalPlayerId != predicted.PlayerId)
         {
-            return state.LatestSnapshot;
+            return presentationSnapshot;
         }
 
         PlayerSnapshotState[] players = snapshot.Players.ToArray();

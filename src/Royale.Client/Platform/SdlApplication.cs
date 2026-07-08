@@ -174,7 +174,7 @@ public sealed unsafe class SdlApplication : IDisposable
             ? freeCamera.ToRenderCamera()
             : CreateGameplayRenderCamera(networkPresentationPlayer);
 
-        ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot(networkPresentationPlayer);
+        ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot(networkPresentationPlayer, time);
         DebugPrimitiveList? debugPrimitives = loadedMap is null
             ? null
             : DebugSceneBuilder.Build(loadedMap, localPlayer, networkPresentationSnapshot);
@@ -404,14 +404,17 @@ public sealed unsafe class SdlApplication : IDisposable
         return gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
     }
 
-    private ServerSnapshot? CreateNetworkPresentationSnapshot(PlayerSnapshotState? networkPresentationPlayer)
+    private ServerSnapshot? CreateNetworkPresentationSnapshot(PlayerSnapshotState? networkPresentationPlayer, FrameTime time)
     {
         if (networkClient is null)
             return null;
 
+        networkClient.AdvanceRemoteInterpolation(time.DeltaSeconds);
+
         return NetworkSnapshotPresentation.CreatePresentationSnapshot(
             networkClient.State,
-            networkPresentationPlayer);
+            networkPresentationPlayer,
+            networkClient.RemoteSnapshotInterpolator);
     }
 
     private PlayerSnapshotState? TryGetNetworkPresentationPlayer(FrameTime time)

@@ -90,6 +90,8 @@ public sealed class NetworkClientRuntimeTests
         Assert.Equal(accept.PlayerId, runtime.State.LocalPlayerId);
         Assert.True(runtime.State.TryGetLocalPlayer(out PlayerSnapshotState localPlayer));
         Assert.Equal(accept.PlayerId, localPlayer.PlayerId);
+        Assert.Equal(1, runtime.RemoteSnapshotBufferCount);
+        Assert.Equal(RemoteSnapshotInterpolator.DefaultInterpolationDelayTicks, runtime.RemoteInterpolationDelayTicks);
     }
 
     [Fact]

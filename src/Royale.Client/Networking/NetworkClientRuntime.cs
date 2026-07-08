@@ -14,6 +14,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     private readonly NetworkPeerId serverPeerId;
     private readonly PlayerLookSettings lookSettings;
     private readonly ClientMovementPrediction prediction;
+    private readonly RemoteSnapshotInterpolator remoteSnapshotInterpolator = new();
     private NetworkHandshakeClient? handshake;
     private ClientInputSender? inputSender;
     private uint nextCommandSequence = 1;
@@ -56,6 +57,16 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public int LastReplayedInputCount => prediction.LastReplayedInputCount;
 
     public ulong ReconciliationCount => prediction.ReconciliationCount;
+
+    public RemoteSnapshotInterpolator RemoteSnapshotInterpolator => remoteSnapshotInterpolator;
+
+    public int RemoteSnapshotBufferCount => remoteSnapshotInterpolator.BufferedSnapshotCount;
+
+    public ulong RemoteInterpolationDelayTicks => remoteSnapshotInterpolator.InterpolationDelayTicks;
+
+    public double LastRemoteInterpolationTargetTick => remoteSnapshotInterpolator.LastInterpolationTargetTick;
+
+    public bool LastRemoteRenderUsedInterpolation => remoteSnapshotInterpolator.LastRenderUsedInterpolation;
 
     public static NetworkClientRuntime Connect(string host, int port)
     {
@@ -114,6 +125,12 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         return prediction.TryGetPredictedLocalPlayer(out player);
     }
 
+    public void AdvanceRemoteInterpolation(double deltaSeconds)
+    {
+        ThrowIfDisposed();
+        remoteSnapshotInterpolator.Advance(deltaSeconds);
+    }
+
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)
     {
         if (peerId == serverPeerId && handshake is null)
@@ -127,6 +144,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         {
             inputSender = null;
             prediction.Reset();
+            remoteSnapshotInterpolator.Reset();
         }
     }
 
@@ -194,6 +212,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         }
 
         State.ApplySnapshot(snapshot);
+        remoteSnapshotInterpolator.AddSnapshot(snapshot);
         prediction.ApplySnapshot(snapshot);
     }
 

@@ -38,6 +38,8 @@ public sealed class NetworkRuntimeLoopbackTests
             () => client.Accepted && client.State.TryGetLocalPlayer(out _));
         Assert.True(client.State.TryGetLocalPlayer(out PlayerSnapshotState initialPlayer));
         Assert.True(client.PredictionActive);
+        Assert.True(client.RemoteSnapshotBufferCount > 0);
+        Assert.Equal(RemoteSnapshotInterpolator.DefaultInterpolationDelayTicks, client.RemoteInterpolationDelayTicks);
 
         var moveForward = new PlayerInputSample(
             new Vector2(0.0f, 1.0f),

@@ -37,6 +37,7 @@ Apply to the current local Kubernetes context:
 
 ```sh
 kubectl apply -k deploy/observability/local
+kubectl -n royale-observability rollout status deployment/grafana
 kubectl -n royale-observability get pods,svc,pvc
 ```
 
@@ -51,12 +52,30 @@ kubectl -n royale-observability port-forward svc/otel-collector 4317:4317
 kubectl -n royale-observability port-forward svc/otel-collector 4318:4318
 ```
 
+Grafana is available at `http://127.0.0.1:3000` after port-forwarding.
+The base stack provisions the `Royale` dashboard folder automatically with:
+
+- `Royale Server Overview`
+- `Royale Networking`
+- `Royale Logs and Traces`
+
+It also provisions fixed datasource UIDs for dashboard JSON and Explore links:
+
+- `royale-prometheus`
+- `royale-loki`
+- `royale-tempo`
+
 Point a local Royale server at the Collector with:
 
 ```sh
 OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 \
-dotnet run --project src/Royale.Server/Royale.Server.csproj -- --map graybox --run-ticks 300
+dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore -- --map graybox --run-ticks 300
 ```
+
+After the next Prometheus scrape interval, the server overview dashboard should
+show real server gauges and tick-duration metrics. The logs and traces dashboard
+should show `royale-server` Loki logs and the `royale.server.run` Tempo trace for
+that smoke run.
 
 Keep secrets, host-specific storage classes, resource overrides, and local port
 policy in `kustomization.yaml` or ignored files under this directory.

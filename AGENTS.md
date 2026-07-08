@@ -316,6 +316,14 @@ This is required for changes that cannot be fully validated by automated tests, 
 
 Still run the relevant automated validation first. Human validation is an additional request, not a substitute for tests.
 
+When starting a dedicated server for project-owner validation, run it in an elevated shell with OTLP export enabled so logs, metrics, and traces flow into the local observability stack. Prefer the local Collector endpoint when available:
+
+```text
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore -- <server arguments>
+```
+
+Do not try OTLP-enabled validation server runs in the Codex sandbox first; they are expected to hang there. Request an elevated shell from the start before diagnosing application code.
+
 Be specific about what should be validated and how. For example: "Please validate F5-F8 render modes visually" or "Please play a short combat loop and check that rifle cadence feels acceptable."
 
 ## Review Guidance

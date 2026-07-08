@@ -41,9 +41,27 @@ spec:
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
           volumeMounts:
+            - name: grafana-datasource-provisioning
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: grafana-dashboard-provisioning
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: grafana-dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
             - name: grafana-data
               mountPath: /var/lib/grafana
       volumes:
+        - name: grafana-datasource-provisioning
+          configMap:
+            name: grafana-datasource-provisioning
+        - name: grafana-dashboard-provisioning
+          configMap:
+            name: grafana-dashboard-provisioning
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
         - name: grafana-data
           persistentVolumeClaim:
             claimName: grafana-data

@@ -1,0 +1,46 @@
+apiVersion: 1
+
+datasources:
+  - name: Royale Prometheus
+    uid: royale-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+
+  - name: Royale Loki
+    uid: royale-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: "trace[_-]?id[=: ]+([A-Fa-f0-9]+)"
+          datasourceUid: royale-tempo
+          url: "$${__value.raw}"
+
+  - name: Royale Tempo
+    uid: royale-tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      httpMethod: GET
+      tracesToLogsV2:
+        datasourceUid: royale-loki
+        filterByTraceID: true
+        filterBySpanID: false
+      serviceMap:
+        datasourceUid: royale-prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: royale-loki

@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-08T05:15:54.3269710Z
+modifiedAt: 2026-07-08T05:42:23.9130420Z
 ---
 
 ## Overview
@@ -57,6 +57,19 @@ Current metric names are:
 - `royale.server.connections.accepted` counter
 - `royale.server.connections.disconnected` counter with `reason`
 - `royale.server.handshakes.rejected` counter with `reason`
+
+The local Prometheus path sanitizes OpenTelemetry metric names for PromQL. Observed server smoke metric names include:
+
+- `royale_server_players_connected`
+- `royale_server_players_active`
+- `royale_server_match_living_players`
+- `royale_server_match_phase`
+- `royale_server_inputs_queue_depth`
+- `royale_server_tick_duration_milliseconds_bucket`
+- `royale_server_tick_duration_milliseconds_count`
+- `royale_server_tick_duration_milliseconds_sum`
+
+Counters are expected to appear with Prometheus counter suffixes, for example `royale_server_snapshots_sent_total` and `royale_server_packets_received_total`, once the corresponding gameplay or networking event has occurred.
 
 Metric labels must remain low-cardinality. Peer IDs, connection IDs, player IDs, endpoint addresses, positions, health, ammunition, and other per-player values are not allowed as metric labels. Peer, connection, and player IDs are allowed in structured server logs when they are needed to debug a lifecycle event.
 
@@ -143,6 +156,16 @@ deploy/
         loki.yaml
         tempo.yaml
         otel-collector.yaml
+      grafana/
+        provisioning/
+          datasources/
+            datasources.yaml
+          dashboards/
+            dashboards.yaml
+        dashboards/
+          royale-server-overview.json
+          royale-networking.json
+          royale-logs-and-traces.json
       namespace.yaml
       grafana.yaml
       prometheus.yaml
@@ -161,7 +184,7 @@ deploy/
       README.md
 ```
 
-The base deploys into the `royale-observability` namespace. It uses separate Deployments and Services for Grafana, Prometheus, Loki, Tempo, and the OpenTelemetry Collector. Service and Deployment manifests do not embed application configuration payloads directly; `base/kustomization.yaml` generates ConfigMaps from the standalone files under `base/config/` with stable names.
+The base deploys into the `royale-observability` namespace. It uses separate Deployments and Services for Grafana, Prometheus, Loki, Tempo, and the OpenTelemetry Collector. Service and Deployment manifests do not embed application configuration payloads directly; `base/kustomization.yaml` generates ConfigMaps from standalone committed files with stable names.
 
 Generated ConfigMaps:
 
@@ -169,6 +192,29 @@ Generated ConfigMaps:
 - `loki-config` from `base/config/loki.yaml`
 - `tempo-config` from `base/config/tempo.yaml`
 - `otel-collector-config` from `base/config/otel-collector.yaml`
+- `grafana-datasource-provisioning` from `base/grafana/provisioning/datasources/datasources.yaml`
+- `grafana-dashboard-provisioning` from `base/grafana/provisioning/dashboards/dashboards.yaml`
+- `grafana-dashboards` from `base/grafana/dashboards/*.json`
+
+Grafana mounts provisioning as read-only ConfigMaps:
+
+- `/etc/grafana/provisioning/datasources` for datasource provisioning
+- `/etc/grafana/provisioning/dashboards` for dashboard provider provisioning
+- `/var/lib/grafana/dashboards` for committed dashboard JSON files
+
+Grafana provisions these datasource UIDs:
+
+- `royale-prometheus` -> `http://prometheus:9090`
+- `royale-loki` -> `http://loki:3100`
+- `royale-tempo` -> `http://tempo:3200`
+
+Grafana provisions the `Royale` folder with these starter dashboards:
+
+- `Royale Server Overview` (`royale-server-overview`)
+- `Royale Networking` (`royale-networking`)
+- `Royale Logs and Traces` (`royale-logs-traces`)
+
+`Royale Server Overview` covers connected players, active players, living players, match phase, server tick duration, input queue depth, and snapshots sent. `Royale Networking` covers packet receive rates, invalid packets, accepted/disconnected connections, and rejected handshakes. `Royale Logs and Traces` uses the `service_name="royale-server"` Loki stream and a Tempo TraceQL search for `resource.service.name="royale-server"`, with dashboard links into Explore.
 
 Grafana, Prometheus, Loki, and Tempo use default-StorageClass PVCs by default:
 
@@ -199,8 +245,6 @@ Collector routing:
 - Traces: OTLP receiver to Tempo over OTLP gRPC at `tempo:4317`.
 - Logs: OTLP receiver to Loki over OTLP HTTP at `http://loki:3100/otlp`, relying on Loki `3.7.3` OTLP ingestion support.
 
-Grafana datasource provisioning and dashboards remain out of scope for `OBS-004`; `OBS-005` owns those committed templates.
-
 The local overlay is intentionally machine-specific. `deploy/observability/local/.gitignore` ignores `kustomization.yaml`, copied local config definitions under `local/config/`, secret YAML files, local patch directories, and other local override files. Developers should copy `kustomization.yaml.example` to `kustomization.yaml`. To replace generated ConfigMaps locally, copy the matching `local/config/*.example` file to the ignored non-example filename and uncomment the corresponding `configMapGenerator behavior: replace` block in the local kustomization. Storage classes, resource limits, local port policy, secrets, and local config definitions stay uncommitted.
 
 Validation commands:
@@ -216,9 +260,23 @@ Optional local-cluster use:
 
 ```sh
 kubectl apply -k deploy/observability/local
+kubectl -n royale-observability rollout status deployment/grafana
 kubectl -n royale-observability get pods,svc,pvc
 kubectl -n royale-observability port-forward svc/grafana 3000:3000
+kubectl -n royale-observability port-forward svc/otel-collector 4317:4317
+kubectl -n royale-observability port-forward svc/prometheus 9090:9090
+kubectl -n royale-observability port-forward svc/loki 3100:3100
+kubectl -n royale-observability port-forward svc/tempo 3200:3200
 ```
+
+To validate end-to-end local telemetry, run a finite server smoke with OTLP export enabled:
+
+```sh
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 \
+dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore -- --map graybox --run-ticks 300
+```
+
+After one Prometheus scrape interval, query Prometheus for `royale_server_players_connected` and `royale_server_tick_duration_milliseconds_count`, query Loki with `{service_name="royale-server"}`, and query Tempo with TraceQL `{resource.service.name="royale-server"}`. The dashboards should appear in Grafana without manual import.
 
 ## Grafana Actions
 

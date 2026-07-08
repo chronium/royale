@@ -55,6 +55,7 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
     {
         ThrowIfDisposed();
         _inner.Disconnect(peerId);
+        RemovePendingPackets(peerId);
     }
 
     public void Poll(INetworkEventHandler handler)
@@ -192,6 +193,12 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
         return duePackets;
     }
 
+    private void RemovePendingPackets(NetworkPeerId peerId)
+    {
+        _pendingSends.RemoveAll(packet => packet.PeerId == peerId);
+        _pendingReceives.RemoveAll(packet => packet.PeerId == peerId);
+    }
+
     private void ReorderIfNeeded(List<PendingPacket> duePackets)
     {
         if (duePackets.Count <= 1 || !ChanceOccurs(_conditions.ReorderChance))
@@ -265,6 +272,7 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
 
         public void Disconnected(NetworkPeerId peerId, NetworkDisconnectReason reason)
         {
+            _transport.RemovePendingPackets(peerId);
             _outerHandler.Disconnected(peerId, reason);
         }
 

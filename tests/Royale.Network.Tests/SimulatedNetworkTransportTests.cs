@@ -72,6 +72,58 @@ public sealed class SimulatedNetworkTransportTests
     }
 
     [Fact]
+    public void DisconnectClearsDelayedOutboundSendsForPeer()
+    {
+        FakeNetworkTransport inner = new();
+        ManualTimeProvider timeProvider = new();
+        using SimulatedNetworkTransport transport = new(
+            inner,
+            new SimulatedNetworkConditions(latency: TimeSpan.FromMilliseconds(50)),
+            timeProvider);
+        NetworkPeerId disconnectedPeerId = new(10);
+        NetworkPeerId connectedPeerId = new(11);
+
+        transport.Send(disconnectedPeerId, [1], NetworkDelivery.ReliableOrdered, channel: 2);
+        transport.Send(connectedPeerId, [2], NetworkDelivery.ReliableOrdered, channel: 3);
+        Assert.Empty(inner.SentPackets);
+
+        transport.Disconnect(disconnectedPeerId);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(50));
+        transport.Poll(new RecordingNetworkEventHandler());
+
+        Assert.Equal([disconnectedPeerId], inner.DisconnectedPeers);
+        SentPacket sent = Assert.Single(inner.SentPackets);
+        Assert.Equal(connectedPeerId, sent.PeerId);
+        Assert.Equal([2], sent.Payload);
+        Assert.Equal(3, sent.Channel);
+    }
+
+    [Fact]
+    public void RemoteDisconnectClearsDelayedInboundReceivesForPeerBeforeForwardingDisconnect()
+    {
+        FakeNetworkTransport inner = new();
+        ManualTimeProvider timeProvider = new();
+        using SimulatedNetworkTransport transport = new(
+            inner,
+            new SimulatedNetworkConditions(latency: TimeSpan.FromMilliseconds(50)),
+            timeProvider);
+        RecordingNetworkEventHandler handler = new();
+        NetworkPeerId peerId = new(12);
+
+        inner.EnqueuePacket(peerId, [8], NetworkDelivery.Sequenced, channel: 4);
+        transport.Poll(handler);
+        Assert.Empty(handler.Packets);
+
+        inner.EnqueueDisconnected(peerId, NetworkDisconnectReason.RemoteConnectionClose);
+        transport.Poll(handler);
+        Assert.Equal([peerId], handler.DisconnectedPeers);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(50));
+        transport.Poll(handler);
+        Assert.Empty(handler.Packets);
+    }
+
+    [Fact]
     public void JitterUsesDeterministicDueTimesWithFixedSeed()
     {
         List<int> firstRun = CaptureJitterReleaseTimes();
@@ -165,6 +217,34 @@ public sealed class SimulatedNetworkTransportTests
         Assert.Equal(3, payloadOrder.Length);
         Assert.NotEqual([1, 2, 3], payloadOrder);
         Assert.Equal(payloadOrder, CaptureReorderedInboundPayloads());
+    }
+
+    [Fact]
+    public void ReorderChanceOneReordersOutboundDuePacketsDeterministically()
+    {
+        FakeNetworkTransport inner = new();
+        ManualTimeProvider timeProvider = new();
+        using SimulatedNetworkTransport transport = new(
+            inner,
+            new SimulatedNetworkConditions(
+                latency: TimeSpan.FromMilliseconds(10),
+                reorderChance: 1,
+                randomSeed: 11),
+            timeProvider);
+        NetworkPeerId peerId = new(13);
+
+        transport.Send(peerId, [1], NetworkDelivery.Sequenced);
+        transport.Send(peerId, [2], NetworkDelivery.Sequenced);
+        transport.Send(peerId, [3], NetworkDelivery.Sequenced);
+        Assert.Empty(inner.SentPackets);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        transport.Poll(new RecordingNetworkEventHandler());
+
+        byte[] payloadOrder = inner.SentPackets.Select(packet => packet.Payload[0]).ToArray();
+        Assert.Equal([1, 2, 3], payloadOrder.Order().ToArray());
+        Assert.NotEqual([1, 2, 3], payloadOrder);
+        Assert.Equal(payloadOrder, CaptureReorderedOutboundPayloads());
     }
 
     [Fact]
@@ -287,6 +367,29 @@ public sealed class SimulatedNetworkTransportTests
         return handler.Packets.Select(packet => packet.Payload[0]).ToArray();
     }
 
+    private static byte[] CaptureReorderedOutboundPayloads()
+    {
+        FakeNetworkTransport inner = new();
+        ManualTimeProvider timeProvider = new();
+        using SimulatedNetworkTransport transport = new(
+            inner,
+            new SimulatedNetworkConditions(
+                latency: TimeSpan.FromMilliseconds(10),
+                reorderChance: 1,
+                randomSeed: 11),
+            timeProvider);
+        NetworkPeerId peerId = new(13);
+
+        transport.Send(peerId, [1], NetworkDelivery.Sequenced);
+        transport.Send(peerId, [2], NetworkDelivery.Sequenced);
+        transport.Send(peerId, [3], NetworkDelivery.Sequenced);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        transport.Poll(new RecordingNetworkEventHandler());
+
+        return inner.SentPackets.Select(packet => packet.Payload[0]).ToArray();
+    }
+
     private sealed class ManualTimeProvider : TimeProvider
     {
         private DateTimeOffset _utcNow = DateTimeOffset.UnixEpoch;
@@ -304,6 +407,8 @@ public sealed class SimulatedNetworkTransportTests
         private readonly Queue<Action<INetworkEventHandler>> _events = [];
 
         public List<SentPacket> SentPackets { get; } = [];
+
+        public List<NetworkPeerId> DisconnectedPeers { get; } = [];
 
         public bool Disposed { get; private set; }
 
@@ -327,6 +432,7 @@ public sealed class SimulatedNetworkTransportTests
         public void Disconnect(NetworkPeerId peerId)
         {
             ThrowIfDisposed();
+            DisconnectedPeers.Add(peerId);
         }
 
         public void Poll(INetworkEventHandler handler)

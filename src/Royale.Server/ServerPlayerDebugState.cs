@@ -19,4 +19,5 @@ public readonly record struct ServerPlayerDebugState(
     int ReserveAmmo,
     bool IsReloading,
     uint? LastProcessedInputSequence,
+    uint? LastProcessedInputClientTick,
     int QueuedInputCount);

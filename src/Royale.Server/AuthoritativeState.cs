@@ -39,6 +39,8 @@ public sealed record AuthoritativePlayerState
     public required SpawnReservation SpawnReservation { get; init; }
 
     public uint? LastProcessedInputSequence { get; init; }
+
+    public uint? LastProcessedInputClientTick { get; init; }
 }
 
 public sealed record AuthoritativeWeaponState

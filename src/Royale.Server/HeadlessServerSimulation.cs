@@ -107,7 +107,10 @@ public sealed class HeadlessServerSimulation : IDisposable
         return players.TryGetValue(playerId, out player);
     }
 
-    public void AcknowledgePlayerInputSequence(ServerPlayerId playerId, uint inputSequence)
+    public void AcknowledgePlayerInputSequence(
+        ServerPlayerId playerId,
+        uint inputSequence,
+        uint? clientTick = null)
     {
         ThrowIfDisposed();
 
@@ -117,6 +120,7 @@ public sealed class HeadlessServerSimulation : IDisposable
         players[playerId] = player with
         {
             LastProcessedInputSequence = inputSequence,
+            LastProcessedInputClientTick = clientTick,
         };
     }
 
@@ -212,6 +216,7 @@ public sealed class HeadlessServerSimulation : IDisposable
             },
             SpawnReservation = spawnReservation,
             LastProcessedInputSequence = null,
+            LastProcessedInputClientTick = null,
         };
     }
 
@@ -297,6 +302,7 @@ public sealed class HeadlessServerSimulation : IDisposable
                 player = player with
                 {
                     LastProcessedInputSequence = command.Sequence,
+                    LastProcessedInputClientTick = command.ClientTick,
                 };
             }
 

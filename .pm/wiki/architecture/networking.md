@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-08T07:38:56.6667890Z
+modifiedAt: 2026-07-08T07:53:23.8340970Z
 ---
 
 ## Networking Layers
@@ -108,7 +108,7 @@ Handshake payload serialization exists for `ClientHello`, `ServerAccept`, and `S
 
 `ClientInputPayloadSerializer` serializes accepted-session `PlayerInputCommand` batches. A client input payload is a one-byte command count followed by 1 to 4 command records. Each command record is little-endian and contains `Sequence`, `ClientTick`, `Move.X`, `Move.Y`, `YawRadians`, `PitchRadians`, and `Buttons`. Payload deserialization rejects empty batches, oversized batches, invalid movement, invalid pitch, non-finite floats, undefined button bits, truncated payloads, and trailing bytes.
 
-`Royale.Network` sends `ProtocolMessageType.ClientInput` packets with the accepted nonzero session id using `NetworkDelivery.Sequenced` on input channel `2`. This keeps input unreliable while preserving the LiteNetLib channel; plain `Unreliable` delivery is not used for client input because LiteNetLib delivers those packets without the requested channel. Each client input packet contains the newest command plus up to three previous commands, serialized newest-first, so normal packet loss can be tolerated without reliable retransmission. `ServerInputReceiver` consumes input packets only from accepted peers with the expected session id and channel. It discards stale or duplicate input commands using monotonic `Sequence` ordering per peer, leaves sequence wraparound handling deferred, and forwards accepted commands to the server callback in ascending sequence order so the in-process server's latest-command-for-tick behavior stays stable.
+`Royale.Network` sends `ProtocolMessageType.ClientInput` packets with the accepted nonzero session id using `NetworkDelivery.Sequenced` on input channel `2`. This keeps input unreliable while preserving the LiteNetLib channel; plain `Unreliable` delivery is not used for client input because LiteNetLib delivers those packets without the requested channel. Each client input packet contains the newest command plus up to three previous commands, serialized newest-first, so normal packet loss can be tolerated without reliable retransmission. `ServerInputReceiver` consumes input packets only from accepted peers with the expected session id and channel. It discards stale or duplicate input commands using monotonic `Sequence` ordering per peer, leaves sequence wraparound handling deferred, and forwards accepted commands to the server callback in ascending sequence order so the in-process server can consume queued commands in simulation-tick order without reordering bursts.
 
 `ServerSnapshotPayloadSerializer` serializes full `ServerSnapshot` payloads with little-endian primitive fields. Nullable `uint` and `ulong` snapshot fields use explicit one-byte presence markers: `0` for absent and `1` for present, followed by the value only when present. Weapon ids are UTF-8 strings with one-byte length prefixes. Snapshot payloads are bounded by `ProtocolConstants.MaxSnapshotPlayers = 128` and `ProtocolConstants.MaxSnapshotWeaponIdLength = 64`.
 
@@ -189,6 +189,8 @@ An in-process mode also helps with:
 
 Clients submit structured `PlayerInputCommand` intent through the session queue API. Commands are validated with `PlayerInputCommandValidation` before they enter the server queue. Invalid commands are rejected, are not queued, and are not acknowledged. Unknown, disconnected, or disposed client handles fail explicitly.
 
-Each `InProcessServerSession.Step` drains queued valid commands per connected client, keeps only the latest drained command for each player for that server tick, passes those commands to `HeadlessServerSimulation.Step(...)`, and enqueues a recipient-specific snapshot for every connected client. The latest processed command sequence becomes the recipient's top-level snapshot acknowledgement.
+Each `InProcessServerSession.Step` consumes at most one queued valid command per connected client. The oldest queued command for that client is applied to that server simulation tick, and any remaining commands stay queued for later ticks. This preserves short press/release bursts without making the client authoritative. `HeadlessServerSimulation.Step(...)` still receives only intent commands for the current authoritative tick, and the latest processed command sequence becomes the recipient's top-level snapshot acknowledgement. The server also records the processed command's `ClientTick` for debug state and structured observability logs.
+
+The snapshot cadence is unchanged: `ServerSnapshotSender` still emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. Server-side input hold/grace is intentionally deferred; queued commands are preserved in order rather than artificially extended.
 
 The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests. The SDL client still does not reference `Royale.Server`. Interpolation, winner selection, combat events, respawn, reload, and match reset remain deferred.

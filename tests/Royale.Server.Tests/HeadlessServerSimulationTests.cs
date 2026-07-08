@@ -96,6 +96,7 @@ public sealed class HeadlessServerSimulationTests
         Assert.False(player.Weapon.IsReloading);
         Assert.Null(player.Weapon.ReloadCompleteTick);
         Assert.Null(player.LastProcessedInputSequence);
+        Assert.Null(player.LastProcessedInputClientTick);
         Assert.True(player.Character.IsGrounded);
         AssertFinite(player);
         Assert.Single(simulation.Players);
@@ -178,6 +179,7 @@ public sealed class HeadlessServerSimulationTests
         Assert.True(simulation.TryGetPlayer(player.PlayerId, out AuthoritativePlayerState? steppedPlayer));
         Assert.NotNull(steppedPlayer);
         Assert.Null(steppedPlayer.LastProcessedInputSequence);
+        Assert.Null(steppedPlayer.LastProcessedInputClientTick);
     }
 
     [Fact]

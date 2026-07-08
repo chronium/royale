@@ -50,6 +50,7 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize * 3, debugState.ReserveAmmo);
         Assert.False(debugState.IsReloading);
         Assert.Null(debugState.LastProcessedInputSequence);
+        Assert.Null(debugState.LastProcessedInputClientTick);
         Assert.Equal(0, debugState.QueuedInputCount);
     }
 
@@ -72,6 +73,7 @@ public sealed class InProcessServerSessionTests
         ServerPlayerDebugState queued = Assert.Single(session.GetPlayerDebugStates());
         Assert.Equal(1, queued.QueuedInputCount);
         Assert.Null(queued.LastProcessedInputSequence);
+        Assert.Null(queued.LastProcessedInputClientTick);
 
         session.Step();
 
@@ -79,6 +81,7 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(1UL, processed.ServerTick);
         Assert.Equal(0, processed.QueuedInputCount);
         Assert.Equal(17U, processed.LastProcessedInputSequence);
+        Assert.Equal(117U, processed.LastProcessedInputClientTick);
         Assert.True(processed.Position.X > initial.Position.X + 0.01f);
         Assert.Equal(MathF.PI / 2.0f, processed.YawRadians);
         Assert.Equal(0.25f, processed.PitchRadians);
@@ -194,7 +197,7 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
-    public void LatestQueuedCommandWinsForOneServerTick()
+    public void QueuedCommandsAreConsumedOldestFirstAcrossServerTicks()
     {
         using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
         InProcessClientConnection client = session.ConnectClient();
@@ -217,13 +220,114 @@ public sealed class InProcessServerSessionTests
             }));
 
         session.Step();
-        ServerSnapshot snapshot = DequeueSnapshot(session, client);
-        PlayerSnapshotState player = FindPlayer(snapshot, client.PlayerId);
+        ServerSnapshot firstSnapshot = DequeueSnapshot(session, client);
+        PlayerSnapshotState firstStepPlayer = FindPlayer(firstSnapshot, client.PlayerId);
 
-        Assert.Equal(2U, snapshot.AcknowledgedInputSequence);
-        Assert.True(player.Position.Z < initialPosition.Z - 0.01f);
-        Assert.InRange(MathF.Abs(player.Position.X - initialPosition.X), 0.0f, 0.001f);
-        Assert.Equal(0.10f, player.PitchRadians);
+        Assert.Equal(1U, firstSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(1, session.QueuedInputCommandCount);
+        Assert.True(firstStepPlayer.Position.Z > initialPosition.Z + 0.01f);
+        Assert.InRange(MathF.Abs(firstStepPlayer.Position.X - initialPosition.X), 0.0f, 0.001f);
+        Assert.Equal(-0.10f, firstStepPlayer.PitchRadians);
+
+        session.Step();
+        ServerSnapshot secondSnapshot = DequeueSnapshot(session, client);
+        PlayerSnapshotState secondStepPlayer = FindPlayer(secondSnapshot, client.PlayerId);
+
+        Assert.Equal(2U, secondSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(0, session.QueuedInputCommandCount);
+        Assert.True(secondStepPlayer.Position.Z < firstStepPlayer.Position.Z - 0.01f);
+        Assert.InRange(MathF.Abs(secondStepPlayer.Position.X - initialPosition.X), 0.0f, 0.001f);
+        Assert.Equal(0.10f, secondStepPlayer.PitchRadians);
+    }
+
+    [Fact]
+    public void ShortPressReleaseBurstMovesForOneServerTickThenStops()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection client = session.ConnectClient();
+        ServerSnapshot initial = session.DrainSnapshots(client)[^1];
+        Vector3 initialPosition = FindPlayer(initial, client.PlayerId).Position;
+
+        Assert.True(session.TryEnqueueInputCommand(
+            client,
+            ValidCommand(sequence: 1) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+            }));
+        Assert.True(session.TryEnqueueInputCommand(
+            client,
+            ValidCommand(sequence: 2) with
+            {
+                Move = Vector2.Zero,
+            }));
+
+        session.Step();
+        ServerSnapshot pressSnapshot = DequeueSnapshot(session, client);
+        PlayerSnapshotState pressed = FindPlayer(pressSnapshot, client.PlayerId);
+
+        Assert.Equal(1U, pressSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(1, session.QueuedInputCommandCount);
+        Assert.True(pressed.Position.Z < initialPosition.Z - 0.01f);
+
+        session.Step();
+        ServerSnapshot releaseSnapshot = DequeueSnapshot(session, client);
+        PlayerSnapshotState released = FindPlayer(releaseSnapshot, client.PlayerId);
+
+        Assert.Equal(2U, releaseSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(0, session.QueuedInputCommandCount);
+        Assert.Equal(0.0f, released.Velocity.X);
+        Assert.Equal(0.0f, released.Velocity.Z);
+        Assert.InRange(MathF.Abs(released.Position.Z - pressed.Position.Z), 0.0f, 0.001f);
+    }
+
+    [Fact]
+    public void QueuedInputCountRemainsNonZeroAfterOneCommandIsConsumed()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        InProcessClientConnection client = session.ConnectClient();
+        _ = session.DrainSnapshots(client);
+
+        Assert.True(session.TryEnqueueInputCommand(client, ValidCommand(sequence: 1)));
+        Assert.True(session.TryEnqueueInputCommand(client, ValidCommand(sequence: 2)));
+
+        session.Step();
+
+        ServerPlayerDebugState debugState = Assert.Single(session.GetPlayerDebugStates());
+        Assert.Equal(1, session.QueuedInputCommandCount);
+        Assert.Equal(1, debugState.QueuedInputCount);
+        Assert.Equal(1U, debugState.LastProcessedInputSequence);
+        Assert.Equal(101U, debugState.LastProcessedInputClientTick);
+    }
+
+    [Fact]
+    public void TwoClientsConsumeTheirQueuesIndependently()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+        _ = session.DrainSnapshots(first);
+        _ = session.DrainSnapshots(second);
+
+        Assert.True(session.TryEnqueueInputCommand(first, ValidCommand(sequence: 1)));
+        Assert.True(session.TryEnqueueInputCommand(first, ValidCommand(sequence: 2)));
+        Assert.True(session.TryEnqueueInputCommand(second, ValidCommand(sequence: 10)));
+        Assert.True(session.TryEnqueueInputCommand(second, ValidCommand(sequence: 11)));
+
+        session.Step();
+        ServerSnapshot firstSnapshot = DequeueSnapshot(session, first);
+        ServerSnapshot secondSnapshot = DequeueSnapshot(session, second);
+
+        Assert.Equal(1U, firstSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(10U, secondSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(2, session.QueuedInputCommandCount);
+
+        session.Step();
+        firstSnapshot = DequeueSnapshot(session, first);
+        secondSnapshot = DequeueSnapshot(session, second);
+
+        Assert.Equal(2U, firstSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(11U, secondSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(0, session.QueuedInputCommandCount);
     }
 
     [Fact]

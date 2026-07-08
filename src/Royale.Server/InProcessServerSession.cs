@@ -108,7 +108,7 @@ public sealed class InProcessServerSession : IDisposable
 
         foreach (InProcessClientState client in clients.Values)
         {
-            while (client.InputCommands.TryDequeue(out PlayerInputCommand command))
+            if (client.InputCommands.TryDequeue(out PlayerInputCommand command))
                 inputCommands[client.PlayerId] = command;
         }
 
@@ -182,6 +182,7 @@ public sealed class InProcessServerSession : IDisposable
             player.Weapon.ReserveAmmo,
             player.Weapon.IsReloading,
             player.LastProcessedInputSequence,
+            player.LastProcessedInputClientTick,
             queuedInputCount);
     }
 

@@ -258,6 +258,7 @@ public sealed class ServerObservabilityTests
         Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize * 3, playerDebug.Properties["ReserveAmmo"]);
         Assert.Equal(false, playerDebug.Properties["IsReloading"]);
         Assert.Equal(17U, playerDebug.Properties["LastProcessedInputSequence"]);
+        Assert.Equal(117U, playerDebug.Properties["LastProcessedInputClientTick"]);
         Assert.Equal(0, playerDebug.Properties["QueuedInputCount"]);
         Assert.True((float)playerDebug.Properties["PositionX"]! > 0.01f);
         Assert.True(playerDebug.Properties.ContainsKey("VelocityX"));

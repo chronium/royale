@@ -1,7 +1,7 @@
 ---
 title: Observability
 createdAt: 2026-07-07T17:35:52.6989260Z
-modifiedAt: 2026-07-07T18:18:19.6988320Z
+modifiedAt: 2026-07-07T19:39:20.9327320Z
 ---
 
 ## Overview
@@ -38,6 +38,29 @@ OTLP export is disabled by default. Export is enabled only when `OTEL_EXPORTER_O
 The OpenTelemetry SDK/exporter continues to read standard environment variables such as protocol, headers, service/resource attributes, and signal-specific endpoint settings. The bootstrap sets a 1 second local-development default for OTLP exporter and processor shutdown timeouts so an unreachable collector does not stall short server runs. Explicit timeout environment variables override that default, including `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT`, `OTEL_EXPORTER_OTLP_TRACES_TIMEOUT`, `OTEL_EXPORTER_OTLP_METRICS_TIMEOUT`, `OTEL_BSP_EXPORT_TIMEOUT`, `OTEL_BLRP_EXPORT_TIMEOUT`, and `OTEL_METRIC_EXPORT_TIMEOUT`.
 
 The server emits one bounded startup/run/shutdown activity named `royale.server.run`. It is tagged with port, map, tick rate, headless mode, run mode, and ticks run when available. Per-tick tracing and concrete gameplay metrics are intentionally out of scope for `OBS-001`; `OBS-002` owns server metrics and structured gameplay events.
+
+## Core Server Metrics and Events
+
+`OBS-002` adds the first dedicated-server gameplay and networking instrumentation in `Royale.Server`. `ServerObservability` owns OpenTelemetry instruments from `RoyaleTelemetry.ServerMeter` and server loggers. `Royale.Network` exposes small observer callbacks for handshake rejects and invalid accepted-input packets, but it does not depend on `Royale.Diagnostics` or server telemetry types.
+
+Current metric names are:
+
+- `royale.server.players.connected` observable gauge
+- `royale.server.players.active` observable gauge
+- `royale.server.match.living_players` observable gauge
+- `royale.server.match.phase` observable gauge with `phase`
+- `royale.server.inputs.queue_depth` observable gauge
+- `royale.server.tick.duration` histogram in milliseconds
+- `royale.server.snapshots.sent` counter
+- `royale.server.packets.received` counter with `message_type`, `delivery`, and `channel`
+- `royale.server.packets.invalid` counter with `reason`
+- `royale.server.connections.accepted` counter
+- `royale.server.connections.disconnected` counter with `reason`
+- `royale.server.handshakes.rejected` counter with `reason`
+
+Metric labels must remain low-cardinality. Peer IDs, connection IDs, player IDs, endpoint addresses, positions, health, ammunition, and other per-player values are not allowed as metric labels. Peer, connection, and player IDs are allowed in structured server logs when they are needed to debug a lifecycle event.
+
+Structured server event logs currently cover peer connect/disconnect, accepted clients, handshake rejects, invalid accepted-input packets or commands, snapshot batches, and observed match phase changes. The dedicated server keeps these events server-owned; client rendering, SDL, GPU, and ImGui code remain outside the server observability path.
 
 ## Sandbox Validation Note
 

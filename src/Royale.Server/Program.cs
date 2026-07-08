@@ -8,6 +8,7 @@ using ZLogger;
 
 using RoyaleTelemetry telemetry = RoyaleTelemetry.CreateServer(LogLevel.Information);
 ILogger logger = telemetry.LoggerFactory.CreateLogger("Royale.Server");
+using ServerObservability observability = new(telemetry.LoggerFactory);
 using CancellationTokenSource shutdown = new();
 using Activity? serverRunActivity = RoyaleTelemetry.ServerActivitySource.StartActivity("royale.server.run");
 
@@ -21,7 +22,7 @@ try
 {
     ServerLaunchOptions options = ServerLaunchOptions.Parse(args);
     var descriptor = ServerDescriptor.Create();
-    using NetworkServerRuntime runtime = NetworkServerRuntime.Listen(options.MapId, options.Port);
+    using NetworkServerRuntime runtime = NetworkServerRuntime.Listen(options.MapId, options.Port, observability);
     string runMode = options.RunTicks is int runTicks
         ? $"finite {runTicks} ticks"
         : "until shutdown";

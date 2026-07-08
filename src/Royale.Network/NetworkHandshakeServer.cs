@@ -8,6 +8,7 @@ public sealed class NetworkHandshakeServer : INetworkEventHandler
 {
     private readonly INetworkTransport transport;
     private readonly Func<NetworkPeerId, NetworkHandshakeAcceptResult> acceptClient;
+    private readonly Action<NetworkPeerId, ServerRejectReason, string>? rejectObserver;
     private readonly Dictionary<NetworkPeerId, ServerAccept> acceptedPeers = [];
     private readonly string expectedBuildId;
     private readonly string expectedContentVersion;
@@ -17,11 +18,13 @@ public sealed class NetworkHandshakeServer : INetworkEventHandler
     public NetworkHandshakeServer(
         INetworkTransport transport,
         Func<NetworkPeerId, NetworkHandshakeAcceptResult> acceptClient,
+        Action<NetworkPeerId, ServerRejectReason, string>? rejectObserver = null,
         string expectedBuildId = ProtocolConstants.BuildId,
         string expectedContentVersion = ProtocolConstants.ContentVersion)
     {
         this.transport = transport;
         this.acceptClient = acceptClient;
+        this.rejectObserver = rejectObserver;
         this.expectedBuildId = expectedBuildId;
         this.expectedContentVersion = expectedContentVersion;
     }
@@ -141,6 +144,8 @@ public sealed class NetworkHandshakeServer : INetworkEventHandler
 
     private void SendReject(NetworkPeerId peerId, ServerRejectReason reason, string detail)
     {
+        rejectObserver?.Invoke(peerId, reason, detail);
+
         Span<byte> payload = stackalloc byte[HandshakePayloadSerializer.MaxServerRejectPayloadSize];
         ServerReject reject = new(reason, TruncateUtf8(detail, ProtocolConstants.MaxRejectDetailLength));
 

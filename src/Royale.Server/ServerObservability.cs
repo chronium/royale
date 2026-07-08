@@ -1,0 +1,347 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.Logging;
+using Royale.Diagnostics;
+using Royale.Network;
+using Royale.Protocol;
+
+namespace Royale.Server;
+
+public sealed class ServerObservability : IDisposable
+{
+    private static readonly object InstancesLock = new();
+    private static readonly MatchPhase[] MatchPhases = Enum.GetValues<MatchPhase>();
+    private static readonly List<ServerObservability> Instances = [];
+    private static readonly ObservableGauge<int> ConnectedPlayersGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.players.connected",
+            ObserveConnectedPlayers,
+            description: "Accepted server client connections.");
+    private static readonly ObservableGauge<int> ActivePlayersGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.players.active",
+            ObserveActivePlayers,
+            description: "Authoritative active players.");
+    private static readonly ObservableGauge<int> LivingPlayersGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.match.living_players",
+            ObserveLivingPlayers,
+            description: "Living players in the authoritative match state.");
+    private static readonly ObservableGauge<int> MatchPhaseGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.match.phase",
+            ObserveMatchPhase,
+            description: "Current authoritative match phase, emitted as one active phase label.");
+    private static readonly ObservableGauge<int> InputQueueDepthGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.inputs.queue_depth",
+            ObserveInputQueueDepth,
+            description: "Queued input commands waiting for authoritative simulation.");
+    private static readonly Histogram<double> TickDuration =
+        RoyaleTelemetry.ServerMeter.CreateHistogram<double>(
+            "royale.server.tick.duration",
+            unit: "ms",
+            description: "Dedicated server runtime step duration.");
+    private static readonly Counter<long> SnapshotsSentCounter =
+        RoyaleTelemetry.ServerMeter.CreateCounter<long>(
+            "royale.server.snapshots.sent",
+            description: "Server snapshots sent to clients.");
+    private static readonly Counter<long> PacketsReceived =
+        RoyaleTelemetry.ServerMeter.CreateCounter<long>(
+            "royale.server.packets.received",
+            description: "Packets received by the server runtime.");
+    private static readonly Counter<long> PacketsInvalid =
+        RoyaleTelemetry.ServerMeter.CreateCounter<long>(
+            "royale.server.packets.invalid",
+            description: "Invalid packets or rejected input packets observed by the server runtime.");
+    private static readonly Counter<long> ConnectionsAccepted =
+        RoyaleTelemetry.ServerMeter.CreateCounter<long>(
+            "royale.server.connections.accepted",
+            description: "Client connections accepted by the authoritative server.");
+    private static readonly Counter<long> ConnectionsDisconnected =
+        RoyaleTelemetry.ServerMeter.CreateCounter<long>(
+            "royale.server.connections.disconnected",
+            description: "Accepted client connections disconnected from the authoritative server.");
+    private static readonly Counter<long> HandshakesRejected =
+        RoyaleTelemetry.ServerMeter.CreateCounter<long>(
+            "royale.server.handshakes.rejected",
+            description: "Handshake attempts rejected by the server.");
+
+    private readonly ILogger logger;
+    private int connectedPlayers;
+    private int activePlayers;
+    private int livingPlayers;
+    private int queuedInputCommands;
+    private MatchPhase matchPhase;
+    private MatchPhase? lastObservedMatchPhase;
+    private bool disposed;
+
+    public ServerObservability(ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+
+        logger = loggerFactory.CreateLogger("Royale.Server.Observability");
+
+        lock (InstancesLock)
+            Instances.Add(this);
+    }
+
+    public void UpdateState(
+        int connectedPlayers,
+        int activePlayers,
+        int livingPlayers,
+        MatchPhase matchPhase,
+        int queuedInputCommands)
+    {
+        this.connectedPlayers = connectedPlayers;
+        this.activePlayers = activePlayers;
+        this.livingPlayers = livingPlayers;
+        this.queuedInputCommands = queuedInputCommands;
+
+        if (lastObservedMatchPhase is MatchPhase previous && previous != matchPhase)
+        {
+            logger.LogInformation(
+                "Match phase changed from {PreviousPhase} to {CurrentPhase}.",
+                FormatMatchPhase(previous),
+                FormatMatchPhase(matchPhase));
+        }
+
+        this.matchPhase = matchPhase;
+        lastObservedMatchPhase = matchPhase;
+    }
+
+    public void PeerConnected(NetworkPeerId peerId, NetworkEndpoint endpoint)
+    {
+        logger.LogInformation(
+            "Peer connected: peer_id {PeerId}, endpoint {Endpoint}.",
+            peerId.Value,
+            endpoint.ToString());
+    }
+
+    public void PeerDisconnected(
+        NetworkPeerId peerId,
+        NetworkDisconnectReason reason,
+        InProcessClientConnection? connection)
+    {
+        if (connection is InProcessClientConnection accepted)
+        {
+            logger.LogInformation(
+                "Peer disconnected: peer_id {PeerId}, connection_id {ConnectionId}, player_id {PlayerId}, reason {Reason}.",
+                peerId.Value,
+                accepted.ConnectionId.Value,
+                accepted.PlayerId.Value,
+                FormatDisconnectReason(reason));
+        }
+        else
+        {
+            logger.LogInformation(
+                "Peer disconnected: peer_id {PeerId}, reason {Reason}.",
+                peerId.Value,
+                FormatDisconnectReason(reason));
+        }
+    }
+
+    public void ClientAccepted(NetworkPeerId peerId, InProcessClientConnection connection)
+    {
+        ConnectionsAccepted.Add(1);
+        logger.LogInformation(
+            "Client accepted: peer_id {PeerId}, connection_id {ConnectionId}, player_id {PlayerId}.",
+            peerId.Value,
+            connection.ConnectionId.Value,
+            connection.PlayerId.Value);
+    }
+
+    public void ClientDisconnected(NetworkDisconnectReason reason)
+    {
+        ConnectionsDisconnected.Add(1, new KeyValuePair<string, object?>("reason", FormatDisconnectReason(reason)));
+    }
+
+    public void PacketReceived(
+        ProtocolMessageType? messageType,
+        NetworkDelivery delivery,
+        byte channel)
+    {
+        PacketsReceived.Add(
+            1,
+            new KeyValuePair<string, object?>("message_type", FormatMessageType(messageType)),
+            new KeyValuePair<string, object?>("delivery", FormatDelivery(delivery)),
+            new KeyValuePair<string, object?>("channel", channel));
+    }
+
+    public void HandshakeRejected(NetworkPeerId peerId, ServerRejectReason reason, string detail)
+    {
+        string formattedReason = FormatRejectReason(reason);
+        HandshakesRejected.Add(1, new KeyValuePair<string, object?>("reason", formattedReason));
+        PacketsInvalid.Add(1, new KeyValuePair<string, object?>("reason", $"handshake_{formattedReason}"));
+        logger.LogWarning(
+            "Handshake rejected: peer_id {PeerId}, reason {Reason}, detail {Detail}.",
+            peerId.Value,
+            formattedReason,
+            detail);
+    }
+
+    public void InvalidInput(NetworkPeerId peerId, ServerInputRejectReason reason)
+    {
+        string formattedReason = FormatInputRejectReason(reason);
+        PacketsInvalid.Add(1, new KeyValuePair<string, object?>("reason", formattedReason));
+        logger.LogWarning(
+            "Invalid input packet: peer_id {PeerId}, reason {Reason}.",
+            peerId.Value,
+            formattedReason);
+    }
+
+    public void InvalidCommand(NetworkPeerId peerId, InProcessClientConnection connection)
+    {
+        string reason = FormatInputRejectReason(ServerInputRejectReason.InvalidCommand);
+        PacketsInvalid.Add(1, new KeyValuePair<string, object?>("reason", reason));
+        logger.LogWarning(
+            "Invalid input command: peer_id {PeerId}, connection_id {ConnectionId}, player_id {PlayerId}, reason {Reason}.",
+            peerId.Value,
+            connection.ConnectionId.Value,
+            connection.PlayerId.Value,
+            reason);
+    }
+
+    public void TickCompleted(TimeSpan duration)
+    {
+        TickDuration.Record(duration.TotalMilliseconds);
+    }
+
+    public void SnapshotsSent(int count)
+    {
+        if (count <= 0)
+            return;
+
+        SnapshotsSentCounter.Add(count);
+        logger.LogInformation("Snapshot batch sent: count {SnapshotCount}.", count);
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+
+        lock (InstancesLock)
+            Instances.Remove(this);
+
+        disposed = true;
+    }
+
+    private static Measurement<int> ObserveConnectedPlayers()
+    {
+        lock (InstancesLock)
+            return new Measurement<int>(Instances.Sum(instance => instance.connectedPlayers));
+    }
+
+    private static Measurement<int> ObserveActivePlayers()
+    {
+        lock (InstancesLock)
+            return new Measurement<int>(Instances.Sum(instance => instance.activePlayers));
+    }
+
+    private static Measurement<int> ObserveLivingPlayers()
+    {
+        lock (InstancesLock)
+            return new Measurement<int>(Instances.Sum(instance => instance.livingPlayers));
+    }
+
+    private static Measurement<int> ObserveInputQueueDepth()
+    {
+        lock (InstancesLock)
+            return new Measurement<int>(Instances.Sum(instance => instance.queuedInputCommands));
+    }
+
+    private static IEnumerable<Measurement<int>> ObserveMatchPhase()
+    {
+        Dictionary<MatchPhase, int> phaseCounts = [];
+        lock (InstancesLock)
+        {
+            foreach (ServerObservability instance in Instances)
+                phaseCounts[instance.matchPhase] = phaseCounts.GetValueOrDefault(instance.matchPhase) + 1;
+        }
+
+        foreach (MatchPhase phase in MatchPhases)
+        {
+            yield return new Measurement<int>(
+                phaseCounts.GetValueOrDefault(phase),
+                new KeyValuePair<string, object?>("phase", FormatMatchPhase(phase)));
+        }
+    }
+
+    private static string FormatMessageType(ProtocolMessageType? messageType) =>
+        messageType switch
+        {
+            ProtocolMessageType.ClientHello => "client_hello",
+            ProtocolMessageType.ServerAccept => "server_accept",
+            ProtocolMessageType.ServerReject => "server_reject",
+            ProtocolMessageType.ClientInput => "client_input",
+            ProtocolMessageType.ServerSnapshot => "server_snapshot",
+            ProtocolMessageType.ServerEvent => "server_event",
+            ProtocolMessageType.ClientDisconnect => "client_disconnect",
+            ProtocolMessageType.ServerDisconnect => "server_disconnect",
+            null => "unknown",
+            _ => "unknown",
+        };
+
+    private static string FormatDelivery(NetworkDelivery delivery) =>
+        delivery switch
+        {
+            NetworkDelivery.Unreliable => "unreliable",
+            NetworkDelivery.ReliableUnordered => "reliable_unordered",
+            NetworkDelivery.Sequenced => "sequenced",
+            NetworkDelivery.ReliableOrdered => "reliable_ordered",
+            NetworkDelivery.ReliableSequenced => "reliable_sequenced",
+            _ => "unknown",
+        };
+
+    private static string FormatDisconnectReason(NetworkDisconnectReason reason) =>
+        reason switch
+        {
+            NetworkDisconnectReason.ConnectionFailed => "connection_failed",
+            NetworkDisconnectReason.Timeout => "timeout",
+            NetworkDisconnectReason.HostUnreachable => "host_unreachable",
+            NetworkDisconnectReason.NetworkUnreachable => "network_unreachable",
+            NetworkDisconnectReason.RemoteConnectionClose => "remote_connection_close",
+            NetworkDisconnectReason.LocalDisconnect => "local_disconnect",
+            NetworkDisconnectReason.ConnectionRejected => "connection_rejected",
+            NetworkDisconnectReason.InvalidProtocol => "invalid_protocol",
+            NetworkDisconnectReason.UnknownHost => "unknown_host",
+            NetworkDisconnectReason.Reconnect => "reconnect",
+            NetworkDisconnectReason.PeerToPeerConnection => "peer_to_peer_connection",
+            NetworkDisconnectReason.PeerNotFound => "peer_not_found",
+            NetworkDisconnectReason.Unknown => "unknown",
+            _ => "unknown",
+        };
+
+    private static string FormatRejectReason(ServerRejectReason reason) =>
+        reason switch
+        {
+            ServerRejectReason.MalformedPacket => "malformed_packet",
+            ServerRejectReason.UnsupportedProtocolVersion => "unsupported_protocol_version",
+            ServerRejectReason.IncompatibleBuild => "incompatible_build",
+            ServerRejectReason.IncompatibleContent => "incompatible_content",
+            ServerRejectReason.UnexpectedMessageType => "unexpected_message_type",
+            ServerRejectReason.AcceptFailed => "accept_failed",
+            _ => "unknown",
+        };
+
+    private static string FormatInputRejectReason(ServerInputRejectReason reason) =>
+        reason switch
+        {
+            ServerInputRejectReason.MalformedFrame => "malformed_frame",
+            ServerInputRejectReason.UnexpectedMessageType => "unexpected_message_type",
+            ServerInputRejectReason.WrongSession => "wrong_session",
+            ServerInputRejectReason.MalformedPayload => "malformed_payload",
+            ServerInputRejectReason.InvalidCommand => "invalid_command",
+            _ => "unknown",
+        };
+
+    private static string FormatMatchPhase(MatchPhase phase) =>
+        phase switch
+        {
+            MatchPhase.WaitingForPlayers => "waiting_for_players",
+            MatchPhase.InProgress => "in_progress",
+            MatchPhase.Completed => "completed",
+            _ => "unknown",
+        };
+}

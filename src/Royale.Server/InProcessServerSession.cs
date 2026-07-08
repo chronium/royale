@@ -23,6 +23,12 @@ public sealed class InProcessServerSession : IDisposable
 
     public int ConnectedClientCount => clients.Count;
 
+    public int LivingPlayerCount => simulation.MatchState.LivingPlayerCount;
+
+    public MatchPhase MatchPhase => simulation.MatchState.Phase;
+
+    public int QueuedInputCommandCount => clients.Values.Sum(client => client.InputCommands.Count);
+
     public bool IsDisposed => disposed;
 
     public bool IsSimulationDisposed => simulation.IsDisposed;

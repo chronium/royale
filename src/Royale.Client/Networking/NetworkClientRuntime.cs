@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using System.Numerics;
 using Royale.Client.Gameplay;
+using Royale.Content;
 using Royale.Network;
 using Royale.Protocol;
 using Royale.Simulation.Movement;
@@ -12,6 +13,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     private readonly INetworkTransport transport;
     private readonly NetworkPeerId serverPeerId;
     private readonly PlayerLookSettings lookSettings;
+    private readonly ClientMovementPrediction prediction;
     private NetworkHandshakeClient? handshake;
     private ClientInputSender? inputSender;
     private uint nextCommandSequence = 1;
@@ -20,10 +22,12 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public NetworkClientRuntime(
         INetworkTransport transport,
         NetworkEndpoint serverEndpoint,
-        PlayerLookSettings? lookSettings = null)
+        PlayerLookSettings? lookSettings = null,
+        Func<string, GameMap>? loadPredictionMap = null)
     {
         this.transport = transport;
         this.lookSettings = lookSettings ?? PlayerLookSettings.Default;
+        prediction = new ClientMovementPrediction(loadPredictionMap ?? MapCatalog.LoadById);
         serverPeerId = transport.Connect(serverEndpoint);
     }
 
@@ -38,6 +42,14 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public bool Accepted => inputSender is not null;
 
     public NetworkHandshakeClientState? HandshakeState => handshake?.State;
+
+    public bool PredictionMapAvailable => prediction.MapAvailable;
+
+    public bool PredictionSeeded => prediction.Seeded;
+
+    public bool PredictionActive => prediction.Active;
+
+    public int PendingInputCount => prediction.PendingInputCount;
 
     public static NetworkClientRuntime Connect(string host, int port)
     {
@@ -82,8 +94,16 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
             LookState.PitchRadians,
             ToButtons(input));
 
-        return inputSender.TrySend(command);
+        if (!inputSender.TrySend(command))
+            return false;
+
+        prediction.StoreSentInput(command);
+        prediction.Step(command);
+        return true;
     }
+
+    public bool TryGetPredictedLocalPlayer(out PlayerSnapshotState player) =>
+        prediction.TryGetPredictedLocalPlayer(out player);
 
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)
     {
@@ -95,7 +115,10 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     {
         handshake?.Disconnected(peerId, reason);
         if (peerId == serverPeerId)
+        {
             inputSender = null;
+            prediction.Reset();
+        }
     }
 
     public void PacketReceived(NetworkPeerId peerId, ReadOnlyMemory<byte> packet, NetworkDelivery delivery, byte channel)
@@ -135,6 +158,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         }
 
         inputSender = new ClientInputSender(transport, serverPeerId, acceptedSession);
+        prediction.EnsureMapLoaded(acceptedSession.MapId);
     }
 
     private void TryApplySnapshot(ReadOnlyMemory<byte> packet, byte channel)
@@ -160,6 +184,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         }
 
         State.ApplySnapshot(snapshot);
+        prediction.ApplySnapshot(snapshot);
     }
 
     private static Vector2 NormalizeMove(Vector2 move)

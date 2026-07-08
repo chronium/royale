@@ -10,6 +10,7 @@ using Royale.Simulation.Movement;
 
 namespace Royale.Client.Tests;
 
+[Collection(Box3DNativeTestCollection.Name)]
 public sealed class NetworkClientRuntimeTests
 {
     [Fact]
@@ -92,6 +93,137 @@ public sealed class NetworkClientRuntimeTests
     }
 
     [Fact]
+    public void PredictionDoesNotRunBeforeAcceptedSnapshotSeed()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-handshake");
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+
+        Assert.False(runtime.FixedUpdate(
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            clientTick: 1));
+        Assert.False(runtime.PredictionMapAvailable);
+        Assert.False(runtime.PredictionSeeded);
+        Assert.False(runtime.PredictionActive);
+        Assert.Equal(0, runtime.PendingInputCount);
+        Assert.False(runtime.TryGetPredictedLocalPlayer(out _));
+
+        AcceptHandshake(runtime, transport, accept);
+
+        Assert.True(runtime.PredictionMapAvailable);
+        Assert.False(runtime.PredictionSeeded);
+        Assert.False(runtime.PredictionActive);
+
+        Assert.True(runtime.FixedUpdate(
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            clientTick: 2));
+
+        Assert.Equal(1, runtime.PendingInputCount);
+        Assert.False(runtime.PredictionSeeded);
+        Assert.False(runtime.PredictionActive);
+        Assert.False(runtime.TryGetPredictedLocalPlayer(out _));
+    }
+
+    [Fact]
+    public void FixedUpdatePredictsLocalMovementWithoutMutatingLatestSnapshot()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-movement");
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+        AcceptHandshake(runtime, transport, accept);
+        ServerSnapshot seed = Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: Vector3.Zero);
+        ReceiveSnapshot(runtime, accept, seed);
+        ServerSnapshot authoritativeSnapshot = runtime.State.LatestSnapshot!;
+        Assert.True(runtime.State.TryGetLocalPlayer(out PlayerSnapshotState authoritativePlayer));
+
+        Assert.True(runtime.FixedUpdate(
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            clientTick: 1));
+
+        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
+        Assert.True(Vector3.Distance(predictedPlayer.Position, authoritativePlayer.Position) > 0.001f);
+        Assert.Same(authoritativeSnapshot, runtime.State.LatestSnapshot);
+        Assert.True(runtime.State.TryGetLocalPlayer(out PlayerSnapshotState statePlayer));
+        Assert.Equal(authoritativePlayer.Position, statePlayer.Position);
+    }
+
+    [Fact]
+    public void SnapshotAcknowledgementsDropPendingInputsAndResyncWhenEmpty()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-ack-empty");
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: Vector3.Zero));
+
+        Assert.True(runtime.FixedUpdate(
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            clientTick: 1));
+        Assert.Equal(1, runtime.PendingInputCount);
+
+        Vector3 authoritativePosition = new(2.0f, 0.0f, -2.0f);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: 1,
+            localPosition: authoritativePosition));
+
+        Assert.Equal(0, runtime.PendingInputCount);
+        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
+        Assert.Equal(authoritativePosition, predictedPlayer.Position);
+    }
+
+    [Fact]
+    public void SnapshotAcknowledgementsKeepUnacknowledgedPredictionPending()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-ack-partial");
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: Vector3.Zero));
+
+        var moveForward = new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero);
+        Assert.True(runtime.FixedUpdate(moveForward, clientTick: 1));
+        Assert.True(runtime.FixedUpdate(moveForward, clientTick: 2));
+        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState beforeSnapshot));
+
+        Vector3 authoritativePosition = new(3.0f, 0.0f, 3.0f);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: 1,
+            localPosition: authoritativePosition));
+
+        Assert.Equal(1, runtime.PendingInputCount);
+        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState afterSnapshot));
+        Assert.Equal(beforeSnapshot.Position, afterSnapshot.Position);
+        Assert.NotEqual(authoritativePosition, afterSnapshot.Position);
+    }
+
+    [Fact]
     public void SnapshotPlayerStateBuildsFiniteDebugCapsules()
     {
         DebugPrimitiveList primitives = DebugSceneBuilder.Build(
@@ -126,6 +258,68 @@ public sealed class NetworkClientRuntimeTests
         Assert.True(camera.Position.Y > 1.0f);
     }
 
+    [Fact]
+    public void PresentationSnapshotSubstitutesPredictedLocalPlayerOnly()
+    {
+        ClientNetworkState state = new();
+        state.ApplySnapshot(Snapshot(localPlayerId: 1, localPosition: Vector3.Zero, remotePosition: new Vector3(9.0f, 0.0f, 9.0f)));
+        PlayerSnapshotState predicted = state.LatestSnapshot!.Players[0] with
+        {
+            Position = new Vector3(5.0f, 0.0f, -2.0f),
+        };
+
+        ServerSnapshot presentationSnapshot = NetworkSnapshotPresentation.CreatePresentationSnapshot(state, predicted)!;
+
+        Assert.NotSame(state.LatestSnapshot, presentationSnapshot);
+        Assert.Equal(Vector3.Zero, state.LatestSnapshot.Players[0].Position);
+        Assert.Equal(predicted.Position, presentationSnapshot.Players[0].Position);
+        Assert.Equal(state.LatestSnapshot.Players[1], presentationSnapshot.Players[1]);
+    }
+
+    [Fact]
+    public void PresentationCameraUsesPredictedLocalPlayerWhenAvailable()
+    {
+        ClientNetworkState state = new();
+        state.ApplySnapshot(Snapshot(localPlayerId: 1, localPosition: Vector3.Zero));
+        PlayerSnapshotState predicted = state.LatestSnapshot!.Players[0] with
+        {
+            Position = new Vector3(4.0f, 0.0f, -4.0f),
+        };
+
+        RenderCamera camera = NetworkSnapshotPresentation.CreateRenderCamera(
+            state,
+            new PlayerLookState(YawRadians: 0.75f, PitchRadians: -0.25f),
+            GameplayView.CreateDefault(),
+            predicted);
+
+        Assert.Equal(4.0f, camera.Position.X, precision: 4);
+        Assert.Equal(-4.0f, camera.Position.Z, precision: 4);
+        Assert.Equal(Vector3.Zero, state.LatestSnapshot.Players[0].Position);
+    }
+
+    [Fact]
+    public void PredictedPresentationSnapshotBuildsLocalDebugCapsuleAtPredictedPosition()
+    {
+        ClientNetworkState state = new();
+        state.ApplySnapshot(Snapshot(localPlayerId: 1, localPosition: Vector3.Zero, remotePosition: new Vector3(8.0f, 0.0f, 8.0f)));
+        PlayerSnapshotState predicted = state.LatestSnapshot!.Players[0] with
+        {
+            Position = new Vector3(5.0f, 0.0f, -2.0f),
+        };
+        ServerSnapshot presentationSnapshot = NetworkSnapshotPresentation.CreatePresentationSnapshot(state, predicted)!;
+
+        DebugPrimitiveList primitives = DebugSceneBuilder.Build(
+            CreateMap(),
+            localPlayer: null,
+            presentationSnapshot);
+
+        var localColor = new Vector4(0.20f, 0.72f, 1.0f, 1.0f);
+        Assert.Contains(primitives.Lines, line =>
+            line.Color == localColor &&
+            MathF.Abs(line.Start.X - 5.0f) < 0.6f &&
+            MathF.Abs(line.Start.Z - -2.0f) < 0.6f);
+    }
+
     private static void AcceptHandshake(
         NetworkClientRuntime runtime,
         FakeNetworkTransport transport,
@@ -141,22 +335,26 @@ public sealed class NetworkClientRuntimeTests
         Assert.True(runtime.Accepted);
     }
 
-    private static ServerAccept Accept() => new(
+    private static ServerAccept Accept(string? mapId = null) => new(
         SessionId: 44,
         ConnectionId: 10,
         PlayerId: 20,
         ServerTick: 30,
-        MapId: ContentCatalog.DefaultMapId);
+        MapId: mapId ?? ContentCatalog.DefaultMapId);
 
-    private static ServerSnapshot Snapshot(uint localPlayerId) => new(
+    private static ServerSnapshot Snapshot(
+        uint localPlayerId,
+        uint? acknowledgedInputSequence = 77,
+        Vector3? localPosition = null,
+        Vector3? remotePosition = null) => new(
         ServerTick: 123,
         LocalPlayerId: localPlayerId,
-        AcknowledgedInputSequence: 77,
+        AcknowledgedInputSequence: acknowledgedInputSequence,
         Players:
         [
             new PlayerSnapshotState(
                 localPlayerId,
-                new Vector3(1.0f, 0.0f, 3.0f),
+                localPosition ?? new Vector3(1.0f, 0.0f, 3.0f),
                 Vector3.Zero,
                 YawRadians: 0.25f,
                 PitchRadians: -0.5f,
@@ -173,7 +371,7 @@ public sealed class NetworkClientRuntimeTests
                     ReloadCompleteTick: null)),
             new PlayerSnapshotState(
                 99,
-                new Vector3(3.0f, 0.0f, 1.0f),
+                remotePosition ?? new Vector3(3.0f, 0.0f, 1.0f),
                 Vector3.Zero,
                 YawRadians: 0.0f,
                 PitchRadians: 0.0f,
@@ -199,6 +397,18 @@ public sealed class NetworkClientRuntimeTests
             CurrentRadius: 100.0f,
             TargetRadius: 50.0f,
             LastUpdatedTick: 90));
+
+    private static void ReceiveSnapshot(
+        NetworkClientRuntime runtime,
+        ServerAccept accept,
+        ServerSnapshot snapshot)
+    {
+        runtime.PacketReceived(
+            runtime.ServerPeerId,
+            FrameSnapshot(accept.SessionId, snapshot),
+            NetworkDelivery.Sequenced,
+            ServerSnapshotSender.SnapshotChannel);
+    }
 
     private static byte[] FrameAccept(ServerAccept accept)
     {
@@ -271,6 +481,41 @@ public sealed class NetworkClientRuntimeTests
             Radius = 20.0f,
         },
     };
+
+    private static GameMap CreatePredictionMap(string mapId) => new()
+    {
+        Id = mapId,
+        Name = "Prediction Test",
+        SpawnPoints =
+        [
+            new MapSpawnPoint
+            {
+                Id = "spawn-a",
+                Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+        ],
+        StaticBoxes =
+        [
+            new StaticBoxDefinition
+            {
+                Id = "floor",
+                Position = new MapVector3(0.0f, -0.1f, 0.0f),
+                Size = new MapVector3(40.0f, 0.2f, 40.0f),
+            },
+        ],
+        SafeZone = new SafeZoneDefinition
+        {
+            Center = new MapVector3(0.0f, 0.0f, 0.0f),
+            Radius = 20.0f,
+        },
+    };
+
+    private static Func<string, GameMap> LoadMap(GameMap map) =>
+        requestedMapId =>
+        {
+            Assert.Equal(map.Id, requestedMapId);
+            return map;
+        };
 
     private static void AssertFinite(Vector3 vector)
     {

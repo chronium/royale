@@ -17,6 +17,7 @@ using Royale.Client.Timing;
 using Royale.Client.UI;
 using Royale.Content;
 using Royale.Native;
+using Royale.Protocol;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;
@@ -171,9 +172,10 @@ public sealed unsafe class SdlApplication : IDisposable
             ? freeCamera.ToRenderCamera()
             : CreateGameplayRenderCamera();
 
+        ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot();
         DebugPrimitiveList? debugPrimitives = loadedMap is null
             ? null
-            : DebugSceneBuilder.Build(loadedMap, localPlayer, networkClient?.State.LatestSnapshot);
+            : DebugSceneBuilder.Build(loadedMap, localPlayer, networkPresentationSnapshot);
 
         IReadOnlyList<WorldTextBillboard>? worldTextBillboards = localPlayer is null
             ? null
@@ -394,10 +396,26 @@ public sealed unsafe class SdlApplication : IDisposable
             return NetworkSnapshotPresentation.CreateRenderCamera(
                 networkClient.State,
                 networkClient.LookState,
-                gameplayView);
+                gameplayView,
+                TryGetPredictedNetworkPlayer(networkClient));
 
         return gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
     }
+
+    private ServerSnapshot? CreateNetworkPresentationSnapshot()
+    {
+        if (networkClient is null)
+            return null;
+
+        return NetworkSnapshotPresentation.CreatePresentationSnapshot(
+            networkClient.State,
+            TryGetPredictedNetworkPlayer(networkClient));
+    }
+
+    private static PlayerSnapshotState? TryGetPredictedNetworkPlayer(NetworkClientRuntime networkClient) =>
+        networkClient.TryGetPredictedLocalPlayer(out PlayerSnapshotState player)
+            ? player
+            : null;
 
     private void UpdateWindowTitle(FrameTime frameTime)
     {

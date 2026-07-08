@@ -21,18 +21,23 @@ public sealed class NetworkRuntimeLoopbackTests
         using LiteNetLibNetworkTransport clientTransport = new();
         serverTransport.Start(serverPort);
         clientTransport.Start(0);
+        GameMap map = CreateOpenArenaMap();
         using var server = new NetworkServerRuntime(
             serverTransport,
-            InProcessServerSession.Create(CreateOpenArenaMap()));
+            InProcessServerSession.Create(map));
         using var client = new NetworkClientRuntime(
             clientTransport,
-            new NetworkEndpoint("127.0.0.1", serverPort));
+            new NetworkEndpoint("127.0.0.1", serverPort),
+            loadPredictionMap: requestedMapId => requestedMapId == map.Id
+                ? map
+                : throw new InvalidOperationException($"Unexpected map id '{requestedMapId}'."));
 
         await PumpUntilAsync(
             server,
             client,
             () => client.Accepted && client.State.TryGetLocalPlayer(out _));
         Assert.True(client.State.TryGetLocalPlayer(out PlayerSnapshotState initialPlayer));
+        Assert.True(client.PredictionActive);
 
         var moveForward = new PlayerInputSample(
             new Vector2(0.0f, 1.0f),
@@ -40,7 +45,14 @@ public sealed class NetworkRuntimeLoopbackTests
             Fire: false,
             LookDelta: Vector2.Zero);
 
-        for (ulong tick = 1; tick <= 30; tick++)
+        Assert.True(client.FixedUpdate(moveForward, clientTick: 1));
+        Assert.True(client.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
+        Assert.True(
+            Vector3.Distance(
+                new Vector3(predictedPlayer.Position.X, 0.0f, predictedPlayer.Position.Z),
+                new Vector3(initialPlayer.Position.X, 0.0f, initialPlayer.Position.Z)) > 0.05f);
+
+        for (ulong tick = 2; tick <= 30; tick++)
         {
             Assert.True(client.FixedUpdate(moveForward, tick));
             client.Poll();

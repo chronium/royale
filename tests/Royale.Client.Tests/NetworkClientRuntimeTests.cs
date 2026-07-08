@@ -188,10 +188,11 @@ public sealed class NetworkClientRuntimeTests
         Assert.Equal(0, runtime.PendingInputCount);
         Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
         Assert.Equal(authoritativePosition, predictedPlayer.Position);
+        Assert.Equal(0, runtime.LastReplayedInputCount);
     }
 
     [Fact]
-    public void SnapshotAcknowledgementsKeepUnacknowledgedPredictionPending()
+    public void SnapshotAcknowledgementsReplayUnacknowledgedPredictionFromAuthoritativeBase()
     {
         FakeNetworkTransport transport = new();
         GameMap map = CreatePredictionMap("prediction-ack-partial");
@@ -209,18 +210,121 @@ public sealed class NetworkClientRuntimeTests
         var moveForward = new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero);
         Assert.True(runtime.FixedUpdate(moveForward, clientTick: 1));
         Assert.True(runtime.FixedUpdate(moveForward, clientTick: 2));
-        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState beforeSnapshot));
 
         Vector3 authoritativePosition = new(3.0f, 0.0f, 3.0f);
-        ReceiveSnapshot(runtime, accept, Snapshot(
+        ServerSnapshot correctionSnapshot = Snapshot(
             localPlayerId: accept.PlayerId,
             acknowledgedInputSequence: 1,
-            localPosition: authoritativePosition));
+            localPosition: authoritativePosition);
+        transport.SentPackets.Clear();
+
+        ReceiveSnapshot(runtime, accept, correctionSnapshot);
 
         Assert.Equal(1, runtime.PendingInputCount);
+        Assert.Equal(1, runtime.LastReplayedInputCount);
+        Assert.True(runtime.LastPredictionCorrectionDistance > 0.001f);
+        Assert.True(runtime.ReconciliationCount >= 2);
+        Assert.Empty(transport.SentPackets);
+        Assert.NotNull(runtime.State.LatestSnapshot);
+        ServerSnapshot latestSnapshot = runtime.State.LatestSnapshot!;
+        Assert.Equal(correctionSnapshot.AcknowledgedInputSequence, latestSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(authoritativePosition, latestSnapshot.Players[0].Position);
         Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState afterSnapshot));
-        Assert.Equal(beforeSnapshot.Position, afterSnapshot.Position);
+        Assert.True(afterSnapshot.Position.Z < authoritativePosition.Z - 0.05f);
         Assert.NotEqual(authoritativePosition, afterSnapshot.Position);
+    }
+
+    [Fact]
+    public void ReconciliationDoesNotMutateLatestSnapshot()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-authoritative-state");
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: Vector3.Zero));
+
+        Assert.True(runtime.FixedUpdate(
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            clientTick: 1));
+
+        Vector3 authoritativePosition = new(2.0f, 0.0f, 2.0f);
+        ServerSnapshot correctionSnapshot = Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: authoritativePosition);
+        ReceiveSnapshot(runtime, accept, correctionSnapshot);
+
+        Assert.NotNull(runtime.State.LatestSnapshot);
+        ServerSnapshot latestSnapshot = runtime.State.LatestSnapshot!;
+        Assert.Equal(correctionSnapshot.AcknowledgedInputSequence, latestSnapshot.AcknowledgedInputSequence);
+        Assert.Equal(authoritativePosition, latestSnapshot.Players[0].Position);
+        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
+        Assert.NotEqual(latestSnapshot.Players[0].Position, predictedPlayer.Position);
+    }
+
+    [Fact]
+    public void DeadAuthoritativeLocalPlayerDoesNotReplayPendingMovement()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-dead-local");
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: Vector3.Zero));
+
+        Assert.True(runtime.FixedUpdate(
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            clientTick: 1));
+
+        Vector3 deadPosition = new(6.0f, 0.0f, -4.0f);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: deadPosition,
+            localAlive: false));
+
+        Assert.Equal(1, runtime.PendingInputCount);
+        Assert.Equal(0, runtime.LastReplayedInputCount);
+        Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
+        Assert.Equal(deadPosition, predictedPlayer.Position);
+        Assert.False(predictedPlayer.Alive);
+    }
+
+    [Fact]
+    public void DisposeReleasesPredictionAndRuntimeRejectsFurtherUse()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-dispose");
+        var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map));
+        ServerAccept accept = Accept(map.Id);
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(
+            localPlayerId: accept.PlayerId,
+            acknowledgedInputSequence: null,
+            localPosition: Vector3.Zero));
+        Assert.True(runtime.PredictionActive);
+
+        runtime.Dispose();
+
+        Assert.True(transport.Disposed);
+        Assert.Throws<ObjectDisposedException>(() => runtime.Poll());
+        Assert.Throws<ObjectDisposedException>(() => runtime.TryGetPredictedLocalPlayer(out _));
     }
 
     [Fact]
@@ -346,7 +450,8 @@ public sealed class NetworkClientRuntimeTests
         uint localPlayerId,
         uint? acknowledgedInputSequence = 77,
         Vector3? localPosition = null,
-        Vector3? remotePosition = null) => new(
+        Vector3? remotePosition = null,
+        bool localAlive = true) => new(
         ServerTick: 123,
         LocalPlayerId: localPlayerId,
         AcknowledgedInputSequence: acknowledgedInputSequence,
@@ -358,9 +463,9 @@ public sealed class NetworkClientRuntimeTests
                 Vector3.Zero,
                 YawRadians: 0.25f,
                 PitchRadians: -0.5f,
-                CurrentHealth: 100,
+                CurrentHealth: localAlive ? 100 : 0,
                 MaxHealth: 100,
-                Alive: true,
+                Alive: localAlive,
                 new WeaponSnapshotState(
                     "rifle",
                     AmmoInMagazine: 30,
@@ -530,6 +635,8 @@ public sealed class NetworkClientRuntimeTests
 
         public List<SentPacket> SentPackets { get; } = [];
 
+        public bool Disposed { get; private set; }
+
         public void Start(int port)
         {
         }
@@ -553,6 +660,7 @@ public sealed class NetworkClientRuntimeTests
 
         public void Dispose()
         {
+            Disposed = true;
         }
 
         public void QueueConnected(NetworkPeerId peerId)

@@ -33,6 +33,12 @@ internal sealed class ClientMovementPrediction : IDisposable
 
     public int PendingInputCount => pendingInputs.Count;
 
+    public float LastCorrectionDistance { get; private set; }
+
+    public int LastReplayedInputCount { get; private set; }
+
+    public ulong ReconciliationCount { get; private set; }
+
     public void EnsureMapLoaded(string mapId)
     {
         ThrowIfDisposed();
@@ -85,6 +91,70 @@ internal sealed class ClientMovementPrediction : IDisposable
         if (!Active || collisionWorld is null)
             return;
 
+        ApplyMovement(command);
+    }
+
+    public void ApplySnapshot(ServerSnapshot snapshot)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        DropAcknowledgedInputs(snapshot.AcknowledgedInputSequence);
+
+        if (collisionWorld is null || !TryFindLocalPlayer(snapshot, out PlayerSnapshotState authoritativePlayer))
+            return;
+
+        Vector3 previousPredictedPosition = seeded
+            ? predictedPlayer.Position
+            : authoritativePlayer.Position;
+
+        SeedFrom(authoritativePlayer);
+
+        int replayedInputCount = 0;
+        if (authoritativePlayer.Alive)
+        {
+            foreach (PlayerInputCommand pendingInput in pendingInputs)
+            {
+                ApplyMovement(pendingInput);
+                replayedInputCount++;
+            }
+        }
+
+        LastCorrectionDistance = Vector3.Distance(previousPredictedPosition, predictedPlayer.Position);
+        LastReplayedInputCount = replayedInputCount;
+        ReconciliationCount++;
+    }
+
+    public void Reset()
+    {
+        ThrowIfDisposed();
+
+        pendingInputs.Clear();
+        collisionWorld?.Dispose();
+        collisionWorld = null;
+        mapLoadAttempted = false;
+        seeded = false;
+        characterState = default;
+        predictedPlayer = default;
+        LastCorrectionDistance = 0.0f;
+        LastReplayedInputCount = 0;
+        ReconciliationCount = 0;
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+
+        collisionWorld?.Dispose();
+        disposed = true;
+    }
+
+    private void ApplyMovement(PlayerInputCommand command)
+    {
+        if (collisionWorld is null)
+            return;
+
         Vector2 worldMove = PlayerMovementIntent.ToWorldMovement(command.Move, command.YawRadians);
         KinematicCharacterStepResult stepResult = characterController.Step(
             collisionWorld,
@@ -100,42 +170,6 @@ internal sealed class ClientMovementPrediction : IDisposable
             YawRadians = command.YawRadians,
             PitchRadians = command.PitchRadians,
         };
-    }
-
-    public void ApplySnapshot(ServerSnapshot snapshot)
-    {
-        ThrowIfDisposed();
-        ArgumentNullException.ThrowIfNull(snapshot);
-
-        DropAcknowledgedInputs(snapshot.AcknowledgedInputSequence);
-
-        if (collisionWorld is null || !TryFindLocalPlayer(snapshot, out PlayerSnapshotState authoritativePlayer))
-            return;
-
-        if (!seeded || pendingInputs.Count == 0)
-            SeedFrom(authoritativePlayer);
-    }
-
-    public void Reset()
-    {
-        ThrowIfDisposed();
-
-        pendingInputs.Clear();
-        collisionWorld?.Dispose();
-        collisionWorld = null;
-        mapLoadAttempted = false;
-        seeded = false;
-        characterState = default;
-        predictedPlayer = default;
-    }
-
-    public void Dispose()
-    {
-        if (disposed)
-            return;
-
-        collisionWorld?.Dispose();
-        disposed = true;
     }
 
     private void DropAcknowledgedInputs(uint? acknowledgedInputSequence)

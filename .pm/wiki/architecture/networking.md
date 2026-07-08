@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-08T07:04:10.3848550Z
+modifiedAt: 2026-07-08T07:21:36.2741880Z
 ---
 
 ## Networking Layers
@@ -128,13 +128,15 @@ The sender emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snaps
 
 The executable client decodes `ServerSnapshot` packets into `ClientNetworkState.LatestSnapshot`, which remains authoritative-only. Connect-mode presentation may build a separate presentation snapshot that substitutes a predicted local player for rendering, but it does not mutate `LatestSnapshot`. Remote players remain snapshot-driven.
 
-`NetworkClientRuntime` owns v1 local movement prediction for accepted UDP clients. After `ServerAccept`, it attempts to load client-side collision for the accepted `MapId` through an injectable map loader, defaulting to `MapCatalog.LoadById`. If that map or collision world cannot be created, prediction is disabled and presentation falls back to authoritative snapshots.
+`NetworkClientRuntime` owns local movement prediction and reconciliation for accepted UDP clients. After `ServerAccept`, it attempts to load client-side collision for the accepted `MapId` through an injectable map loader, defaulting to `MapCatalog.LoadById`. If that map or collision world cannot be created, prediction is disabled and presentation falls back to authoritative snapshots.
 
-Prediction is seeded from the first authoritative snapshot that contains the local player. Each successful fixed input send is stored in a bounded pending-input buffer and, once seeded, is applied immediately through `PlayerMovementIntent.ToWorldMovement` and `KinematicCharacterController.Step` against `MapStaticCollisionWorld` using the shared fixed simulation timestep. The predicted local player updates position, velocity, yaw, and pitch for camera and debug-capsule presentation.
+Prediction is seeded from the first authoritative snapshot that contains the local player. Each successful fixed input send is stored in a bounded pending-input buffer and, once seeded, is applied immediately through `PlayerMovementIntent.ToWorldMovement` and `KinematicCharacterController.Step` against `MapStaticCollisionWorld` using `SimulationSettings.FixedDeltaSeconds`. The predicted local player updates position, velocity, yaw, and pitch for camera and debug-capsule presentation.
 
-Incoming snapshots drop pending inputs acknowledged by `AcknowledgedInputSequence`. When no pending inputs remain, prediction resyncs directly to the authoritative local snapshot. When pending inputs remain, v1 prediction keeps the current predicted transform and does not yet correct or replay.
+Incoming authoritative local-player snapshots drop pending inputs acknowledged by `AcknowledgedInputSequence`, seed prediction from the authoritative local player state, and replay the remaining unacknowledged commands in sequence order through the same shared movement controller. Replayed commands are local-only; reconciliation does not resend input packets and does not mutate `ClientNetworkState.LatestSnapshot`. Dead authoritative local-player snapshots resync the predicted player to the authoritative dead state and skip movement replay.
 
-Smooth interpolation, reconciliation with replayed corrections, event replication, delta compression, and bad-network policy remain deferred to their dedicated networking tasks.
+`NetworkClientRuntime` exposes lightweight reconciliation diagnostics: pending input count, last correction distance, last replayed input count, and total reconciliation count.
+
+Smooth visual correction, remote-player interpolation, bad-network simulation policy, event replication, delta compression, and cosmetic smoothing remain outside this task unless already supported by existing presentation code.
 
 ## Protocol Versioning
 
@@ -187,4 +189,4 @@ Clients submit structured `PlayerInputCommand` intent through the session queue 
 
 Each `InProcessServerSession.Step` drains queued valid commands per connected client, keeps only the latest drained command for each player for that server tick, passes those commands to `HeadlessServerSimulation.Step(...)`, and enqueues a recipient-specific snapshot for every connected client. The latest processed command sequence becomes the recipient's top-level snapshot acknowledgement.
 
-The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests. The SDL client still does not reference `Royale.Server`. Reconciliation, interpolation, winner selection, combat events, respawn, reload, and match reset remain deferred.
+The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests. The SDL client still does not reference `Royale.Server`. Interpolation, winner selection, combat events, respawn, reload, and match reset remain deferred.

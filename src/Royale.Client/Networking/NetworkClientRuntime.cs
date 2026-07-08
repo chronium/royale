@@ -51,6 +51,12 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
     public int PendingInputCount => prediction.PendingInputCount;
 
+    public float LastPredictionCorrectionDistance => prediction.LastCorrectionDistance;
+
+    public int LastReplayedInputCount => prediction.LastReplayedInputCount;
+
+    public ulong ReconciliationCount => prediction.ReconciliationCount;
+
     public static NetworkClientRuntime Connect(string host, int port)
     {
         var transport = new LiteNetLibNetworkTransport();
@@ -102,8 +108,11 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         return true;
     }
 
-    public bool TryGetPredictedLocalPlayer(out PlayerSnapshotState player) =>
-        prediction.TryGetPredictedLocalPlayer(out player);
+    public bool TryGetPredictedLocalPlayer(out PlayerSnapshotState player)
+    {
+        ThrowIfDisposed();
+        return prediction.TryGetPredictedLocalPlayer(out player);
+    }
 
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)
     {
@@ -144,6 +153,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         if (disposed)
             return;
 
+        prediction.Dispose();
         transport.Dispose();
         disposed = true;
     }

@@ -111,7 +111,7 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
-    public void SimpleMeshAssetLoaderRemovesDoorwayCoplanarDuplicateFaces()
+    public void SimpleMeshAssetLoaderPreservesDoorwayAuthoredTriangles()
     {
         string repositoryRoot = FindRepositoryRoot();
         StaticMeshAsset asset = SimpleMeshStaticMeshLoader.LoadAssetFromFile(
@@ -119,8 +119,8 @@ public sealed class StaticMeshRenderingTests
             Path.Combine(repositoryRoot, "assets", "meshes", "kenney-prototype-kit", "wall-doorway.glb"));
 
         StaticMeshGeometry geometry = Assert.Single(asset.Primitives).Geometry;
-        Assert.Equal(228, geometry.Indices.Count);
-        Assert.Equal(76, geometry.Indices.Count / 3);
+        Assert.Equal(456, geometry.Indices.Count);
+        Assert.Equal(152, geometry.Indices.Count / 3);
     }
 
     [Fact]

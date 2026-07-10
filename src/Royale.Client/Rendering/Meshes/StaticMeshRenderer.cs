@@ -225,7 +225,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
             rasterizer_state = new SDL_GPURasterizerState
             {
                 fill_mode = SDL_GPUFillMode.SDL_GPU_FILLMODE_FILL,
-                cull_mode = SDL_GPUCullMode.SDL_GPU_CULLMODE_NONE,
+                cull_mode = SDL_GPUCullMode.SDL_GPU_CULLMODE_BACK,
                 front_face = SDL_GPUFrontFace.SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
             },
             multisample_state = new SDL_GPUMultisampleState

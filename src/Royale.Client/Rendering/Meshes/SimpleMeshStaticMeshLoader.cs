@@ -115,12 +115,7 @@ public static class SimpleMeshStaticMeshLoader
                 vertices[vertexIndex] = new StaticMeshVertex(position, normal, textureCoordinate);
             }
 
-            var indices = new ushort[group.IndexCount];
-            for (int localIndex = 0; localIndex < group.IndexCount; localIndex++)
-            {
-                uint sourceIndex = geometry.Indices[group.StartIndex + localIndex] + (uint)group.BaseVertex;
-                indices[localIndex] = checked((ushort)sourceIndex);
-            }
+            ushort[] indices = CreateDeduplicatedIndices(geometry, group, vertices);
 
             string materialName = string.IsNullOrWhiteSpace(group.Material.Name)
                 ? $"material-{groupIndex}"
@@ -130,6 +125,29 @@ public static class SimpleMeshStaticMeshLoader
                 new StaticMeshGeometry(vertices, indices),
                 CreateMaterial(group.Material, model, textures, path)));
         }
+    }
+
+    private static ushort[] CreateDeduplicatedIndices(
+        Geometry geometry,
+        TriangleGroup group,
+        IReadOnlyList<StaticMeshVertex> vertices)
+    {
+        var indices = new List<ushort>(group.IndexCount);
+        var surfaces = new HashSet<TriangleSurfaceKey>();
+        for (int localIndex = 0; localIndex < group.IndexCount; localIndex += 3)
+        {
+            ushort a = checked((ushort)(geometry.Indices[group.StartIndex + localIndex] + (uint)group.BaseVertex));
+            ushort b = checked((ushort)(geometry.Indices[group.StartIndex + localIndex + 1] + (uint)group.BaseVertex));
+            ushort c = checked((ushort)(geometry.Indices[group.StartIndex + localIndex + 2] + (uint)group.BaseVertex));
+            if (!surfaces.Add(TriangleSurfaceKey.Create(vertices[a], vertices[b], vertices[c])))
+                continue;
+
+            indices.Add(a);
+            indices.Add(b);
+            indices.Add(c);
+        }
+
+        return indices.ToArray();
     }
 
     private static void ValidateGroup(
@@ -190,4 +208,38 @@ public static class SimpleMeshStaticMeshLoader
 
     private static bool IsFinite(Vector4 vector) =>
         float.IsFinite(vector.X) && float.IsFinite(vector.Y) && float.IsFinite(vector.Z) && float.IsFinite(vector.W);
+
+    private readonly record struct SurfaceVertexKey(Vector3 Position)
+        : IComparable<SurfaceVertexKey>
+    {
+        public int CompareTo(SurfaceVertexKey other)
+        {
+            int comparison = Position.X.CompareTo(other.Position.X);
+            if (comparison != 0) return comparison;
+            comparison = Position.Y.CompareTo(other.Position.Y);
+            if (comparison != 0) return comparison;
+            return Position.Z.CompareTo(other.Position.Z);
+        }
+    }
+
+    private readonly record struct TriangleSurfaceKey(
+        SurfaceVertexKey A,
+        SurfaceVertexKey B,
+        SurfaceVertexKey C)
+    {
+        public static TriangleSurfaceKey Create(
+            StaticMeshVertex a,
+            StaticMeshVertex b,
+            StaticMeshVertex c)
+        {
+            SurfaceVertexKey[] vertices =
+            [
+                new(a.Position),
+                new(b.Position),
+                new(c.Position),
+            ];
+            Array.Sort(vertices);
+            return new TriangleSurfaceKey(vertices[0], vertices[1], vertices[2]);
+        }
+    }
 }

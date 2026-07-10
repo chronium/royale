@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T14:00:42.1354140Z
+modifiedAt: 2026-07-10T14:17:22.3279580Z
 ---
 
 ## Content and Map Data
@@ -99,6 +99,8 @@ The first source asset is `kenney-crate`, using `meshes/kenney-prototype-kit/cra
 `GAME-012` expands the committed Kenney Prototype Kit set to ten reusable environment assets, all sharing `meshes/kenney-prototype-kit/Textures/colormap.png`: `kenney-column`, `kenney-crate`, `kenney-floor-square`, `kenney-floor-thick`, `kenney-shape-slope`, `kenney-stairs`, `kenney-target-a-round`, `kenney-wall`, `kenney-wall-corner`, and `kenney-wall-doorway`. Floor-square, stairs, wall-corner, and wall-doorway use `triangleMesh`; the remaining assets use `convex`. No dynamic bodies, animation, doors, browser, editor, or generalized material system is introduced.
 
 The selected Kenney models use valid glTF `UNSIGNED_BYTE` indices, supported through the focused SimpleMesh project patch recorded under `thirdparty/patches/SimpleMesh`. Triangle-mesh cooking deterministically discards degenerate source/canonicalized faces while retaining and sorting valid faces; it fails if none remain. Convex cooking retains its stricter degenerate-triangle rejection. Tests build deterministic client and server outputs, load every model through `StaticMeshAssetCache`, and create a valid native Box3D shape from every generated artifact.
+
+`BUG-005` handles exact coplanar duplicate faces within one source material group. Client import retains the first triangle and removes later triangles with the same three transformed positions regardless of winding, normals, or UVs; material groups remain isolated so intentional cross-material layers are not collapsed. Triangle-mesh collision cooking applies the equivalent position-index surface rule before deterministic ordering. The committed Kenney doorway source therefore remains unchanged while its 152 source triangles become 76 unique render and collision surfaces, preventing close-range depth fighting and redundant Box3D faces.
 
 #### Convex Collision Artifacts
 

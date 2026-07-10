@@ -256,10 +256,15 @@ public static class TriangleMeshCollisionArtifactGenerator
             .ToDictionary(item => item.vertex, item => item.index);
 
         var triangles = sourceTriangles
-            .Select(triangle => RotateToSmallest(
-                vertexIndices[triangle.A],
-                vertexIndices[triangle.B],
-                vertexIndices[triangle.C]))
+            .Select(triangle =>
+            {
+                int a = vertexIndices[triangle.A];
+                int b = vertexIndices[triangle.B];
+                int c = vertexIndices[triangle.C];
+                return (Surface: SortAscending(a, b, c), Triangle: RotateToSmallest(a, b, c));
+            })
+            .DistinctBy(item => item.Surface)
+            .Select(item => item.Triangle)
             .OrderBy(triangle => triangle.A)
             .ThenBy(triangle => triangle.B)
             .ThenBy(triangle => triangle.C)
@@ -292,6 +297,14 @@ public static class TriangleMeshCollisionArtifactGenerator
     {
         if (a <= b && a <= c) return (a, b, c);
         return b <= c ? (b, c, a) : (c, a, b);
+    }
+
+    private static (int A, int B, int C) SortAscending(int a, int b, int c)
+    {
+        if (a > b) (a, b) = (b, a);
+        if (b > c) (b, c) = (c, b);
+        if (a > b) (a, b) = (b, a);
+        return (a, b, c);
     }
 }
 

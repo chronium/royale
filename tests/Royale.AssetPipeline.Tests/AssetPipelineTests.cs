@@ -332,6 +332,9 @@ public sealed class AssetPipelineTests
                     ? ModelCollisionArtifactKind.Convex
                     : ModelCollisionArtifactKind.TriangleMesh,
                 artifact.Kind);
+            Assert.Equal(
+                artifact.Indices.Chunk(3).Select(triangle => string.Join(',', triangle.Order())).Distinct().Count(),
+                artifact.Indices.Count / 3);
         }
 
         AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Client);

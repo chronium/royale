@@ -263,6 +263,27 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void PrototypeArenaSceneBatchesAllModelsByAssetAndKeepsFallbackOnUnitBoxPath()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+        StaticMeshAssetCache cache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+        Dictionary<string, StaticMeshAsset> assets = map.StaticModels
+            .Select(model => model.AssetId)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(assetId => assetId, cache.GetRequired, StringComparer.Ordinal);
+
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(map, assets);
+
+        Assert.Single(scene.UnitBoxInstances);
+        Assert.Equal("ground-fallback", scene.UnitBoxInstances[0].DebugName);
+        Assert.Equal(10, scene.ModelAssetBatches.Count);
+        Assert.Equal(map.StaticModels.Count, scene.ModelAssetBatches.Sum(batch => batch.Instances.Count));
+        Assert.Equal(
+            map.StaticModels.Select(model => model.Id).Order(),
+            scene.ModelAssetBatches.SelectMany(batch => batch.Instances).Select(instance => instance.DebugName).Order());
+    }
+
+    [Fact]
     public void MapStaticMeshSceneRejectsUnloadedMapAssetWithContext()
     {
         GameMap map = MapCatalog.LoadDefault();

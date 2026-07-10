@@ -1,0 +1,414 @@
+{
+  "id": "prototype-arena",
+  "name": "Kenney Prototype Combat Arena",
+  "worldBounds": {
+    "min": { "x": -24.0, "y": -1.0, "z": -24.0 },
+    "max": { "x": 24.0, "y": 5.0, "z": 24.0 }
+  },
+  "safeZone": {
+    "center": { "x": 0.0, "y": 0.0, "z": 0.0 },
+    "radius": 20.0
+  },
+  "spawnPoints": [
+    {
+      "id": "outer-north",
+      "position": { "x": 0.0, "y": 0.0, "z": -17.0 },
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-north-east",
+      "position": { "x": 12.0, "y": 0.0, "z": -12.0 },
+      "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-east",
+      "position": { "x": 17.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": -90.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-south-east",
+      "position": { "x": 12.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": -45.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-south",
+      "position": { "x": 0.0, "y": 0.0, "z": 17.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-south-west",
+      "position": { "x": -12.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-west",
+      "position": { "x": -17.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-north-west",
+      "position": { "x": -12.0, "y": 0.0, "z": -12.0 },
+      "rotationEuler": { "x": 0.0, "y": 135.0, "z": 0.0 }
+    },
+    {
+      "id": "inner-north-west",
+      "position": { "x": -6.0, "y": 0.0, "z": -4.0 },
+      "rotationEuler": { "x": 0.0, "y": 123.69007, "z": 0.0 }
+    },
+    {
+      "id": "inner-north-east",
+      "position": { "x": 6.0, "y": 0.0, "z": -4.0 },
+      "rotationEuler": { "x": 0.0, "y": -123.69007, "z": 0.0 }
+    },
+    {
+      "id": "inner-south-east",
+      "position": { "x": 6.0, "y": 0.0, "z": 4.0 },
+      "rotationEuler": { "x": 0.0, "y": -56.309933, "z": 0.0 }
+    },
+    {
+      "id": "inner-south-west",
+      "position": { "x": -6.0, "y": 0.0, "z": 4.0 },
+      "rotationEuler": { "x": 0.0, "y": 56.309933, "z": 0.0 }
+    }
+  ],
+  "lootPoints": [
+    { "id": "loot-center", "position": { "x": 0.0, "y": 0.35, "z": 0.0 } },
+    { "id": "loot-west-yard", "position": { "x": -16.0, "y": 0.35, "z": 8.0 } },
+    { "id": "loot-north-platform", "position": { "x": 0.0, "y": 1.35, "z": -12.0 } },
+    { "id": "loot-north-route", "position": { "x": 6.0, "y": 0.35, "z": -2.0 } },
+    { "id": "loot-south-compound", "position": { "x": 0.0, "y": 0.35, "z": 12.0 } },
+    { "id": "loot-south-route", "position": { "x": 0.0, "y": 0.35, "z": 6.0 } },
+    { "id": "loot-east-courtyard", "position": { "x": 12.0, "y": 0.35, "z": 0.0 } },
+    { "id": "loot-west-route", "position": { "x": -6.0, "y": 0.35, "z": 0.0 } }
+  ],
+  "staticModels": [
+    {
+      "id": "floor-visible",
+      "assetId": "kenney-floor-square",
+      "position": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 40.0, "y": 1.0, "z": 40.0 }
+    },
+    {
+      "id": "boundary-north",
+      "assetId": "kenney-wall",
+      "position": { "x": 0.0, "y": 0.0, "z": -20.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 40.0 }
+    },
+    {
+      "id": "boundary-south",
+      "assetId": "kenney-wall",
+      "position": { "x": 0.0, "y": 0.0, "z": 20.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 40.0 }
+    },
+    {
+      "id": "boundary-west",
+      "assetId": "kenney-wall",
+      "position": { "x": -20.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 40.0 }
+    },
+    {
+      "id": "boundary-east",
+      "assetId": "kenney-wall",
+      "position": { "x": 20.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 40.0 }
+    },
+
+    {
+      "id": "west-lane-north",
+      "assetId": "kenney-wall",
+      "position": { "x": -14.0, "y": 0.0, "z": -4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 8.0 }
+    },
+    {
+      "id": "west-lane-south",
+      "assetId": "kenney-wall",
+      "position": { "x": -10.0, "y": 0.0, "z": 4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 8.0 }
+    },
+    {
+      "id": "west-yard-cap",
+      "assetId": "kenney-wall",
+      "position": { "x": -14.0, "y": 0.0, "z": 10.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 8.0 }
+    },
+    {
+      "id": "west-crate-north-outer",
+      "assetId": "kenney-crate",
+      "position": { "x": -17.0, "y": 0.0, "z": -7.0 },
+      "rotationEuler": { "x": 0.0, "y": 15.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "west-crate-north-inner",
+      "assetId": "kenney-crate",
+      "position": { "x": -11.0, "y": 0.0, "z": -5.0 },
+      "rotationEuler": { "x": 0.0, "y": -10.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "west-crate-center",
+      "assetId": "kenney-crate",
+      "position": { "x": -16.0, "y": 0.0, "z": 2.0 },
+      "rotationEuler": { "x": 0.0, "y": 35.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "west-crate-south-inner",
+      "assetId": "kenney-crate",
+      "position": { "x": -12.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": 10.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "west-crate-south-outer",
+      "assetId": "kenney-crate",
+      "position": { "x": -17.0, "y": 0.0, "z": 6.0 },
+      "rotationEuler": { "x": 0.0, "y": -20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+
+    {
+      "id": "north-platform",
+      "assetId": "kenney-floor-thick",
+      "position": { "x": 0.0, "y": 0.0, "z": -12.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 8.0, "y": 5.0, "z": 8.0 }
+    },
+    {
+      "id": "north-stairs-approach",
+      "assetId": "kenney-stairs",
+      "position": { "x": -2.0, "y": 0.0, "z": -6.0 },
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 1.0, "z": 4.0 }
+    },
+    {
+      "id": "north-slope-approach",
+      "assetId": "kenney-shape-slope",
+      "position": { "x": 3.0, "y": 0.0, "z": -6.0 },
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 1.0, "z": 4.0 }
+    },
+    {
+      "id": "north-platform-cover-west",
+      "assetId": "kenney-wall",
+      "position": { "x": -3.0, "y": 1.0, "z": -13.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 1.5, "z": 3.0 }
+    },
+    {
+      "id": "north-platform-cover-east",
+      "assetId": "kenney-wall",
+      "position": { "x": 3.0, "y": 1.0, "z": -11.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 1.5, "z": 3.0 }
+    },
+    {
+      "id": "north-platform-crate",
+      "assetId": "kenney-crate",
+      "position": { "x": 0.0, "y": 1.0, "z": -15.0 },
+      "rotationEuler": { "x": 0.0, "y": 20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+
+    {
+      "id": "south-corner-front-west",
+      "assetId": "kenney-wall-corner",
+      "position": { "x": -8.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-corner-front-east",
+      "assetId": "kenney-wall-corner",
+      "position": { "x": 8.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": -90.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-corner-rear-west",
+      "assetId": "kenney-wall-corner",
+      "position": { "x": -8.0, "y": 0.0, "z": 16.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-corner-rear-east",
+      "assetId": "kenney-wall-corner",
+      "position": { "x": 8.0, "y": 0.0, "z": 16.0 },
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-doorway-front",
+      "assetId": "kenney-wall-doorway",
+      "position": { "x": 0.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-doorway-rear",
+      "assetId": "kenney-wall-doorway",
+      "position": { "x": 0.0, "y": 0.0, "z": 16.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-wall-front-west",
+      "assetId": "kenney-wall",
+      "position": { "x": -4.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-wall-front-east",
+      "assetId": "kenney-wall",
+      "position": { "x": 4.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-wall-side-west",
+      "assetId": "kenney-wall",
+      "position": { "x": -8.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-wall-side-east",
+      "assetId": "kenney-wall",
+      "position": { "x": 8.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "south-cover-west",
+      "assetId": "kenney-crate",
+      "position": { "x": -4.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": 20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "south-cover-east",
+      "assetId": "kenney-crate",
+      "position": { "x": 4.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": -20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+
+    {
+      "id": "east-column-north-west",
+      "assetId": "kenney-column",
+      "position": { "x": 8.0, "y": 0.0, "z": -4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "east-column-north-center",
+      "assetId": "kenney-column",
+      "position": { "x": 12.0, "y": 0.0, "z": -4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "east-column-north-east",
+      "assetId": "kenney-column",
+      "position": { "x": 16.0, "y": 0.0, "z": -4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "east-column-south-west",
+      "assetId": "kenney-column",
+      "position": { "x": 8.0, "y": 0.0, "z": 4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "east-column-south-center",
+      "assetId": "kenney-column",
+      "position": { "x": 12.0, "y": 0.0, "z": 4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "east-column-south-east",
+      "assetId": "kenney-column",
+      "position": { "x": 16.0, "y": 0.0, "z": 4.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 2.0, "z": 4.0 }
+    },
+    {
+      "id": "east-target-west",
+      "assetId": "kenney-target-a-round",
+      "position": { "x": 10.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "east-target-east",
+      "assetId": "kenney-target-a-round",
+      "position": { "x": 14.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": -90.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "east-courtyard-wall-north",
+      "assetId": "kenney-wall",
+      "position": { "x": 12.0, "y": 0.0, "z": -8.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 8.0 }
+    },
+    {
+      "id": "east-courtyard-wall-south",
+      "assetId": "kenney-wall",
+      "position": { "x": 12.0, "y": 0.0, "z": 8.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
+      "scale": { "x": 1.0, "y": 2.0, "z": 8.0 }
+    },
+
+    {
+      "id": "center-cover-north-west",
+      "assetId": "kenney-crate",
+      "position": { "x": -4.0, "y": 0.0, "z": -2.0 },
+      "rotationEuler": { "x": 0.0, "y": 20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "center-cover-north-east",
+      "assetId": "kenney-crate",
+      "position": { "x": 4.0, "y": 0.0, "z": -2.0 },
+      "rotationEuler": { "x": 0.0, "y": -20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "center-cover-south-west",
+      "assetId": "kenney-crate",
+      "position": { "x": -4.0, "y": 0.0, "z": 2.0 },
+      "rotationEuler": { "x": 0.0, "y": -20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    },
+    {
+      "id": "center-cover-south-east",
+      "assetId": "kenney-crate",
+      "position": { "x": 4.0, "y": 0.0, "z": 2.0 },
+      "rotationEuler": { "x": 0.0, "y": 20.0, "z": 0.0 },
+      "scale": { "x": 2.0, "y": 2.0, "z": 2.0 }
+    }
+  ],
+  "staticBoxes": [
+    {
+      "id": "ground-fallback",
+      "position": { "x": 0.0, "y": -0.14, "z": 0.0 },
+      "size": { "x": 40.0, "y": 0.24, "z": 40.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    }
+  ]
+}

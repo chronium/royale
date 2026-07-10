@@ -157,6 +157,86 @@ public sealed class MapContentTests
     }
 
     [Fact]
+    public void PrototypeArenaLoadsWithAuthoredBoundsSpawnsLootAndStaticContent()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+
+        Assert.Equal("prototype-arena", map.Id);
+        Assert.Equal("Kenney Prototype Combat Arena", map.Name);
+        Assert.Equal(new MapVector3(-24.0f, -1.0f, -24.0f), map.WorldBounds.Min);
+        Assert.Equal(new MapVector3(24.0f, 5.0f, 24.0f), map.WorldBounds.Max);
+        Assert.Equal(20.0f, map.SafeZone.Radius);
+        Assert.Equal(12, map.SpawnPoints.Count);
+        Assert.Equal(8, map.LootPoints.Count);
+        Assert.Equal(45, map.StaticModels.Count);
+        Assert.Single(map.StaticBoxes);
+
+        string[] staticIds = map.StaticBoxes.Select(box => box.Id)
+            .Concat(map.StaticModels.Select(model => model.Id))
+            .ToArray();
+        Assert.Equal(staticIds.Length, staticIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(12, map.SpawnPoints.Select(spawn => spawn.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(8, map.LootPoints.Select(loot => loot.Id).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void PrototypeArenaUsesEveryEnvironmentAssetAndKeepsPrimitiveGroundHidden()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+        string[] expectedAssets =
+        [
+            "kenney-column",
+            "kenney-crate",
+            "kenney-floor-square",
+            "kenney-floor-thick",
+            "kenney-shape-slope",
+            "kenney-stairs",
+            "kenney-target-a-round",
+            "kenney-wall",
+            "kenney-wall-corner",
+            "kenney-wall-doorway",
+        ];
+
+        Assert.Equal(expectedAssets, map.StaticModels.Select(model => model.AssetId).Distinct().Order());
+        StaticModelDefinition floor = Assert.Single(map.StaticModels, model => model.Id == "floor-visible");
+        Assert.Equal("kenney-floor-square", floor.AssetId);
+        Assert.Equal(new MapVector3(40.0f, 1.0f, 40.0f), floor.Scale);
+        StaticBoxDefinition fallback = Assert.Single(map.StaticBoxes);
+        Assert.Equal("ground-fallback", fallback.Id);
+        Assert.True(fallback.Position.Y + (fallback.Size.Y * 0.5f) < floor.Position.Y);
+
+        Assert.Contains(map.StaticModels, model => model.Id.StartsWith("west-", StringComparison.Ordinal));
+        Assert.Contains(map.StaticModels, model => model.Id.StartsWith("north-", StringComparison.Ordinal));
+        Assert.Contains(map.StaticModels, model => model.Id.StartsWith("south-", StringComparison.Ordinal));
+        Assert.Contains(map.StaticModels, model => model.Id.StartsWith("east-", StringComparison.Ordinal));
+        Assert.Equal(4, map.StaticModels.Count(model => model.Id.StartsWith("center-", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void PrototypeArenaSpawnsAreUniqueInBoundsAndFaceArenaCenter()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+
+        Assert.Equal(8, map.SpawnPoints.Count(spawn => spawn.Id.StartsWith("outer-", StringComparison.Ordinal)));
+        Assert.Equal(4, map.SpawnPoints.Count(spawn => spawn.Id.StartsWith("inner-", StringComparison.Ordinal)));
+        Assert.Equal(12, map.SpawnPoints.Select(spawn => spawn.Position).Distinct().Count());
+        Assert.All(map.SpawnPoints, spawn =>
+        {
+            Assert.InRange(spawn.Position.X, map.WorldBounds.Min.X, map.WorldBounds.Max.X);
+            Assert.InRange(spawn.Position.Y, map.WorldBounds.Min.Y, map.WorldBounds.Max.Y);
+            Assert.InRange(spawn.Position.Z, map.WorldBounds.Min.Z, map.WorldBounds.Max.Z);
+
+            float yaw = spawn.RotationEuler.Y * MathF.PI / 180.0f;
+            var forward = new MapVector3(MathF.Sin(yaw), 0.0f, -MathF.Cos(yaw));
+            float centerX = -spawn.Position.X;
+            float centerZ = -spawn.Position.Z;
+            float inverseLength = 1.0f / MathF.Sqrt((centerX * centerX) + (centerZ * centerZ));
+            float alignment = (forward.X * centerX * inverseLength) + (forward.Z * centerZ * inverseLength);
+            Assert.True(alignment > 0.999f, $"Spawn '{spawn.Id}' does not face the arena center.");
+        });
+    }
+
+    [Fact]
     public void MissingMapIdFailsWithClearMessage()
     {
         FileNotFoundException exception = Assert.Throws<FileNotFoundException>(() => MapCatalog.LoadById("missing-map"));

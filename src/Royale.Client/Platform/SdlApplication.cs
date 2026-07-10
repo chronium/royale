@@ -43,10 +43,10 @@ public sealed unsafe class SdlApplication : IDisposable
     private readonly DebugCamera freeCamera = DebugCamera.CreateDefault();
     private readonly GameplayView gameplayView = GameplayView.CreateDefault();
     private readonly ClientCameraModeController cameraMode = new();
-    private readonly RenderViewModeController renderViewMode = new();
+    private readonly RenderViewModeController renderViewMode;
     private readonly LocalPredictionSmoother networkPredictionSmoother = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
-    private readonly TelemetryVisibilityController telemetryVisibility = new();
+    private readonly TelemetryVisibilityController telemetryVisibility;
     private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
     private bool initialized;
@@ -77,6 +77,8 @@ public sealed unsafe class SdlApplication : IDisposable
     {
         this.options = options;
         this.logger = logger;
+        renderViewMode = new RenderViewModeController(options.RenderViewMode);
+        telemetryVisibility = new TelemetryVisibilityController(options.TelemetryVisible);
         ApplyCameraLaunchOptions(options);
     }
 

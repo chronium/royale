@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T13:40:55.2978460Z
+modifiedAt: 2026-07-10T14:00:42.1354140Z
 ---
 
 ## Content and Map Data
@@ -63,6 +63,22 @@ Loot points and safe-zone fields are still placeholders at this stage and do not
 Rendering-only data may remain client-specific.
 
 The server should not need textures or shader assets.
+
+### Prototype Combat Arena
+
+`GAME-013` adds `src/Royale.Content/Maps/prototype-arena.json` as a second, explicitly selected map. `graybox` remains the client, server, development, production, `ContentCatalog`, and `MapCatalog` default. Launch the arena with `--map prototype-arena`; no map-selection UI or implicit profile change is introduced.
+
+`prototype-arena` retains graybox's `-24..24` X/Z world bounds, `-1..5` vertical bounds, origin-centered radius-20 safe-zone placeholder, 12 inward-facing spawn candidates (eight outer and four protected inner), and eight placeholder loot points. Its visible play surface is a 40×40 scaled `kenney-floor-square` triangle mesh at Y=0. A single 40×40 primitive `ground-fallback` ends at Y=-0.02 and remains hidden below the model floor as reliable fallback collision.
+
+Forty-five static model instances form five readable regions: a staggered west crate yard with short wall lanes; a north 8×8 raised platform with separate stairs and slope approaches; a south doorway compound with four corners, two openings, side walls, and interior cover; an east six-column courtyard with targets and transverse walls; and an open central crossroads with four staggered crates. Four model-backed perimeter walls close the 40×40 visible floor. All architecture remains server-authoritative generated static collision; there are no dynamic doors, animation, dynamic bodies, loot behavior, navigation data, lighting changes, editor, or protocol/schema additions.
+
+Automated validation covers map load/counts/unique IDs/bounds, all asset categories, scene batching, 46 static colliders, valid and simultaneously reservable spawns, visible-floor/platform/boundary raycasts, and the front doorway opening at player height. Traversal feel, cover readability, combat sightlines, and visual collision alignment still require project-owner play validation.
+
+Deterministic captures can select an initial render view and hide ImGui telemetry without changing defaults. `--render-view` accepts `normal`, `world-and-debug`, `debug-only`, or `collision-solids`; `--hide-telemetry` starts with the F3-controlled diagnostic windows hidden. Example:
+
+```text
+dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build --no-restore -- --offline --map prototype-arena --camera-mode freecam --camera-position 25,24,25 --camera-look-at 0,0,0 --render-view normal --hide-telemetry --screenshot /tmp/prototype-arena-normal.bmp --screenshot-after-frames 5
+```
 
 ### Map-Authored Static Models
 

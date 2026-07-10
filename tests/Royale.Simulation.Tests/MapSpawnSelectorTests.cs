@@ -196,6 +196,29 @@ public sealed class MapSpawnSelectorTests
         Assert.Null(exhausted);
     }
 
+    [Fact]
+    public void PrototypeArenaCanReserveEveryAuthoredSpawnCandidate()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        var reservations = new List<SpawnReservation>();
+        var selectedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int index = 0; index < map.SpawnPoints.Count; index++)
+        {
+            Assert.True(MapSpawnSelector.TrySelectSpawn(map, collisionWorld, reservations, out MapSpawnPoint? selected));
+            Assert.NotNull(selected);
+            Assert.True(selectedIds.Add(selected.Id));
+            SpawnReservation reservation = MapSpawnSelector.CreateReservation(selected);
+            Assert.Empty(collisionWorld.OverlapAabb(reservation.LowerBound, reservation.UpperBound));
+            reservations.Add(reservation);
+        }
+
+        Assert.Equal(12, selectedIds.Count);
+        Assert.False(MapSpawnSelector.TrySelectSpawn(map, collisionWorld, reservations, out MapSpawnPoint? exhausted));
+        Assert.Null(exhausted);
+    }
+
     private static GameMap CreateMap(IReadOnlyList<MapSpawnPoint> spawnPoints) =>
         CreateMap(spawnPoints, [Ground()]);
 

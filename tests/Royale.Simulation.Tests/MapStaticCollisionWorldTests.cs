@@ -109,6 +109,61 @@ public sealed class MapStaticCollisionWorldTests
         }
     }
 
+    [Fact]
+    public void PrototypeArenaCreatesExpectedStaticColliderSet()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+
+        Assert.Equal(46, collisionWorld.ColliderCount);
+        Assert.Single(collisionWorld.Colliders, collider => collider.Kind == MapStaticColliderKind.Box);
+        Assert.Equal(45, collisionWorld.Colliders.Count(collider => collider.Kind == MapStaticColliderKind.Model));
+        Assert.All(collisionWorld.Colliders, collider =>
+        {
+            Assert.True(Box3DBindingSurface.b3Body_IsValid(collider.BodyId));
+            Assert.True(Box3DBindingSurface.b3Shape_IsValid(collider.ShapeId));
+        });
+    }
+
+    [Fact]
+    public void PrototypeArenaRaycastsHitVisibleFloorRaisedPlatformAndBoundary()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadById("prototype-arena"));
+
+        AssertRayHits(
+            collisionWorld,
+            new MapVector3(0.0f, 3.0f, 0.0f),
+            new MapVector3(0.0f, -5.0f, 0.0f),
+            "floor-visible",
+            expectedY: 0.0f);
+        AssertRayHits(
+            collisionWorld,
+            new MapVector3(0.0f, 4.0f, -12.0f),
+            new MapVector3(0.0f, -5.0f, 0.0f),
+            "north-platform",
+            expectedY: 1.0f);
+        AssertRayHits(
+            collisionWorld,
+            new MapVector3(0.0f, 1.0f, 18.0f),
+            new MapVector3(0.0f, 0.0f, 4.0f),
+            "boundary-south",
+            expectedY: 1.0f,
+            validateY: false);
+    }
+
+    [Fact]
+    public void PrototypeArenaFrontDoorwayOpeningIsTraversableAtPlayerHeight()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadById("prototype-arena"));
+
+        B3RayResult result = collisionWorld.CastRayClosest(
+            new MapVector3(0.0f, 1.0f, 6.0f),
+            new MapVector3(0.0f, 0.0f, 4.0f));
+
+        Assert.False(result.Hit);
+    }
+
     [Theory]
     [InlineData(ModelCollisionMode.TriangleMesh)]
     [InlineData(ModelCollisionMode.SeparateMesh)]
@@ -350,6 +405,22 @@ public sealed class MapStaticCollisionWorldTests
         {
             context.Free();
         }
+    }
+
+    private static void AssertRayHits(
+        MapStaticCollisionWorld collisionWorld,
+        MapVector3 origin,
+        MapVector3 translation,
+        string expectedContentId,
+        float expectedY,
+        bool validateY = true)
+    {
+        B3RayResult hit = collisionWorld.CastRayClosest(origin, translation);
+        Assert.True(hit.Hit);
+        Assert.True(collisionWorld.TryGetCollider(hit.ShapeId, out MapStaticCollider? collider));
+        Assert.Equal(expectedContentId, collider!.ContentId);
+        if (validateY)
+            Assert.InRange(hit.Point.Y, expectedY - 0.01f, expectedY + 0.01f);
     }
 
     private static bool OnDrawShape(nint userShape, B3WorldTransform transform, B3HexColor color, nint context)

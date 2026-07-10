@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Royale.Client.Presentation;
+using Royale.Client.Rendering;
 using Royale.Content;
 using Royale.Protocol;
 
@@ -14,6 +15,8 @@ public sealed record ClientLaunchOptions(
     int Port,
     string MapId,
     ClientCameraMode CameraMode,
+    RenderViewMode RenderViewMode,
+    bool TelemetryVisible,
     Vector3? CameraPosition,
     Vector3? CameraLookAt,
     string? ScreenshotPath,
@@ -25,6 +28,8 @@ public sealed record ClientLaunchOptions(
         ProtocolConstants.DefaultPort,
         ContentCatalog.DefaultMapId,
         ClientCameraMode.Gameplay,
+        RenderViewMode.WorldAndDebug,
+        true,
         null,
         null,
         null,
@@ -45,6 +50,8 @@ public sealed record ClientLaunchOptions(
         ClientCameraMode cameraMode = profile?.CameraMode is null
             ? ClientCameraMode.Gameplay
             : ParseCameraMode(profile.CameraMode);
+        RenderViewMode renderViewMode = RenderViewMode.WorldAndDebug;
+        bool telemetryVisible = true;
         Vector3? cameraPosition = profile?.CameraPosition is null
             ? null
             : ParseVector3(profile.CameraPosition, "cameraPosition");
@@ -84,6 +91,14 @@ public sealed record ClientLaunchOptions(
 
                 case "--camera-mode":
                     cameraMode = ParseCameraMode(ReadRequiredValue(args, ref index, "--camera-mode"));
+                    break;
+
+                case "--render-view":
+                    renderViewMode = ParseRenderViewMode(ReadRequiredValue(args, ref index, "--render-view"));
+                    break;
+
+                case "--hide-telemetry":
+                    telemetryVisible = false;
                     break;
 
                 case "--camera-position":
@@ -150,11 +165,22 @@ public sealed record ClientLaunchOptions(
             port,
             mapId,
             cameraMode,
+            renderViewMode,
+            telemetryVisible,
             cameraPosition,
             cameraLookAt,
             screenshotPath,
             screenshotAfterFrames);
     }
+
+    private static RenderViewMode ParseRenderViewMode(string value) => value switch
+    {
+        "normal" => RenderViewMode.Normal,
+        "world-and-debug" => RenderViewMode.WorldAndDebug,
+        "debug-only" => RenderViewMode.DebugOnly,
+        "collision-solids" => RenderViewMode.CollisionSolids,
+        _ => throw new ArgumentException("--render-view must be normal, world-and-debug, debug-only, or collision-solids."),
+    };
 
     private static string? FindConfigPath(IReadOnlyList<string> args)
     {

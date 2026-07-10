@@ -10,7 +10,9 @@ namespace Royale.Client.Presentation;
 
 public sealed class RenderViewModeController
 {
-    public RenderViewMode Mode { get; private set; } = RenderViewMode.WorldAndDebug;
+    public RenderViewModeController(RenderViewMode mode = RenderViewMode.WorldAndDebug) => Mode = mode;
+
+    public RenderViewMode Mode { get; private set; }
 
     public bool HandleKeyDown(SDL_Keycode key)
     {

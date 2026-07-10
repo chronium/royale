@@ -1,6 +1,7 @@
 using System.Numerics;
 using Royale.Client.Launch;
 using Royale.Client.Presentation;
+using Royale.Client.Rendering;
 using Royale.Content;
 using Royale.Protocol;
 
@@ -18,10 +19,38 @@ public sealed class ClientLaunchOptionsTests
         Assert.Equal(ProtocolConstants.DefaultPort, options.Port);
         Assert.Equal(ContentCatalog.DefaultMapId, options.MapId);
         Assert.Equal(ClientCameraMode.Gameplay, options.CameraMode);
+        Assert.Equal(RenderViewMode.WorldAndDebug, options.RenderViewMode);
+        Assert.True(options.TelemetryVisible);
         Assert.Null(options.CameraPosition);
         Assert.Null(options.CameraLookAt);
         Assert.Null(options.ScreenshotPath);
         Assert.Equal(0, options.ScreenshotAfterFrames);
+    }
+
+    [Theory]
+    [InlineData("normal", RenderViewMode.Normal)]
+    [InlineData("world-and-debug", RenderViewMode.WorldAndDebug)]
+    [InlineData("debug-only", RenderViewMode.DebugOnly)]
+    [InlineData("collision-solids", RenderViewMode.CollisionSolids)]
+    public void ParseAcceptsExplicitRenderView(string value, RenderViewMode expected)
+    {
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(["--render-view", value]);
+
+        Assert.Equal(expected, options.RenderViewMode);
+    }
+
+    [Fact]
+    public void ParseRejectsInvalidRenderView()
+    {
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--render-view", "wireframe"]));
+    }
+
+    [Fact]
+    public void ParseCanHideTelemetryForDeterministicCapture()
+    {
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(["--hide-telemetry"]);
+
+        Assert.False(options.TelemetryVisible);
     }
 
     [Fact]

@@ -6,7 +6,7 @@ The goal is not to reproduce the scale or feature set of a commercial battle roy
 
 Current status: early prototype. The client can open an SDL3 window, render a gray-box world through SDL GPU, display ImGui diagnostics, run local first-person movement, use Box3D-backed collision helpers, fire a default hitscan rifle at a training dummy, and render BlurgText-based screen/world labels. Dedicated server, networking, battle-royale match flow, loot, packaging, and full cross-platform verification are still in progress.
 
-![Royale client gray-box debug view](docs/screenshots/client-graybox-debug.png)
+![Royale client prototype arena](docs/screenshots/client-prototype-arena.png)
 
 ## Goals
 

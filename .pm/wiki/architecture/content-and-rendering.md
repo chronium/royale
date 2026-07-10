@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T09:55:51.1855580Z
+modifiedAt: 2026-07-10T13:13:16.2634810Z
 ---
 
 ## Content and Map Data
@@ -140,7 +140,7 @@ Active ImGui rendering uses this SDL GPU ordering:
 11. Perform screenshot readback after ImGui rendering when screenshot mode is active.
 12. Submit the command buffer.
 
-The initial debug overlay window is titled `Royale` and shows frame delta/FPS, fixed ticks this frame, total fixed tick, mouse capture state, and current render view mode. It intentionally does not expose gameplay controls.
+The current development diagnostics surface is the resizable ImGui `Telemetry` window documented on the `diagnostics` and `architecture/diagnostics-testing-deployment` pages. Its default-open Renderer section reports live camera, render-view, mouse-capture, loaded map/content, model-asset cache, and screenshot scheduling/output state; Frame remains limited to frame time/FPS, and fixed-tick values remain in Simulation. It intentionally does not expose gameplay controls.
 
 `RENDER-006` adds the first debug primitive rendering path. `DebugPrimitiveList` is a project-owned CPU line list for game-specific debug visuals such as the local player capsule, spawn markers, safe-zone boundary, and future ray/contact markers. `Box3DDebugDrawAdapter` calls `b3World_Draw` for the local static collision world and converts Box3D debug shapes and callbacks into the same line list.
 
@@ -148,7 +148,7 @@ The initial debug overlay window is titled `Royale` and shows frame delta/FPS, f
 
 `RENDER-007` adds client render view modes through `RenderViewModeController`. Startup defaults to `WorldAndDebug` during the debug-heavy M1 milestone. `F5` selects normal world solids only, `F6` selects world solids plus debug wireframes, `F7` selects debug wireframes over a cleared frame, and `F8` selects solid collision-world rendering. These hotkeys are global controls like `F1`, `F2`, and `Escape`, so they remain available while ImGui has keyboard capture.
 
-`CollisionSolids` does not derive filled geometry from Box3D debug callbacks. It renders the same `GameMap.StaticBoxes` source data used to create the local `MapStaticCollisionWorld`, preserving the shared `position`, `size`, and yaw/pitch/roll transform convention. The active render view mode is exposed from `SdlApplication`, included in the debug overlay, and appended to the diagnostic window title.
+`CollisionSolids` does not derive filled geometry from Box3D debug callbacks. It renders the same `GameMap.StaticBoxes` source data used to create the local `MapStaticCollisionWorld`, preserving the shared `position`, `size`, and yaw/pitch/roll transform convention. The active render view mode is exposed from `SdlApplication`, included in the Telemetry window's Renderer section, and appended to the diagnostic window title.
 
 `RENDER-008` adds the first game-facing text path outside ImGui. `BlurgTextRenderer` owns BlurgText lifetime, enables system fonts, resolves a default font from a conservative family list (`SF Pro`, `DejaVu Sans`, `Noto Sans`, `Liberation Sans`, `Segoe UI`, `Arial`), and fails clearly if no default font can be resolved. Blurg atlas allocation/update callbacks create SDL GPU RGBA atlas textures and upload changed atlas rectangles through transfer buffers. `TextQuadRenderer` draws Blurg rectangles as screen-space textured quads with alpha blending, no depth testing, and no depth writes.
 

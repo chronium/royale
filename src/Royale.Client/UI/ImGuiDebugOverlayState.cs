@@ -14,10 +14,10 @@ namespace Royale.Client.UI;
 public readonly record struct ImGuiDebugOverlayState(
     double DeltaSeconds,
     int FixedTicksThisFrame,
-    ulong TotalFixedTicks,
-    bool MouseCaptured,
-    RenderViewMode RenderViewMode)
+    ulong TotalFixedTicks)
 {
+    public TelemetryRendererState? Renderer { get; init; }
+
     public TelemetrySimulationState Simulation { get; init; }
 
     public TelemetryPlayerState? Player { get; init; }
@@ -40,16 +40,11 @@ public readonly record struct ImGuiDebugOverlayState(
 
     public string TotalFixedTickText => $"Total fixed tick: {TotalFixedTicks}";
 
-    public string MouseCaptureText => $"Mouse: {(MouseCaptured ? "captured" : "free")}";
-
-    public string RenderViewModeText => $"Render view: {RenderViewMode}";
-
     public static ImGuiDebugOverlayState CreateOffline(
         double deltaSeconds,
         int fixedTicksThisFrame,
         ulong totalFixedTicks,
-        bool mouseCaptured,
-        RenderViewMode renderViewMode,
+        TelemetryRendererState? renderer,
         LocalPlayerController localPlayer,
         int staticColliderCount)
     {
@@ -58,10 +53,9 @@ public readonly record struct ImGuiDebugOverlayState(
         return new ImGuiDebugOverlayState(
             deltaSeconds,
             fixedTicksThisFrame,
-            totalFixedTicks,
-            mouseCaptured,
-            renderViewMode)
+            totalFixedTicks)
         {
+            Renderer = renderer,
             Simulation = new TelemetrySimulationState(null, null, null, null, null, null),
             Player = new TelemetryPlayerState(
                 "Offline local player",
@@ -104,8 +98,7 @@ public readonly record struct ImGuiDebugOverlayState(
         double deltaSeconds,
         int fixedTicksThisFrame,
         ulong totalFixedTicks,
-        bool mouseCaptured,
-        RenderViewMode renderViewMode,
+        TelemetryRendererState? renderer,
         NetworkClientRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -117,10 +110,9 @@ public readonly record struct ImGuiDebugOverlayState(
         return new ImGuiDebugOverlayState(
             deltaSeconds,
             fixedTicksThisFrame,
-            totalFixedTicks,
-            mouseCaptured,
-            renderViewMode)
+            totalFixedTicks)
         {
+            Renderer = renderer,
             Simulation = new TelemetrySimulationState(
                 snapshot?.ServerTick,
                 snapshot is null ? null : CalculateTickDifference(snapshot.ServerTick, totalFixedTicks),

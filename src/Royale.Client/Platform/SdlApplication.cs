@@ -60,6 +60,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private LocalPlayerController? localPlayer;
     private NetworkClientRuntime? networkClient;
     private GameMap? loadedMap;
+    private StaticMeshAssetCache? staticMeshAssetCache;
     private PlayerInputSample lastGameplayInput;
 
     public SdlApplication()
@@ -228,6 +229,7 @@ public sealed unsafe class SdlApplication : IDisposable
             networkClient = NetworkClientRuntime.Connect(options.ConnectHost!, options.Port);
 
         StaticMeshAssetCache assetCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+        staticMeshAssetCache = assetCache;
         Dictionary<string, StaticMeshAsset> mapAssets = map.StaticModels
             .Select(model => model.AssetId)
             .Distinct(StringComparer.Ordinal)
@@ -386,6 +388,23 @@ public sealed unsafe class SdlApplication : IDisposable
     private ImGuiDebugOverlayState CreateTelemetryState(FrameTime frameTime)
     {
         bool mouseCaptured = Window?.RelativeMouseMode.Enabled == true;
+        TelemetryRendererState? renderer = loadedMap is GameMap map && staticMeshAssetCache is StaticMeshAssetCache assetCache
+            ? new TelemetryRendererState(
+                cameraMode.Mode,
+                options.CameraMode,
+                options.CameraPosition,
+                options.CameraLookAt,
+                renderViewMode.Mode,
+                mouseCaptured,
+                map.Id,
+                map.StaticBoxes.Count,
+                map.StaticModels.Count,
+                assetCache.LoadedAssetCount,
+                options.ScreenshotPath is not null,
+                options.ScreenshotPath is null ? null : options.ScreenshotAfterFrames,
+                renderedFrames,
+                options.ScreenshotPath)
+            : null;
 
         if (networkClient is not null)
         {
@@ -393,8 +412,7 @@ public sealed unsafe class SdlApplication : IDisposable
                 frameTime.DeltaSeconds,
                 lastFixedTicksThisFrame,
                 fixedTime.TotalFixedTicks,
-                mouseCaptured,
-                renderViewMode.Mode,
+                renderer,
                 networkClient);
         }
 
@@ -404,8 +422,7 @@ public sealed unsafe class SdlApplication : IDisposable
                 frameTime.DeltaSeconds,
                 lastFixedTicksThisFrame,
                 fixedTime.TotalFixedTicks,
-                mouseCaptured,
-                renderViewMode.Mode,
+                renderer,
                 localPlayer,
                 localPlayer.CollisionWorld.ColliderCount);
         }
@@ -413,9 +430,10 @@ public sealed unsafe class SdlApplication : IDisposable
         return new ImGuiDebugOverlayState(
             frameTime.DeltaSeconds,
             lastFixedTicksThisFrame,
-            fixedTime.TotalFixedTicks,
-            mouseCaptured,
-            renderViewMode.Mode);
+            fixedTime.TotalFixedTicks)
+        {
+            Renderer = renderer,
+        };
     }
 
     private void UpdateCamera(FrameTime frameTime)

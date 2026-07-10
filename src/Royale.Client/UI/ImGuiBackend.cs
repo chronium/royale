@@ -125,11 +125,10 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         if (ImguiNative.igBegin("Telemetry", null, ImGuiWindowFlags.None))
         {
             if (Section("Frame"))
-            {
                 Text(state.FrameTimingText);
-                Text(state.MouseCaptureText);
-                Text(state.RenderViewModeText);
-            }
+
+            if (Section("Renderer"))
+                BuildRendererSection(state.Renderer);
 
             if (Section("Simulation"))
                 BuildSimulationSection(state);
@@ -151,6 +150,27 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         }
 
         ImguiNative.igEnd();
+    }
+
+    private static void BuildRendererSection(TelemetryRendererState? renderer)
+    {
+        if (renderer is null)
+        {
+            Text("Renderer telemetry unavailable");
+            return;
+        }
+
+        Text($"Camera: active {renderer.ActiveCameraMode}; launch {renderer.LaunchCameraMode}");
+        Text(renderer.LaunchPositionText);
+        Text(renderer.LaunchLookAtText);
+        Text($"Render view: {renderer.RenderViewMode}; mouse: {(renderer.MouseCaptured ? "captured" : "free")}");
+        Text($"Map: {renderer.LoadedMapId}");
+        Text($"Content: {renderer.StaticBoxCount} boxes; {renderer.StaticModelCount} models; {renderer.LoadedModelAssetCount} loaded assets");
+        Text(renderer.ScreenshotStateText);
+        Text(renderer.ScreenshotTargetFrame is int targetFrame
+            ? $"Screenshot frames: {renderer.CompletedFrames} completed; target {targetFrame}"
+            : $"Screenshot frames: {renderer.CompletedFrames} completed; target none");
+        WrappedText(renderer.ScreenshotOutputPathText);
     }
 
     private static void BuildSimulationSection(ImGuiDebugOverlayState state)
@@ -397,6 +417,13 @@ internal sealed unsafe class ImGuiBackend : IDisposable
         ImguiNative.igCollapsingHeader_TreeNodeFlags(label, ImGuiTreeNodeFlags.DefaultOpen);
 
     private static void Text(string text) => ImguiNative.igTextUnformatted(text, null!);
+
+    private static void WrappedText(string text)
+    {
+        ImguiNative.igPushTextWrapPos(0.0f);
+        Text(text);
+        ImguiNative.igPopTextWrapPos();
+    }
 
     internal void Render(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUTexture* swapchainTexture)
     {

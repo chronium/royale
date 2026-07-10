@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Numerics;
 using Royale.Client.Gameplay;
+using Royale.Client.Presentation;
 using Royale.Client.Rendering;
 using Royale.Client.Rendering.Cameras;
 using Royale.Client.Rendering.Debug;
@@ -24,15 +26,11 @@ public sealed class ImGuiDebugOverlayStateTests
         var state = new ImGuiDebugOverlayState(
             DeltaSeconds: 1.0 / 60.0,
             FixedTicksThisFrame: 2,
-            TotalFixedTicks: 42,
-            MouseCaptured: true,
-            RenderViewMode: RenderViewMode.WorldAndDebug);
+            TotalFixedTicks: 42);
 
         Assert.Equal("Frame 16.67 ms (60 FPS)", state.FrameTimingText);
         Assert.Equal("Fixed ticks this frame: 2", state.FixedTicksText);
         Assert.Equal("Total fixed tick: 42", state.TotalFixedTickText);
-        Assert.Equal("Mouse: captured", state.MouseCaptureText);
-        Assert.Equal("Render view: WorldAndDebug", state.RenderViewModeText);
     }
 
     [Fact]
@@ -41,13 +39,10 @@ public sealed class ImGuiDebugOverlayStateTests
         var state = new ImGuiDebugOverlayState(
             DeltaSeconds: 0,
             FixedTicksThisFrame: 0,
-            TotalFixedTicks: 0,
-            MouseCaptured: false,
-            RenderViewMode: RenderViewMode.Normal);
+            TotalFixedTicks: 0);
 
         Assert.Equal(0.0, state.FramesPerSecond);
         Assert.Equal("Frame 0.00 ms (0 FPS)", state.FrameTimingText);
-        Assert.Equal("Mouse: free", state.MouseCaptureText);
     }
 
     [Fact]
@@ -59,8 +54,7 @@ public sealed class ImGuiDebugOverlayStateTests
             deltaSeconds: 1.0 / 60.0,
             fixedTicksThisFrame: 1,
             totalFixedTicks: 12,
-            mouseCaptured: false,
-            renderViewMode: RenderViewMode.WorldAndDebug,
+            CreateDefaultRendererState(),
             player,
             staticColliderCount: 1);
 
@@ -76,6 +70,63 @@ public sealed class ImGuiDebugOverlayStateTests
         Assert.Equal(1, state.Physics.StaticColliderCount);
         Assert.Null(state.Simulation.ServerTick);
         Assert.Null(state.Simulation.PendingInputCount);
+        Assert.Equal(ClientCameraMode.Gameplay, state.Renderer!.ActiveCameraMode);
+        Assert.Equal("Launch position override: none", state.Renderer.LaunchPositionText);
+        Assert.Equal("Screenshot: disabled", state.Renderer.ScreenshotStateText);
+    }
+
+    [Fact]
+    public void RendererTelemetryFormatsFreecamLaunchOverridesWithInvariantCulture()
+    {
+        CultureInfo previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ro-RO");
+            var renderer = new TelemetryRendererState(
+                ClientCameraMode.Freecam,
+                ClientCameraMode.Freecam,
+                new Vector3(4.5f, 2.25f, -3.75f),
+                new Vector3(1.75f, 0.7f, -1.35f),
+                RenderViewMode.WorldAndDebug,
+                true,
+                "graybox",
+                18,
+                1,
+                1,
+                true,
+                5,
+                4,
+                "/tmp/royale-freecam.bmp");
+
+            Assert.Equal("Active camera: Freecam", renderer.ActiveCameraText);
+            Assert.Equal("Launch position override: (4.50, 2.25, -3.75)", renderer.LaunchPositionText);
+            Assert.Equal("Launch look-at override: (1.75, 0.70, -1.35)", renderer.LaunchLookAtText);
+            Assert.Equal("Render view: WorldAndDebug", renderer.RenderViewModeText);
+            Assert.Equal("Mouse: captured", renderer.MouseCaptureText);
+            Assert.Equal("Screenshot: pending", renderer.ScreenshotStateText);
+            Assert.Equal("Screenshot target frame: 5", renderer.ScreenshotTargetFrameText);
+            Assert.Equal(4, renderer.CompletedFrames);
+            Assert.Equal("Screenshot output: /tmp/royale-freecam.bmp", renderer.ScreenshotOutputPathText);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
+    [Fact]
+    public void RendererTelemetryReportsMapContentAndDisabledScreenshot()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        TelemetryRendererState renderer = CreateDefaultRendererState();
+
+        Assert.Equal(map.Id, renderer.LoadedMapId);
+        Assert.Equal(map.StaticBoxes.Count, renderer.StaticBoxCount);
+        Assert.Equal(map.StaticModels.Count, renderer.StaticModelCount);
+        Assert.Equal(1, renderer.LoadedModelAssetCount);
+        Assert.False(renderer.ScreenshotEnabled);
+        Assert.Equal("Screenshot target frame: none", renderer.ScreenshotTargetFrameText);
+        Assert.Equal("Screenshot output: none", renderer.ScreenshotOutputPathText);
     }
 
     [Fact]
@@ -153,4 +204,24 @@ public sealed class ImGuiDebugOverlayStateTests
             },
         ],
     };
+
+    private static TelemetryRendererState CreateDefaultRendererState()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        return new TelemetryRendererState(
+            ClientCameraMode.Gameplay,
+            ClientCameraMode.Gameplay,
+            null,
+            null,
+            RenderViewMode.WorldAndDebug,
+            false,
+            map.Id,
+            map.StaticBoxes.Count,
+            map.StaticModels.Count,
+            1,
+            false,
+            null,
+            0,
+            null);
+    }
 }

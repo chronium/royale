@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Numerics;
 using System.Net.Sockets;
+using Royale.Client.Presentation;
+using Royale.Client.Rendering;
 using Royale.Client.Networking;
 using Royale.Network;
 using Royale.Protocol;
@@ -14,6 +16,55 @@ public readonly record struct TelemetrySimulationState(
     int? ReplayedInputCount,
     ulong? ReconciliationCount,
     float? CorrectionDistance);
+
+public sealed record TelemetryRendererState(
+    ClientCameraMode ActiveCameraMode,
+    ClientCameraMode LaunchCameraMode,
+    Vector3? LaunchPositionOverride,
+    Vector3? LaunchLookAtOverride,
+    RenderViewMode RenderViewMode,
+    bool MouseCaptured,
+    string LoadedMapId,
+    int StaticBoxCount,
+    int StaticModelCount,
+    int LoadedModelAssetCount,
+    bool ScreenshotEnabled,
+    int? ScreenshotTargetFrame,
+    int CompletedFrames,
+    string? ScreenshotOutputPath)
+{
+    public string ActiveCameraText => $"Active camera: {ActiveCameraMode}";
+
+    public string LaunchCameraText => $"Launch camera: {LaunchCameraMode}";
+
+    public string LaunchPositionText => $"Launch position override: {FormatOptionalVector(LaunchPositionOverride)}";
+
+    public string LaunchLookAtText => $"Launch look-at override: {FormatOptionalVector(LaunchLookAtOverride)}";
+
+    public string RenderViewModeText => $"Render view: {RenderViewMode}";
+
+    public string MouseCaptureText => $"Mouse: {(MouseCaptured ? "captured" : "free")}";
+
+    public string ScreenshotStateText => !ScreenshotEnabled
+        ? "Screenshot: disabled"
+        : CompletedFrames < ScreenshotTargetFrame
+            ? "Screenshot: pending"
+            : "Screenshot: target frame reached";
+
+    public string ScreenshotTargetFrameText => ScreenshotTargetFrame is int targetFrame
+        ? $"Screenshot target frame: {targetFrame}"
+        : "Screenshot target frame: none";
+
+    public string ScreenshotOutputPathText => ScreenshotOutputPath is null
+        ? "Screenshot output: none"
+        : $"Screenshot output: {ScreenshotOutputPath}";
+
+    private static string FormatOptionalVector(Vector3? value) => value is Vector3 vector
+        ? string.Create(
+            CultureInfo.InvariantCulture,
+            $"({vector.X:0.00}, {vector.Y:0.00}, {vector.Z:0.00})")
+        : "none";
+}
 
 public sealed record TelemetryPlayerState(string Status, TelemetryPlayerValues? Values, PlayerDiagnosticsState? OfflineDiagnostics)
 {

@@ -249,8 +249,7 @@ public sealed class NetworkClientRuntimeTests
             1.0 / 60.0,
             fixedTicksThisFrame: 1,
             totalFixedTicks: 42,
-            mouseCaptured: false,
-            RenderViewMode.WorldAndDebug,
+            CreateRendererState(mouseCaptured: false),
             runtime);
 
         Assert.NotNull(state.Server);
@@ -276,8 +275,7 @@ public sealed class NetworkClientRuntimeTests
             1.0 / 60.0,
             fixedTicksThisFrame: 1,
             totalFixedTicks: 100,
-            mouseCaptured: true,
-            RenderViewMode.WorldAndDebug,
+            CreateRendererState(mouseCaptured: true),
             runtime);
 
         Assert.True(state.Server!.Available);
@@ -829,6 +827,22 @@ public sealed class NetworkClientRuntimeTests
         Assert.True(float.IsFinite(vector.Y));
         Assert.True(float.IsFinite(vector.Z));
     }
+
+    private static TelemetryRendererState CreateRendererState(bool mouseCaptured) => new(
+        ClientCameraMode.Gameplay,
+        ClientCameraMode.Gameplay,
+        null,
+        null,
+        RenderViewMode.WorldAndDebug,
+        mouseCaptured,
+        "test-map",
+        1,
+        0,
+        0,
+        false,
+        null,
+        0,
+        null);
 
     private sealed class FakeNetworkTransport : INetworkTransport, INetworkTransportDiagnostics
     {

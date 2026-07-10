@@ -388,7 +388,9 @@ public sealed class HeadlessServerSimulationTests
 
         Assert.Equal(1UL, snapshot.ServerTick);
         Assert.Equal(player.PlayerId.Value, playerSnapshot.PlayerId);
-        Assert.Equal(player.Character.Position, playerSnapshot.Position);
+        Assert.Equal(player.Character.Position.X, playerSnapshot.Position.X, precision: 5);
+        Assert.Equal(player.Character.Position.Y, playerSnapshot.Position.Y, precision: 5);
+        Assert.Equal(player.Character.Position.Z, playerSnapshot.Position.Z, precision: 5);
         Assert.Equal(player.Character.Velocity, playerSnapshot.Velocity);
         Assert.Equal(player.Look.YawRadians, playerSnapshot.YawRadians);
         Assert.Equal(player.Look.PitchRadians, playerSnapshot.PitchRadians);

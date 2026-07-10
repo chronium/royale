@@ -35,17 +35,25 @@ public sealed class MapContentTests
     }
 
     [Fact]
-    public void GrayboxSpawnPointIdsArePresentAndUnique()
+    public void GrayboxSpawnAndLootPointsHaveExpectedUniqueCounts()
     {
         GameMap map = MapCatalog.LoadDefault();
-        string[] ids = map.SpawnPoints.Select(spawnPoint => spawnPoint.Id).ToArray();
+        string[] spawnIds = map.SpawnPoints.Select(spawnPoint => spawnPoint.Id).ToArray();
+        string[] lootIds = map.LootPoints.Select(lootPoint => lootPoint.Id).ToArray();
 
-        Assert.All(ids, id => Assert.False(string.IsNullOrWhiteSpace(id)));
-        Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(12, spawnIds.Length);
+        Assert.All(spawnIds, id => Assert.False(string.IsNullOrWhiteSpace(id)));
+        Assert.Equal(spawnIds.Length, spawnIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(12, map.SpawnPoints.Select(spawnPoint => spawnPoint.Position).Distinct().Count());
+
+        Assert.Equal(8, lootIds.Length);
+        Assert.All(lootIds, id => Assert.False(string.IsNullOrWhiteSpace(id)));
+        Assert.Equal(lootIds.Length, lootIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(8, map.LootPoints.Select(lootPoint => lootPoint.Position).Distinct().Count());
     }
 
     [Fact]
-    public void GrayboxSpawnPositionsAreInsideWorldBounds()
+    public void GrayboxSpawnPositionsAreInsideWorldBoundsAndInitialSafeZone()
     {
         GameMap map = MapCatalog.LoadDefault();
 
@@ -54,6 +62,9 @@ public sealed class MapContentTests
             Assert.True(spawnPoint.Position.X >= map.WorldBounds.Min.X && spawnPoint.Position.X <= map.WorldBounds.Max.X);
             Assert.True(spawnPoint.Position.Y >= map.WorldBounds.Min.Y && spawnPoint.Position.Y <= map.WorldBounds.Max.Y);
             Assert.True(spawnPoint.Position.Z >= map.WorldBounds.Min.Z && spawnPoint.Position.Z <= map.WorldBounds.Max.Z);
+            float deltaX = spawnPoint.Position.X - map.SafeZone.Center.X;
+            float deltaZ = spawnPoint.Position.Z - map.SafeZone.Center.Z;
+            Assert.True((deltaX * deltaX) + (deltaZ * deltaZ) <= map.SafeZone.Radius * map.SafeZone.Radius);
         });
     }
 
@@ -68,6 +79,13 @@ public sealed class MapContentTests
         Assert.Contains(ids, id => id.Contains("ramp", StringComparison.Ordinal));
         Assert.Contains(ids, id => id.Contains("step", StringComparison.Ordinal) || id.Contains("platform", StringComparison.Ordinal));
         Assert.Contains(ids, id => id.Contains("cover", StringComparison.Ordinal));
+        Assert.Contains(ids, id => id.StartsWith("north-", StringComparison.Ordinal));
+        Assert.Contains(ids, id => id.StartsWith("east-", StringComparison.Ordinal));
+        Assert.Contains(ids, id => id.StartsWith("south-", StringComparison.Ordinal));
+        Assert.Contains(ids, id => id.StartsWith("west-", StringComparison.Ordinal));
+        Assert.Equal(4, ids.Count(id => id.StartsWith("center-", StringComparison.Ordinal)));
+        Assert.Equal(18, map.StaticBoxes.Count(staticBox =>
+            staticBox.Id != "ground-main" && !staticBox.Id.StartsWith("boundary-", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -84,12 +102,12 @@ public sealed class MapContentTests
         Assert.Equal(24.0f, map.WorldBounds.Max.Z);
         Assert.Equal(20.0f, map.SafeZone.Radius);
 
-        Assert.Equal(20.0f, ground.Size.X);
-        Assert.Equal(20.0f, ground.Size.Z);
-        Assert.Equal(-9.9f, northWall.Position.Z);
-        Assert.Equal(20.0f, northWall.Size.X);
-        Assert.Equal(9.9f, eastWall.Position.X);
-        Assert.Equal(20.0f, eastWall.Size.Z);
+        Assert.Equal(40.0f, ground.Size.X);
+        Assert.Equal(40.0f, ground.Size.Z);
+        Assert.Equal(-19.9f, northWall.Position.Z);
+        Assert.Equal(40.0f, northWall.Size.X);
+        Assert.Equal(19.9f, eastWall.Position.X);
+        Assert.Equal(40.0f, eastWall.Size.Z);
     }
 
     [Fact]

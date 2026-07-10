@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-06T19:22:35.3299580Z
+modifiedAt: 2026-07-10T06:35:45.9845160Z
 ---
 
 ## Content and Map Data
@@ -12,7 +12,7 @@ The committed default map file is `src/Royale.Content/Maps/graybox.json`. The co
 
 `MapCatalog.LoadById()` accepts simple ASCII map ids using letters, digits, `-`, and `_`, then loads and validates the matching JSON file. Missing files fail with a clear `FileNotFoundException`; malformed JSON or invalid map shape fails with `InvalidDataException`.
 
-The current `graybox` map uses a larger horizontal test arena than the original M1 blockout. Its gameplay bounds are `-24..24` on X/Z, the safe-zone placeholder radius is `20`, and the rendered/collidable floor is `20 x 20` metres with perimeter walls at approximately `+/-9.9` metres. Individual cover, wall, step, platform, and ramp object sizes remain authored at their original scale. Most X/Z positions were doubled to create more walking room, while the step/ramp/platform assembly was translated as one unit so its internal spacing and ramp approach remain unchanged.
+The current `graybox` map is a `40 x 40` metre tactical arena for eight-player matches. Gameplay bounds remain `-24..24` on X/Z, the initial safe-zone placeholder remains centered at the origin with radius `20`, and perimeter walls sit at approximately `+/-19.9` metres. The map defines 12 ordered candidate spawns (eight outer and four inner) and eight placeholder loot points. Eighteen interior primitives form four recognizable combat zones: an angled wall maze to the north, tall and long sightline cover to the east, an angled wall with mixed-height cover to the south, and the preserved step/ramp/platform assembly with two blockers to the west. Four staggered center objects break opening and diagonal sightlines while leaving traversal gaps. The ramp cluster retains its original internal offsets and transform; the map continues to use only the existing primitive box schema.
 
 The current minimal schema is:
 
@@ -30,9 +30,9 @@ The current minimal schema is:
   },
   "spawnPoints": [
     {
-      "id": "spawn-north-west",
-      "position": { "x": -7.6, "y": 0.0, "z": -7.6 },
-      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+      "id": "outer-north",
+      "position": { "x": 0.0, "y": 0.0, "z": -17.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     }
   ],
   "lootPoints": [
@@ -45,7 +45,7 @@ The current minimal schema is:
     {
       "id": "ground-main",
       "position": { "x": 0.0, "y": -0.12, "z": 0.0 },
-      "size": { "x": 20.0, "y": 0.24, "z": 20.0 },
+      "size": { "x": 40.0, "y": 0.24, "z": 40.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     }
   ]

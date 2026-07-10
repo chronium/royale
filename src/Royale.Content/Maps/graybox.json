@@ -11,18 +11,63 @@
   },
   "spawnPoints": [
     {
-      "id": "spawn-north-west",
-      "position": { "x": -7.6, "y": 0.0, "z": -7.6 },
-      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+      "id": "outer-north",
+      "position": { "x": 0.0, "y": 0.0, "z": -17.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
-      "id": "spawn-south-east",
-      "position": { "x": 7.6, "y": 0.0, "z": 7.6 },
+      "id": "outer-north-east",
+      "position": { "x": 12.0, "y": 0.0, "z": -12.0 },
+      "rotationEuler": { "x": 0.0, "y": -45.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-east",
+      "position": { "x": 17.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": -90.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-south-east",
+      "position": { "x": 12.0, "y": 0.0, "z": 12.0 },
       "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
     },
     {
-      "id": "spawn-west",
-      "position": { "x": -8.4, "y": 0.0, "z": -2.4 },
+      "id": "outer-south",
+      "position": { "x": 0.0, "y": 0.0, "z": 17.0 },
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-south-west",
+      "position": { "x": -12.0, "y": 0.0, "z": 12.0 },
+      "rotationEuler": { "x": 0.0, "y": 135.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-west",
+      "position": { "x": -17.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 }
+    },
+    {
+      "id": "outer-north-west",
+      "position": { "x": -12.0, "y": 0.0, "z": -12.0 },
+      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+    },
+    {
+      "id": "inner-north",
+      "position": { "x": 0.0, "y": 0.0, "z": -7.0 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "inner-east",
+      "position": { "x": 7.0, "y": 0.0, "z": 0.0 },
+      "rotationEuler": { "x": 0.0, "y": -90.0, "z": 0.0 }
+    },
+    {
+      "id": "inner-south",
+      "position": { "x": 0.0, "y": 0.0, "z": 7.0 },
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
+    },
+    {
+      "id": "inner-west",
+      "position": { "x": -7.0, "y": 0.0, "z": 0.0 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 }
     }
   ],
@@ -32,50 +77,118 @@
       "position": { "x": 0.0, "y": 0.35, "z": 0.0 }
     },
     {
-      "id": "loot-platform",
-      "position": { "x": -5.85, "y": 1.1, "z": 3.75 }
+      "id": "loot-north-zone",
+      "position": { "x": -6.0, "y": 0.35, "z": -9.0 }
     },
     {
-      "id": "loot-cover",
-      "position": { "x": 5.0, "y": 0.7, "z": -3.4 }
+      "id": "loot-east-zone",
+      "position": { "x": 13.5, "y": 0.35, "z": 0.0 }
+    },
+    {
+      "id": "loot-south-zone",
+      "position": { "x": 7.0, "y": 0.35, "z": 10.0 }
+    },
+    {
+      "id": "loot-west-zone",
+      "position": { "x": -10.0, "y": 0.35, "z": 2.5 }
+    },
+    {
+      "id": "loot-ramp-platform",
+      "position": { "x": -6.1, "y": 1.15, "z": 4.1 }
+    },
+    {
+      "id": "loot-north-east-route",
+      "position": { "x": 6.0, "y": 0.35, "z": -7.0 }
+    },
+    {
+      "id": "loot-south-west-route",
+      "position": { "x": -7.0, "y": 0.35, "z": 8.0 }
     }
   ],
   "staticBoxes": [
     {
       "id": "ground-main",
       "position": { "x": 0.0, "y": -0.12, "z": 0.0 },
-      "size": { "x": 20.0, "y": 0.24, "z": 20.0 },
+      "size": { "x": 40.0, "y": 0.24, "z": 40.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-north-wall",
-      "position": { "x": 0.0, "y": 0.85, "z": -9.9 },
-      "size": { "x": 20.0, "y": 1.7, "z": 0.28 },
+      "position": { "x": 0.0, "y": 0.85, "z": -19.9 },
+      "size": { "x": 40.0, "y": 1.7, "z": 0.28 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-south-wall",
-      "position": { "x": 0.0, "y": 0.85, "z": 9.9 },
-      "size": { "x": 20.0, "y": 1.7, "z": 0.28 },
+      "position": { "x": 0.0, "y": 0.85, "z": 19.9 },
+      "size": { "x": 40.0, "y": 1.7, "z": 0.28 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-west-wall",
-      "position": { "x": -9.9, "y": 0.85, "z": 0.0 },
-      "size": { "x": 0.28, "y": 1.7, "z": 20.0 },
+      "position": { "x": -19.9, "y": 0.85, "z": 0.0 },
+      "size": { "x": 0.28, "y": 1.7, "z": 40.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "boundary-east-wall",
-      "position": { "x": 9.9, "y": 0.85, "z": 0.0 },
-      "size": { "x": 0.28, "y": 1.7, "z": 20.0 },
+      "position": { "x": 19.9, "y": 0.85, "z": 0.0 },
+      "size": { "x": 0.28, "y": 1.7, "z": 40.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
-      "id": "wall-center-long",
-      "position": { "x": -0.5, "y": 0.55, "z": -3.7 },
-      "size": { "x": 3.8, "y": 1.1, "z": 0.34 },
+      "id": "north-wall-west",
+      "position": { "x": -4.5, "y": 1.1, "z": -12.0 },
+      "size": { "x": 5.0, "y": 2.2, "z": 0.35 },
+      "rotationEuler": { "x": 0.0, "y": 25.0, "z": 0.0 }
+    },
+    {
+      "id": "north-wall-east",
+      "position": { "x": 4.0, "y": 1.1, "z": -10.0 },
+      "size": { "x": 4.5, "y": 2.2, "z": 0.35 },
+      "rotationEuler": { "x": 0.0, "y": -25.0, "z": 0.0 }
+    },
+    {
+      "id": "north-cover-low",
+      "position": { "x": 0.0, "y": 0.3, "z": -12.0 },
+      "size": { "x": 2.0, "y": 0.6, "z": 1.2 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+    },
+    {
+      "id": "east-cover-tall",
+      "position": { "x": 12.0, "y": 1.1, "z": -4.5 },
+      "size": { "x": 1.2, "y": 2.2, "z": 2.0 },
+      "rotationEuler": { "x": 0.0, "y": -12.0, "z": 0.0 }
+    },
+    {
+      "id": "east-sightline-wall",
+      "position": { "x": 10.5, "y": 1.1, "z": 4.5 },
+      "size": { "x": 0.4, "y": 2.2, "z": 6.0 },
       "rotationEuler": { "x": 0.0, "y": 10.0, "z": 0.0 }
+    },
+    {
+      "id": "east-cover-low",
+      "position": { "x": 14.0, "y": 0.3, "z": 7.5 },
+      "size": { "x": 2.6, "y": 0.6, "z": 1.0 },
+      "rotationEuler": { "x": 0.0, "y": -8.0, "z": 0.0 }
+    },
+    {
+      "id": "south-angled-wall",
+      "position": { "x": -3.0, "y": 1.1, "z": 11.5 },
+      "size": { "x": 5.0, "y": 2.2, "z": 0.35 },
+      "rotationEuler": { "x": 0.0, "y": -25.0, "z": 0.0 }
+    },
+    {
+      "id": "south-cover-mid",
+      "position": { "x": 4.5, "y": 0.9, "z": 12.5 },
+      "size": { "x": 2.0, "y": 1.8, "z": 1.0 },
+      "rotationEuler": { "x": 0.0, "y": 12.0, "z": 0.0 }
+    },
+    {
+      "id": "south-cover-low",
+      "position": { "x": -8.5, "y": 0.3, "z": 13.5 },
+      "size": { "x": 2.5, "y": 0.6, "z": 1.0 },
+      "rotationEuler": { "x": 0.0, "y": -10.0, "z": 0.0 }
     },
     {
       "id": "step-low",
@@ -96,22 +209,40 @@
       "rotationEuler": { "x": -18.0, "y": 0.0, "z": 0.0 }
     },
     {
-      "id": "cover-center-block",
-      "position": { "x": 0.7, "y": 0.38, "z": 0.7 },
-      "size": { "x": 1.0, "y": 0.76, "z": 1.0 },
-      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
-    },
-    {
-      "id": "cover-east-tall",
-      "position": { "x": 5.1, "y": 0.55, "z": -2.8 },
-      "size": { "x": 0.75, "y": 1.1, "z": 1.5 },
+      "id": "west-sightline-blocker",
+      "position": { "x": -12.0, "y": 1.1, "z": -5.0 },
+      "size": { "x": 0.4, "y": 2.2, "z": 5.5 },
       "rotationEuler": { "x": 0.0, "y": -12.0, "z": 0.0 }
     },
     {
-      "id": "cover-south-low",
-      "position": { "x": 3.7, "y": 0.28, "z": 5.4 },
-      "size": { "x": 2.1, "y": 0.56, "z": 0.6 },
-      "rotationEuler": { "x": 0.0, "y": -10.0, "z": 0.0 }
+      "id": "west-cover-blocker",
+      "position": { "x": -13.0, "y": 0.9, "z": 7.5 },
+      "size": { "x": 2.0, "y": 1.8, "z": 1.5 },
+      "rotationEuler": { "x": 0.0, "y": 10.0, "z": 0.0 }
+    },
+    {
+      "id": "center-cover-north-west",
+      "position": { "x": -0.5, "y": 0.9, "z": -3.0 },
+      "size": { "x": 2.0, "y": 1.8, "z": 1.0 },
+      "rotationEuler": { "x": 0.0, "y": 25.0, "z": 0.0 }
+    },
+    {
+      "id": "center-cover-north-east",
+      "position": { "x": 2.5, "y": 1.0, "z": -1.2 },
+      "size": { "x": 1.4, "y": 2.0, "z": 3.0 },
+      "rotationEuler": { "x": 0.0, "y": -15.0, "z": 0.0 }
+    },
+    {
+      "id": "center-cover-south-east",
+      "position": { "x": 3.5, "y": 0.9, "z": 3.5 },
+      "size": { "x": 2.0, "y": 1.8, "z": 1.0 },
+      "rotationEuler": { "x": 0.0, "y": 20.0, "z": 0.0 }
+    },
+    {
+      "id": "center-cover-south-west",
+      "position": { "x": -2.5, "y": 1.0, "z": 2.5 },
+      "size": { "x": 1.2, "y": 2.0, "z": 2.0 },
+      "rotationEuler": { "x": 0.0, "y": -20.0, "z": 0.0 }
     }
   ]
 }

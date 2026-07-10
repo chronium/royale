@@ -57,7 +57,7 @@ public sealed class MapStaticCollisionWorldTests
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
 
         B3RayResult result = collisionWorld.CastRayClosest(
-            new MapVector3(4.0f, 3.0f, 4.0f),
+            new MapVector3(8.0f, 3.0f, -8.0f),
             new MapVector3(0.0f, -5.0f, 0.0f));
 
         Assert.True(result.Hit);
@@ -72,12 +72,12 @@ public sealed class MapStaticCollisionWorldTests
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
 
         B3RayResult result = collisionWorld.CastRayClosest(
-            new MapVector3(0.0f, 0.85f, 0.0f),
+            new MapVector3(0.0f, 0.85f, -13.5f),
             new MapVector3(0.0f, 0.0f, -8.0f));
 
         Assert.True(result.Hit);
         Assert.True(collisionWorld.TryGetCollider(result.ShapeId, out MapStaticCollider? collider));
-        Assert.Contains(collider!.StaticBoxId, new[] { "wall-center-long", "boundary-north-wall" });
+        Assert.Equal("boundary-north-wall", collider!.StaticBoxId);
     }
 
     [Fact]
@@ -86,10 +86,10 @@ public sealed class MapStaticCollisionWorldTests
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
 
         IReadOnlyList<MapStaticCollider> colliders = collisionWorld.OverlapAabb(
-            new MapVector3(0.1f, 0.1f, 0.1f),
-            new MapVector3(1.3f, 0.9f, 1.3f));
+            new MapVector3(2.0f, 0.1f, -3.2f),
+            new MapVector3(4.0f, 1.4f, -0.8f));
 
-        Assert.Contains(colliders, collider => collider.StaticBoxId == "cover-center-block");
+        Assert.Contains(colliders, collider => collider.StaticBoxId == "center-cover-north-east");
     }
 
     [Fact]
@@ -116,6 +116,59 @@ public sealed class MapStaticCollisionWorldTests
             new MapVector3(-5.25f, 0.9f, 3.15f));
 
         Assert.Contains(colliders, collider => collider.StaticBoxId == "ramp-platform-approach");
+    }
+
+    [Fact]
+    public void GrayboxLootPointsAndDefaultTrainingDummyAreClearOfStaticGeometry()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+
+        foreach (MapLootPoint lootPoint in map.LootPoints)
+        {
+            IReadOnlyList<MapStaticCollider> colliders = collisionWorld.OverlapAabb(
+                new MapVector3(lootPoint.Position.X - 0.1f, lootPoint.Position.Y - 0.1f, lootPoint.Position.Z - 0.1f),
+                new MapVector3(lootPoint.Position.X + 0.1f, lootPoint.Position.Y + 0.1f, lootPoint.Position.Z + 0.1f));
+
+            Assert.Empty(colliders);
+        }
+
+        MapSpawnPoint firstSpawn = map.SpawnPoints[0];
+        var trainingDummySpawn = new MapSpawnPoint
+        {
+            Id = "default-training-dummy",
+            Position = new MapVector3(firstSpawn.Position.X, firstSpawn.Position.Y, firstSpawn.Position.Z + 1.8f),
+        };
+        SpawnReservation dummyReservation = MapSpawnSelector.CreateReservation(trainingDummySpawn);
+
+        Assert.Empty(collisionWorld.OverlapAabb(dummyReservation.LowerBound, dummyReservation.UpperBound));
+    }
+
+    [Fact]
+    public void GrayboxOuterSpawnOpeningDirectionsDoNotLookThroughToOppositeSpawns()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        MapSpawnPoint[] outerSpawns = map.SpawnPoints.Take(8).ToArray();
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        var unobstructedPairs = new List<string>();
+
+        for (int firstIndex = 0; firstIndex < outerSpawns.Length / 2; firstIndex++)
+        {
+            MapSpawnPoint first = outerSpawns[firstIndex];
+            MapSpawnPoint second = outerSpawns[firstIndex + (outerSpawns.Length / 2)];
+            var origin = new MapVector3(first.Position.X, 1.62f, first.Position.Z);
+            var translation = new MapVector3(
+                second.Position.X - first.Position.X,
+                0.0f,
+                second.Position.Z - first.Position.Z);
+
+            if (!collisionWorld.CastRayClosest(origin, translation).Hit)
+            {
+                unobstructedPairs.Add($"{first.Id} -> {second.Id}");
+            }
+        }
+
+        Assert.True(unobstructedPairs.Count == 0, string.Join(Environment.NewLine, unobstructedPairs));
     }
 
     [Fact]

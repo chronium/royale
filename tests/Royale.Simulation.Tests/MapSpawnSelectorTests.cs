@@ -129,14 +129,28 @@ public sealed class MapSpawnSelectorTests
     }
 
     [Fact]
-    public void DefaultGrayboxHasAValidStandingSpawn()
+    public void DefaultGrayboxCanReserveEverySpawnCandidate()
     {
         GameMap map = MapCatalog.LoadDefault();
 
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        var reservations = new List<SpawnReservation>();
+        var selectedIds = new HashSet<string>(StringComparer.Ordinal);
 
-        Assert.True(MapSpawnSelector.TrySelectSpawn(map, collisionWorld, [], out MapSpawnPoint? selected));
-        Assert.NotNull(selected);
+        for (int index = 0; index < 12; index++)
+        {
+            Assert.True(MapSpawnSelector.TrySelectSpawn(map, collisionWorld, reservations, out MapSpawnPoint? selected));
+            Assert.NotNull(selected);
+            Assert.True(selectedIds.Add(selected.Id));
+
+            SpawnReservation reservation = MapSpawnSelector.CreateReservation(selected);
+            Assert.DoesNotContain(reservations, existing => existing.Overlaps(reservation));
+            reservations.Add(reservation);
+        }
+
+        Assert.Equal(map.SpawnPoints.Count, selectedIds.Count);
+        Assert.False(MapSpawnSelector.TrySelectSpawn(map, collisionWorld, reservations, out MapSpawnPoint? exhausted));
+        Assert.Null(exhausted);
     }
 
     private static GameMap CreateMap(IReadOnlyList<MapSpawnPoint> spawnPoints) =>

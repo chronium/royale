@@ -7,7 +7,7 @@ namespace Royale.Network;
 public sealed class NetworkHandshakeServer : INetworkEventHandler
 {
     private readonly INetworkTransport transport;
-    private readonly Func<NetworkPeerId, NetworkHandshakeAcceptResult> acceptClient;
+    private readonly Func<NetworkPeerId, NetworkHandshakeAdmissionResult> admitClient;
     private readonly Action<NetworkPeerId, ServerRejectReason, string>? rejectObserver;
     private readonly Dictionary<NetworkPeerId, ServerAccept> acceptedPeers = [];
     private readonly string expectedBuildId;
@@ -17,13 +17,13 @@ public sealed class NetworkHandshakeServer : INetworkEventHandler
 
     public NetworkHandshakeServer(
         INetworkTransport transport,
-        Func<NetworkPeerId, NetworkHandshakeAcceptResult> acceptClient,
+        Func<NetworkPeerId, NetworkHandshakeAdmissionResult> admitClient,
         Action<NetworkPeerId, ServerRejectReason, string>? rejectObserver = null,
         string expectedBuildId = ProtocolConstants.BuildId,
         string expectedContentVersion = ProtocolConstants.ContentVersion)
     {
         this.transport = transport;
-        this.acceptClient = acceptClient;
+        this.admitClient = admitClient;
         this.rejectObserver = rejectObserver;
         this.expectedBuildId = expectedBuildId;
         this.expectedContentVersion = expectedContentVersion;
@@ -88,7 +88,15 @@ public sealed class NetworkHandshakeServer : INetworkEventHandler
         ServerAccept accept;
         try
         {
-            NetworkHandshakeAcceptResult result = acceptClient(peerId);
+            NetworkHandshakeAdmissionResult admission = admitClient(peerId);
+            if (admission.Rejection is ServerReject rejection)
+            {
+                SendReject(peerId, rejection.Reason, rejection.Detail);
+                return;
+            }
+
+            NetworkHandshakeAcceptResult result = admission.Acceptance
+                ?? throw new InvalidOperationException("Handshake admission returned neither acceptance nor rejection.");
             ulong sessionId = AllocateSessionId();
             accept = new ServerAccept(
                 sessionId,
@@ -213,3 +221,27 @@ public readonly record struct NetworkHandshakeAcceptResult(
     uint PlayerId,
     ulong ServerTick,
     string MapId);
+
+public readonly record struct NetworkHandshakeAdmissionResult
+{
+    private NetworkHandshakeAdmissionResult(
+        NetworkHandshakeAcceptResult? acceptance,
+        ServerReject? rejection)
+    {
+        Acceptance = acceptance;
+        Rejection = rejection;
+    }
+
+    public NetworkHandshakeAcceptResult? Acceptance { get; }
+
+    public ServerReject? Rejection { get; }
+
+    public static NetworkHandshakeAdmissionResult Accepted(NetworkHandshakeAcceptResult acceptance) =>
+        new(acceptance, rejection: null);
+
+    public static NetworkHandshakeAdmissionResult Rejected(ServerRejectReason reason, string detail) =>
+        new(acceptance: null, new ServerReject(reason, detail));
+
+    public static implicit operator NetworkHandshakeAdmissionResult(NetworkHandshakeAcceptResult acceptance) =>
+        Accepted(acceptance);
+}

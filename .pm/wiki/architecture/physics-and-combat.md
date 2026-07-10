@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-10T07:03:11.5143490Z
+modifiedAt: 2026-07-10T08:11:38.0129970Z
 ---
 
 ## Physics Architecture
@@ -295,46 +295,54 @@ WaitingForPlayers
 
 The only legal cycle is forward-only. Same-phase, skipped, reversed, unknown, and transition-tick-regressing requests fail explicitly. Successful transitions record the current authoritative server tick as `PhaseStartedTick` while preserving living-player count and winner state.
 
-`BR-002` adds `MatchStartSettings`. The default minimum is two players, the valid range is `1..ProtocolConstants.MaxSnapshotPlayers`, and the countdown is fixed at 300 authoritative ticks (five seconds at 60 Hz). At the beginning of a server step, `WaitingForPlayers` enters `Countdown` once the connected authoritative-player count reaches the configured minimum. `Countdown` enters `Playing` when 300 ticks have elapsed from `PhaseStartedTick`; disconnecting players does not cancel or pause a countdown that has started.
+`MatchStartSettings` configures the minimum human count, target participant count, waiting duration, and preparation duration. At the beginning of a server step, reaching the human minimum or exhausting the waiting duration fills the target roster with bots and enters `Countdown`; `Countdown` enters `Playing` after the configured preparation ticks. Disconnecting players does not cancel or pause preparation.
 
-`ForceStart()` is an explicit server/test-host orchestration hook on the headless simulation, in-process session, and network runtime. It bypasses the configured minimum but still requires at least one player and only succeeds from `WaitingForPlayers`, returning `Started`, `NoPlayers`, or `MatchNotWaiting`. Remote authenticated administration remains outside this API.
+`ForceStart()` is an explicit server/test-host orchestration hook on the headless simulation, in-process session, and network runtime. It bypasses the configured minimum but still requires at least one participant and only succeeds from `WaitingForPlayers`, returning `Started`, `NoPlayers`, or `MatchNotWaiting`. Remote authenticated administration remains outside this API.
 
-Movement, jumping, look updates, input acknowledgement, and client prediction remain active before `Playing` and after `Finished`. Authoritative combat, including damage, fire cadence, and ammunition mutation, runs only during `Playing`. Late joins remain allowed in every phase; participant locking, winner selection, elimination flow, countdown UI, and reset mutation belong to later tasks.
+Movement, jumping, look updates, input acknowledgement, and client prediction remain active before `Playing` and after `Finished`. Authoritative combat, including damage, fire cadence, and ammunition mutation, runs only during `Playing`. Admission is restricted by phase: waiting accepts humans only below the target, Countdown replaces bot slots, and all later phases reject new connections with `MatchUnavailable`.
 
 ## WaitingForPlayers
 
-* Accept and spawn late-joining players.
+* Accept and spawn human players only while the participant roster is below the configured target.
+* Allocate a new player ID, spawn reservation, and connection ID only for successful admission.
 * Continue movement, jump, look, input acknowledgement, and prediction.
-* Wait for the configured minimum player count (default `2`).
-* Permit explicit development force-start when at least one player is connected.
+* Wait for the configured minimum human count or waiting timeout.
+* Permit explicit development force-start when at least one participant exists.
 * Suppress authoritative combat, fire cadence, damage, and ammunition mutation.
 
 ## Countdown
 
-* Run for exactly 300 authoritative ticks (five seconds at 60 Hz).
-* Continue once started even if the player count drops below the configured minimum.
-* Continue movement, jump, look, input acknowledgement, prediction, and late joins.
+* Run for the configured preparation duration.
+* Continue once started even if the human count drops below the configured minimum.
+* Fill the target roster with bots and admit humans by converting the lowest-player-ID bot slot in place.
+* Preserve the slot's player ID, spawn reservation, transform, velocity, look, health, and weapon state while resetting ownership/input metadata.
+* Convert a disconnected human's same slot back to a bot with fresh input sequence `1`.
+* Reject admission with `MatchUnavailable` once no bot slot remains.
+* Continue movement, jump, look, input acknowledgement, and prediction.
 * Suppress authoritative combat, fire cadence, damage, and ammunition mutation.
 
 ## Playing
 
 * Permit movement and server-authoritative combat.
-* Continue accepting late joins.
+* Lock the participant roster and reject new connections with `MatchUnavailable`.
+* Remove disconnected humans normally; do not create replacement bots.
 * Update the safe zone and apply zone damage when those systems are implemented.
 * Track living players and detect the winner in later match-loop work.
 
 ## Finished
 
-* Stop combat
-* Announce the winner
-* Allow spectating
-* Wait briefly before reset
+* Stop combat.
+* Reject new connections with `MatchUnavailable` while the roster remains locked.
+* Announce the winner.
+* Allow spectating when that behavior is implemented.
+* Wait briefly before reset.
 
 ## Resetting
 
-* Destroy match-scoped entities
-* Clear temporary state
-* Reset the physics world or restore map state
-* Prepare the next match
+* Reject new connections with `MatchUnavailable` while the roster remains locked.
+* Destroy match-scoped entities.
+* Clear temporary state.
+* Reset the physics world or restore map state.
+* Prepare the next match.
 
-Match transitions should be driven by server ticks rather than wall-clock timers wherever practical.
+Match transitions should be deterministic and controlled entirely by the server.

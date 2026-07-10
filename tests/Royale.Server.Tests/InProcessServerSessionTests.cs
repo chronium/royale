@@ -506,6 +506,170 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void CountdownAdmissionsReplaceBotsInAscendingPlayerIdOrderWithoutGrowingRoster()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 1, targetPlayers: 3));
+        InProcessClientConnection first = session.ConnectClient();
+        session.Step();
+
+        Assert.Equal(MatchPhase.Countdown, session.MatchPhase);
+        Assert.Equal(3, session.ActivePlayerCount);
+        Assert.Equal(2, session.BotPlayerCount);
+
+        InProcessClientConnection second = session.ConnectClient();
+        InProcessClientConnection third = session.ConnectClient();
+
+        Assert.Equal(new ServerPlayerId(2), second.PlayerId);
+        Assert.Equal(new ServerPlayerId(3), third.PlayerId);
+        Assert.Equal(3, session.ActivePlayerCount);
+        Assert.Equal(3, session.HumanPlayerCount);
+        Assert.Equal(0, session.BotPlayerCount);
+        Assert.False(session.TryConnectClient(out _, out ClientAdmissionFailure? failure));
+        Assert.Equal(ClientAdmissionFailure.RosterFull, failure);
+
+        ServerSnapshot secondInitial = DequeueSnapshot(session, second);
+        Assert.Equal(second.PlayerId.Value, secondInitial.LocalPlayerId);
+        Assert.Equal(ServerSnapshotPlayerKind.Human, FindPlayer(secondInitial, second.PlayerId).Kind);
+
+        _ = session.DrainSnapshots(first);
+        session.Step();
+        ServerSnapshot existingClientSnapshot = DequeueSnapshot(session, first);
+        Assert.Equal(ServerSnapshotPlayerKind.Human, FindPlayer(existingClientSnapshot, second.PlayerId).Kind);
+        Assert.Equal(ServerSnapshotPlayerKind.Human, FindPlayer(existingClientSnapshot, third.PlayerId).Kind);
+    }
+
+    [Fact]
+    public void CountdownTakeoverPreservesGameplayStateAndClearsBotInputMetadata()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(
+            CreateOpenArenaMap(),
+            new MatchStartSettings(minimumPlayers: 1, targetPlayers: 2),
+            spawnSeed: 0);
+        InProcessClientConnection first = session.ConnectClient();
+        session.Step();
+        ServerPlayerDebugState botState = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.Kind == ServerPlayerKind.Bot);
+        ServerPlayerId bot = new(botState.PlayerId);
+
+        Assert.True(session.TrySubmitBotInput(
+            bot,
+            BotIntent() with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                YawRadians = MathF.PI / 2.0f,
+                PitchRadians = 0.25f,
+            }));
+        session.Step();
+        ServerPlayerDebugState before = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(1U, before.LastProcessedInputSequence);
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent() with { YawRadians = -1.0f }));
+        Assert.Equal(1, session.GetPlayerDebugStates().Single(player => player.PlayerId == bot.Value).QueuedInputCount);
+
+        InProcessClientConnection replacement = session.ConnectClient();
+        ServerPlayerDebugState after = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+
+        Assert.Equal(bot, replacement.PlayerId);
+        Assert.Equal(ServerPlayerKind.Human, after.Kind);
+        Assert.Equal(replacement.ConnectionId.Value, after.ConnectionId);
+        Assert.Equal(before.Position, after.Position);
+        Assert.Equal(before.Velocity, after.Velocity);
+        Assert.Equal(before.YawRadians, after.YawRadians);
+        Assert.Equal(before.PitchRadians, after.PitchRadians);
+        Assert.Equal(before.CurrentHealth, after.CurrentHealth);
+        Assert.Equal(before.MaxHealth, after.MaxHealth);
+        Assert.Equal(before.WeaponId, after.WeaponId);
+        Assert.Equal(before.AmmoInMagazine, after.AmmoInMagazine);
+        Assert.Equal(before.ReserveAmmo, after.ReserveAmmo);
+        Assert.Null(after.LastProcessedInputSequence);
+        Assert.Null(after.LastProcessedInputClientTick);
+        Assert.Equal(0, after.QueuedInputCount);
+        Assert.False(session.TrySubmitBotInput(bot, BotIntent()));
+
+        ServerSnapshot initial = DequeueSnapshot(session, replacement);
+        Assert.Equal(bot.Value, initial.LocalPlayerId);
+        Assert.Null(initial.AcknowledgedInputSequence);
+        Assert.Equal(ServerSnapshotPlayerKind.Human, FindPlayer(initial, bot).Kind);
+    }
+
+    [Fact]
+    public void CountdownDisconnectConvertsSameSlotToFreshBotInputState()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 1, targetPlayers: 2));
+        InProcessClientConnection first = session.ConnectClient();
+        session.Step();
+        InProcessClientConnection replacement = session.ConnectClient();
+        _ = session.DrainSnapshots(first);
+        Assert.True(session.TryEnqueueInputCommand(replacement, ValidCommand(sequence: 99)));
+
+        session.DisconnectClient(replacement);
+
+        ServerPlayerDebugState converted = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == replacement.PlayerId.Value);
+        Assert.Equal(ServerPlayerKind.Bot, converted.Kind);
+        Assert.Equal(0U, converted.ConnectionId);
+        Assert.Null(converted.LastProcessedInputSequence);
+        Assert.Null(converted.LastProcessedInputClientTick);
+        Assert.Equal(0, converted.QueuedInputCount);
+        Assert.True(session.TrySubmitBotInput(replacement.PlayerId, BotIntent()));
+
+        session.Step();
+        ServerSnapshot snapshot = DequeueSnapshot(session, first);
+        PlayerSnapshotState bot = FindPlayer(snapshot, replacement.PlayerId);
+        Assert.Equal(ServerSnapshotPlayerKind.Bot, bot.Kind);
+        Assert.Equal(1U, bot.LastProcessedInputSequence);
+        Assert.Equal(1U, bot.LastProcessedInputClientTick);
+    }
+
+    [Fact]
+    public void WaitingAdmissionStopsAtTargetAndRejectedAttemptsDoNotConsumeConnectionIds()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 2, targetPlayers: 2));
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+
+        Assert.False(session.TryConnectClient(out _, out ClientAdmissionFailure? failure));
+        Assert.Equal(ClientAdmissionFailure.RosterFull, failure);
+        session.Step();
+        session.DisconnectClient(second);
+        InProcessClientConnection replacement = session.ConnectClient();
+
+        Assert.Equal(second.PlayerId, replacement.PlayerId);
+        Assert.Equal(new ServerConnectionId(3), replacement.ConnectionId);
+        Assert.Equal(new ServerConnectionId(1), first.ConnectionId);
+    }
+
+    [Fact]
+    public void PostCountdownPhasesRejectAdmissionWithoutChangingRoster()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 1, targetPlayers: 1));
+        _ = session.ConnectClient();
+        session.Step();
+        session.TransitionMatchPhase(MatchPhase.Playing);
+
+        foreach (MatchPhase phase in new[] { MatchPhase.Playing, MatchPhase.Finished, MatchPhase.Resetting })
+        {
+            Assert.Equal(phase, session.MatchPhase);
+            Assert.False(session.TryConnectClient(out _, out ClientAdmissionFailure? failure));
+            Assert.Equal(ClientAdmissionFailure.RosterLocked, failure);
+            Assert.Equal(1, session.ActivePlayerCount);
+            Assert.Equal(1, session.ConnectedClientCount);
+
+            if (phase != MatchPhase.Resetting)
+                session.TransitionMatchPhase(phase == MatchPhase.Playing ? MatchPhase.Finished : MatchPhase.Resetting);
+        }
+    }
+
+    [Fact]
     public void BotsAreParticipantsWithoutClientsQueuesAndCanOnlyBeRemovedThroughBotApi()
     {
         using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);

@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T05:59:59.3562400Z
+modifiedAt: 2026-07-10T08:11:16.3370850Z
 ---
 
 ## Networking Layers
@@ -80,6 +80,10 @@ Client and server launch options expose the default network port contract. Both 
 `Royale.Client` owns `NetworkClientRuntime` for `--connect`. It starts a client UDP transport on an ephemeral local port, calls `Connect`, and creates `NetworkHandshakeClient` only after the transport reports the server peer as connected so `ClientHello` is sent on an established peer. After `ServerAccept`, the runtime creates `ClientInputSender`; each fixed client tick sends one input command with normalized move intent, jump/fire buttons, immediate local yaw/pitch, and a monotonic client command sequence.
 
 This path preserves the dependency boundary: the SDL client references `Royale.Network` but not `Royale.Server`; the dedicated server references `Royale.Network` but not SDL, GPU, ImGui, client rendering, or client UI.
+
+Handshake application admission returns an accepted-or-rejected `NetworkHandshakeAdmissionResult`. Expected roster rejection does not use exceptions: `ServerRejectReason.MatchUnavailable = 7` distinguishes an unavailable match and carries detail identifying either a full preparation roster or a roster locked after preparation. The frame and payload shape are unchanged, so this additive rejection reason does not change the protocol version.
+
+The server allocates connection IDs and creates peer mappings only after successful admission. During `Countdown`, the accepted `ServerAccept.PlayerId` is the preserved ID of the bot slot converted to human, and the initial local-player snapshot reports that participant as human.
 
 ## Protocol
 

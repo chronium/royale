@@ -1,7 +1,7 @@
 ---
 title: Runtime Processes
 createdAt: 2026-07-05T16:10:17.2894450Z
-modifiedAt: 2026-07-10T07:47:22.4275030Z
+modifiedAt: 2026-07-10T08:11:16.3315150Z
 ---
 
 ## Game Client
@@ -87,6 +87,10 @@ The server is responsible for:
 The server should run from a terminal or container without requiring a graphical environment.
 
 A server process may initially host one match. Support for multiple matches within one process can be considered later, after the single-match lifecycle is stable.
+
+Admission is phase-aware. `WaitingForPlayers` creates a new human participant only while the roster is below `targetPlayers`. `Countdown` assigns the next successful client to the lowest-player-ID bot slot without changing roster size or authoritative gameplay state. A full-human preparation roster and `Playing`, `Finished`, or `Resetting` return an explicit `MatchUnavailable` handshake rejection and allocate no connection ID, peer mapping, or participant.
+
+A human disconnect during `Countdown` releases the client and peer state but preserves the authoritative roster slot by converting it back to a bot with fresh input state. Disconnects in other phases remove the participant normally; active play never creates a disconnect replacement bot.
 
 ### Server Launch Arguments
 

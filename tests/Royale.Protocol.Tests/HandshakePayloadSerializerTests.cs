@@ -40,7 +40,7 @@ public sealed class HandshakePayloadSerializerTests
     [Fact]
     public void ServerRejectRoundTrips()
     {
-        var reject = new ServerReject(ServerRejectReason.IncompatibleBuild, "wrong build");
+        var reject = new ServerReject(ServerRejectReason.MatchUnavailable, "match roster is full");
         Span<byte> buffer = stackalloc byte[HandshakePayloadSerializer.MaxServerRejectPayloadSize];
 
         bool wrote = HandshakePayloadSerializer.TryWriteServerReject(reject, buffer, out int bytesWritten);
@@ -129,5 +129,6 @@ public sealed class HandshakePayloadSerializerTests
         Assert.Equal(4, (byte)ServerRejectReason.IncompatibleBuild);
         Assert.Equal(5, (byte)ServerRejectReason.IncompatibleContent);
         Assert.Equal(6, (byte)ServerRejectReason.AcceptFailed);
+        Assert.Equal(7, (byte)ServerRejectReason.MatchUnavailable);
     }
 }

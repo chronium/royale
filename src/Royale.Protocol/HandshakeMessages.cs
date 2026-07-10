@@ -23,4 +23,5 @@ public enum ServerRejectReason : byte
     IncompatibleBuild = 4,
     IncompatibleContent = 5,
     AcceptFailed = 6,
+    MatchUnavailable = 7,
 }

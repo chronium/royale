@@ -89,6 +89,29 @@ public sealed class NetworkHandshakeTests
     }
 
     [Fact]
+    public void ServerSendsExpectedAdmissionRejectionWithoutAcceptingPeer()
+    {
+        FakeNetworkTransport transport = new();
+        var server = new NetworkHandshakeServer(
+            transport,
+            _ => NetworkHandshakeAdmissionResult.Rejected(
+                ServerRejectReason.MatchUnavailable,
+                "The match roster is already full."));
+        NetworkPeerId peer = new(1);
+
+        server.PacketReceived(
+            peer,
+            FrameClientHello(new ClientHello(ProtocolConstants.BuildId, ProtocolConstants.ContentVersion)),
+            NetworkDelivery.ReliableOrdered,
+            channel: 0);
+
+        ServerReject reject = ReadReject(Assert.Single(transport.SentPackets).Payload);
+        Assert.Equal(ServerRejectReason.MatchUnavailable, reject.Reason);
+        Assert.Contains("full", reject.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(server.AcceptedPeers);
+    }
+
+    [Fact]
     public void ServerRejectsMalformedClientHelloPayload()
     {
         FakeNetworkTransport transport = new();

@@ -398,6 +398,7 @@ public sealed class ServerObservability : IDisposable
             ServerRejectReason.IncompatibleContent => "incompatible_content",
             ServerRejectReason.UnexpectedMessageType => "unexpected_message_type",
             ServerRejectReason.AcceptFailed => "accept_failed",
+            ServerRejectReason.MatchUnavailable => "match_unavailable",
             _ => "unknown",
         };
 

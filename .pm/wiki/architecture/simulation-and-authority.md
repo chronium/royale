@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T07:15:28.2316780Z
+modifiedAt: 2026-07-10T08:12:01.7128690Z
 ---
 
 ## Simulation Model
@@ -131,19 +131,17 @@ SERVER-002 introduces the first concrete authoritative state container in `Royal
 * `AuthoritativeMatchState` for phase, phase-start tick, living-player count, and optional winner
 * `AuthoritativeSafeZoneState` initialized from `GameMap.SafeZone`
 
-Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player IDs are allocated monotonically by the simulation and are not reused when a player is removed.
+Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player IDs are allocated monotonically by the simulation and are not reused when a player is removed; Countdown ownership conversion deliberately preserves an existing player ID.
 
-`AuthoritativePlayerState` contains the server player id, required participant kind, optional human connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and the last processed input sequence. `AddHumanPlayer` and `AddBotPlayer` share one participant-creation path that selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the participant with `WeaponCatalog.DefaultRifle`.
+`AuthoritativePlayerState` contains the server player id, required participant kind, optional human connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and processed-input metadata. `AddHumanPlayer` and `AddBotPlayer` share one participant-creation path that selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the participant with `WeaponCatalog.DefaultRifle`.
 
 `AuthoritativeWeaponState` stores the current weapon id, magazine ammunition, reserve ammunition, `WeaponFireState`, and reload placeholders. SERVER-006 consumes magazine ammunition and advances rifle fire cadence for accepted server-authoritative shots. Reload behavior remains future work.
 
-`HeadlessServerSimulation.Step()` remains a no-input convenience wrapper. `HeadlessServerSimulation.Step(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand>)` validates supplied commands, applies movement/look/combat intent for the tick, refreshes living-player count, steps the static collision world, and increments the authoritative server tick. Commands for unknown players or protocol-invalid commands fail explicitly.
+`HeadlessServerSimulation.Step()` remains a no-input convenience wrapper. `HeadlessServerSimulation.Step(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand>)` validates supplied commands, applies the automatic match-start/countdown policy, applies movement/look/combat intent for the tick, refreshes living-player count, steps the static collision world, and increments the authoritative server tick. Commands for unknown players or protocol-invalid commands fail explicitly.
 
-`BR-001` makes the five-phase match lifecycle concrete in `Royale.Server`: `WaitingForPlayers`, `Countdown`, `Playing`, `Finished`, and `Resetting`. `MatchPhaseStateMachine` owns legal transition validation; `HeadlessServerSimulation` owns the mutable authoritative state and stamps accepted transitions with its current `CurrentTick`. Living-player count and optional winner are preserved by a phase transition because winner selection and reset mutation are separate match-loop responsibilities.
+The five-phase lifecycle is `WaitingForPlayers`, `Countdown`, `Playing`, `Finished`, and `Resetting`. `MatchPhaseStateMachine` owns legal transition validation; `HeadlessServerSimulation` owns mutable authoritative state, automatic waiting/countdown transitions, and transition tick stamps. Living-player count and optional winner are preserved by a phase transition because winner selection and reset mutation are separate match-loop responsibilities. Every produced authoritative snapshot maps the current phase and stamped start tick into the protocol transfer shape.
 
-Phase changes are explicit orchestration operations. The fixed simulation `Step()` does not automatically change phase, and this foundation does not yet gate movement or combat by phase. Every subsequently produced authoritative snapshot maps the current server phase and its stamped start tick into the protocol transfer shape.
-
-`BR-003` makes spawn assignment server-owned and randomized at admission time for both humans and bots. `HeadlessServerSimulation` owns one random-number stream shared by both participant kinds. Each admission filters map candidates against static clearance, active spawn reservations, and the initial safe-zone circle, including the default player radius in the boundary check; it then Fisher-Yates shuffles the candidates and selects the first valid result. An optional simulation/session `spawnSeed` makes the sequence repeatable for tests, while live servers use a fresh sequence. Removing a participant releases its reservation. Late joins use the same admission path, and match transitions do not reassign or teleport existing participants.
+`BR-003` makes initial spawn assignment server-owned and randomized for newly created humans and bots. `HeadlessServerSimulation` owns one random-number stream shared by both participant kinds. Creation filters candidates against static clearance, active spawn reservations, and the initial safe-zone circle, including the default player radius in the boundary check; it then Fisher-Yates shuffles candidates and selects the first valid result. An optional simulation/session `spawnSeed` makes the sequence repeatable for tests, while live servers use a fresh sequence. Removing a participant releases its reservation. Countdown takeover does not run spawn selection: it preserves the selected bot slot and its reservation.
 
 ### Authoritative Participant Identity
 
@@ -152,6 +150,10 @@ Phase changes are explicit orchestration operations. The fixed simulation `Step(
 Only humans may be associated with a nullable `ServerConnectionId`. Bots always have no connection ID and are absent from connection, peer, input-queue, and recipient snapshot-queue storage. `ActivePlayerCount` is the total participant roster, `HumanPlayerCount` and `BotPlayerCount` partition it, `ConnectedClientCount` counts live human client sessions, and `LivingPlayerCount` counts alive humans and bots.
 
 The normal minimum-player start policy compares the configured threshold with `HumanPlayerCount`; bots cannot trigger it. Explicit `ForceStart()` remains valid for any non-empty roster.
+
+`BOT-004` adds server-owned in-place ownership conversion during preparation. `Bot -> Human` is legal only during `Countdown`; `Human -> Bot` is used when that human disconnects during `Countdown`. Both preserve the complete authoritative gameplay slot—player ID, spawn reservation, character transform and velocity, look, health, and weapon state—while changing participant kind/connection ownership and clearing last-processed sequence/client-tick metadata. Session-owned human queues, pending bot commands, and bot sequence counters are discarded whenever ownership changes.
+
+Countdown admission selects the lowest-player-ID bot deterministically. A converted human receives the preserved ID in `ServerAccept` and recipient snapshots; all snapshot recipients observe the participant-kind change. A disconnected Countdown human becomes a bot in the same slot with a fresh bot sequence beginning at `1`. Outside Countdown, disconnect removes the participant and releases its spawn reservation.
 
 ## Input Commands
 

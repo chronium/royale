@@ -81,15 +81,63 @@ public sealed class InProcessServerSession : IDisposable
     {
         ThrowIfDisposed();
 
-        ServerConnectionId connectionId = new(nextConnectionId++);
-        AuthoritativePlayerState player = simulation.AddHumanPlayer(connectionId);
-        var client = new InProcessClientConnection(connectionId, player.PlayerId);
-        var state = new InProcessClientState(connectionId, player.PlayerId);
+        if (TryConnectClient(out InProcessClientConnection connection, out ClientAdmissionFailure? failure))
+            return connection;
 
+        throw new InvalidOperationException(failure?.Detail ?? "The match is not accepting new clients.");
+    }
+
+    public bool TryConnectClient(
+        out InProcessClientConnection connection,
+        out ClientAdmissionFailure? failure)
+    {
+        ThrowIfDisposed();
+
+        connection = default;
+        ServerConnectionId connectionId = PeekNextConnectionId();
+        AuthoritativePlayerState player;
+
+        if (MatchPhase == MatchPhase.WaitingForPlayers)
+        {
+            if (ActivePlayerCount >= MatchStartSettings.TargetPlayers)
+            {
+                failure = ClientAdmissionFailure.RosterFull;
+                return false;
+            }
+
+            player = simulation.AddHumanPlayer(connectionId);
+        }
+        else if (MatchPhase == MatchPhase.Countdown)
+        {
+            AuthoritativePlayerState? bot = simulation.Players.Values
+                .Where(candidate => candidate.Kind == ServerPlayerKind.Bot)
+                .OrderBy(candidate => candidate.PlayerId.Value)
+                .FirstOrDefault();
+            if (bot is null)
+            {
+                failure = ClientAdmissionFailure.RosterFull;
+                return false;
+            }
+
+            if (!simulation.TryConvertBotToHuman(bot.PlayerId, connectionId))
+                throw new InvalidOperationException($"Bot participant '{bot.PlayerId}' could not be assigned to a client.");
+
+            botInputs.Remove(bot.PlayerId);
+            player = simulation.Players[bot.PlayerId];
+        }
+        else
+        {
+            failure = ClientAdmissionFailure.RosterLocked;
+            return false;
+        }
+
+        CommitConnectionId(connectionId);
+        connection = new InProcessClientConnection(connectionId, player.PlayerId);
+        var state = new InProcessClientState(connectionId, player.PlayerId);
         state.Snapshots.Enqueue(simulation.CreateSnapshot(player.PlayerId));
         clients.Add(connectionId, state);
-
-        return client;
+        failure = null;
+        return true;
     }
 
     public ServerPlayerId AddBot()
@@ -227,7 +275,11 @@ public sealed class InProcessServerSession : IDisposable
         InProcessClientState state = GetClientState(client);
 
         clients.Remove(state.ConnectionId);
-        simulation.RemovePlayer(state.PlayerId);
+
+        if (simulation.TryConvertHumanToBot(state.PlayerId))
+            botInputs[state.PlayerId] = new BotInputState();
+        else
+            simulation.RemovePlayer(state.PlayerId);
     }
 
     public void Dispose()
@@ -257,12 +309,27 @@ public sealed class InProcessServerSession : IDisposable
 
     private void SynchronizeBotInputs()
     {
+        foreach (ServerPlayerId playerId in botInputs.Keys.ToArray())
+        {
+            if (!simulation.TryGetPlayer(playerId, out AuthoritativePlayerState? player) ||
+                player?.Kind != ServerPlayerKind.Bot)
+            {
+                botInputs.Remove(playerId);
+            }
+        }
+
         foreach (AuthoritativePlayerState bot in simulation.Players.Values
                      .Where(player => player.Kind == ServerPlayerKind.Bot))
         {
             botInputs.TryAdd(bot.PlayerId, new BotInputState());
         }
     }
+
+    private ServerConnectionId PeekNextConnectionId()
+        => new(nextConnectionId == 0 ? 1 : nextConnectionId);
+
+    private void CommitConnectionId(ServerConnectionId connectionId) =>
+        nextConnectionId = unchecked(connectionId.Value + 1);
 
     private void ThrowIfDisposed()
     {
@@ -323,3 +390,14 @@ public sealed class InProcessServerSession : IDisposable
 public readonly record struct InProcessClientConnection(
     ServerConnectionId ConnectionId,
     ServerPlayerId PlayerId);
+
+public sealed record ClientAdmissionFailure(ServerRejectReason Reason, string Detail)
+{
+    public static ClientAdmissionFailure RosterFull { get; } = new(
+        ServerRejectReason.MatchUnavailable,
+        "The match roster is already full.");
+
+    public static ClientAdmissionFailure RosterLocked { get; } = new(
+        ServerRejectReason.MatchUnavailable,
+        "The match roster is locked after preparation.");
+}

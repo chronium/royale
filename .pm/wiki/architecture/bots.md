@@ -1,7 +1,7 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-10T05:59:59.3206280Z
+modifiedAt: 2026-07-10T08:11:16.3141320Z
 ---
 
 ## Status
@@ -15,6 +15,10 @@ Each authoritative step consumes bot pending commands in ascending player-ID ord
 Bots still have no connection ID, network peer, client connection, human input queue, or per-client snapshot queue. Removing a bot clears its pending command and sequencing state. Total and per-player queued-input diagnostics include pending bot commands. Player snapshots expose nullable last-processed input sequence and client/decision tick metadata for every participant, allowing a human recipient to inspect bot processing alongside authoritative transform and combat state.
 
 The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. WattleScript does not expose bot creation or bot input controls. Lobby filling, autonomous decisions, navigation, combat policy, delayed input scheduling, rendering differences, names, UI, and admin commands remain later BOT-track work.
+
+`BOT-004` implements preparation-period participant takeover. During `Countdown`, each successful human admission converts the lowest-player-ID bot slot in place, preserving player ID, spawn reservation, transform, velocity, look, health, and weapon state while clearing bot input, processed-sequence acknowledgement, and decision-tick metadata. The accepted client receives that preserved player ID and snapshots immediately identify the slot as human.
+
+If that human disconnects during `Countdown`, the same slot converts back to a bot with no connection and fresh bot input sequencing beginning at `1`. During `WaitingForPlayers`, humans are admitted only below the configured target. A full-human `Countdown` and every phase from `Playing` through `Resetting` reject new connections; no replacement bot is introduced after `Playing` begins.
 
 ## Purpose
 

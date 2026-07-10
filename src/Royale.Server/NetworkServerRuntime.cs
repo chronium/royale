@@ -186,17 +186,25 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         disposed = true;
     }
 
-    private NetworkHandshakeAcceptResult AcceptClient(NetworkPeerId peerId)
+    private NetworkHandshakeAdmissionResult AcceptClient(NetworkPeerId peerId)
     {
-        InProcessClientConnection connection = session.ConnectClient();
+        if (!session.TryConnectClient(
+                out InProcessClientConnection connection,
+                out ClientAdmissionFailure? failure))
+        {
+            ClientAdmissionFailure rejection = failure
+                ?? throw new InvalidOperationException("Rejected client admission did not provide a failure.");
+            return NetworkHandshakeAdmissionResult.Rejected(rejection.Reason, rejection.Detail);
+        }
+
         peerConnections.Add(peerId, connection);
         observability?.ClientAccepted(peerId, connection);
         UpdateObservabilityState();
-        return new NetworkHandshakeAcceptResult(
+        return NetworkHandshakeAdmissionResult.Accepted(new NetworkHandshakeAcceptResult(
             connection.ConnectionId.Value,
             connection.PlayerId.Value,
             session.CurrentTick,
-            session.MapId);
+            session.MapId));
     }
 
     private void EnqueueInputCommand(NetworkPeerId peerId, ServerAccept accept, PlayerInputCommand command)

@@ -91,6 +91,69 @@ public sealed class NetworkServerRuntimeTests
     }
 
     [Fact]
+    public void FullCountdownRejectsHandshakeWithoutCreatingPeerConnectionOrParticipant()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(
+                ContentCatalog.DefaultMapId,
+                new MatchStartSettings(minimumPlayers: 1, targetPlayers: 1)));
+        _ = ConnectClient(runtime, transport, new NetworkPeerId(1));
+        transport.SentPackets.Clear();
+
+        runtime.Step();
+        transport.SentPackets.Clear();
+        NetworkPeerId rejectedPeer = new(2);
+        transport.QueueConnected(rejectedPeer);
+        transport.QueuePacket(rejectedPeer, FrameClientHello(), NetworkDelivery.ReliableOrdered, channel: 0);
+        runtime.Step();
+
+        SentPacket packet = Assert.Single(
+            transport.SentPackets,
+            sent => ReadHeader(sent.Payload).MessageType == ProtocolMessageType.ServerReject);
+        ServerReject reject = ReadReject(packet.Payload);
+        Assert.Equal(ServerRejectReason.MatchUnavailable, reject.Reason);
+        Assert.Contains("full", reject.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(runtime.AcceptedPeers);
+        Assert.Equal(1, runtime.ConnectedClientCount);
+        Assert.Equal(1, runtime.ActivePlayerCount);
+        Assert.DoesNotContain(rejectedPeer, runtime.AcceptedPeers.Keys);
+    }
+
+    [Fact]
+    public void PlayingRejectsHandshakeWithLockedDetailAndNoAdmissionSideEffects()
+    {
+        FakeNetworkTransport transport = new();
+        InProcessServerSession session = InProcessServerSession.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 1, targetPlayers: 2));
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            session);
+        _ = ConnectClient(runtime, transport, new NetworkPeerId(1));
+        runtime.Step();
+        session.TransitionMatchPhase(MatchPhase.Playing);
+        transport.SentPackets.Clear();
+
+        NetworkPeerId rejectedPeer = new(2);
+        transport.QueueConnected(rejectedPeer);
+        transport.QueuePacket(rejectedPeer, FrameClientHello(), NetworkDelivery.ReliableOrdered, channel: 0);
+        runtime.Step();
+
+        SentPacket rejectPacket = Assert.Single(
+            transport.SentPackets,
+            sent => ReadHeader(sent.Payload).MessageType == ProtocolMessageType.ServerReject);
+        ServerReject reject = ReadReject(rejectPacket.Payload);
+        Assert.Equal(ServerRejectReason.MatchUnavailable, reject.Reason);
+        Assert.Contains("locked", reject.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(runtime.AcceptedPeers);
+        Assert.Equal(1, runtime.ConnectedClientCount);
+        Assert.Equal(2, runtime.ActivePlayerCount);
+        Assert.DoesNotContain(rejectedPeer, runtime.AcceptedPeers.Keys);
+    }
+
+    [Fact]
     public void ForceStartExposesAuthoritativeSessionResult()
     {
         FakeNetworkTransport transport = new();
@@ -252,6 +315,19 @@ public sealed class NetworkServerRuntimeTests
         Assert.True(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out ServerSnapshot? snapshot));
         Assert.NotNull(snapshot);
         return snapshot!;
+    }
+
+    private static ServerReject ReadReject(ReadOnlySpan<byte> packet)
+    {
+        Assert.True(ProtocolPacketFramer.TryReadPacket(
+            packet,
+            out ProtocolPacketHeader header,
+            out ReadOnlySpan<byte> payload,
+            out ProtocolFrameError error));
+        Assert.Equal(ProtocolFrameError.None, error);
+        Assert.Equal(ProtocolMessageType.ServerReject, header.MessageType);
+        Assert.True(HandshakePayloadSerializer.TryReadServerReject(payload, out ServerReject? reject));
+        return Assert.IsType<ServerReject>(reject);
     }
 
     private static PlayerInputCommand ValidCommand(uint sequence) => new(

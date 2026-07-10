@@ -173,6 +173,48 @@ public sealed class HeadlessServerSimulation : IDisposable
         return removed;
     }
 
+    public bool TryConvertBotToHuman(ServerPlayerId playerId, ServerConnectionId connectionId)
+    {
+        ThrowIfDisposed();
+
+        if (MatchState.Phase != MatchPhase.Countdown ||
+            !players.TryGetValue(playerId, out AuthoritativePlayerState? player) ||
+            player.Kind != ServerPlayerKind.Bot)
+        {
+            return false;
+        }
+
+        players[playerId] = player with
+        {
+            Kind = ServerPlayerKind.Human,
+            ConnectionId = connectionId,
+            LastProcessedInputSequence = null,
+            LastProcessedInputClientTick = null,
+        };
+        return true;
+    }
+
+    public bool TryConvertHumanToBot(ServerPlayerId playerId)
+    {
+        ThrowIfDisposed();
+
+        if (MatchState.Phase != MatchPhase.Countdown ||
+            !players.TryGetValue(playerId, out AuthoritativePlayerState? player) ||
+            player.Kind != ServerPlayerKind.Human)
+        {
+            return false;
+        }
+
+        players[playerId] = player with
+        {
+            Kind = ServerPlayerKind.Bot,
+            ConnectionId = null,
+            LastProcessedInputSequence = null,
+            LastProcessedInputClientTick = null,
+        };
+        return true;
+    }
+
     public bool TryGetPlayer(ServerPlayerId playerId, out AuthoritativePlayerState? player)
     {
         ThrowIfDisposed();

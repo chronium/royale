@@ -31,10 +31,12 @@ public sealed class KinematicCharacterController
         if (!float.IsFinite(fixedDeltaSeconds) || fixedDeltaSeconds <= 0.0f)
             throw new ArgumentOutOfRangeException(nameof(fixedDeltaSeconds), "Fixed timestep must be finite and positive.");
 
+        KinematicCharacterStance stance = ResolveStance(collisionWorld, state, input.Crouch);
+        float height = Settings.GetHeight(stance);
         Vector3 startPosition = state.Position;
-        Vector3 position = RecoverPenetration(collisionWorld, state.Position);
+        Vector3 position = RecoverPenetration(collisionWorld, state.Position, height);
         Vector3 velocity = state.Velocity;
-        bool grounded = ProbeGround(collisionWorld, position, out Vector3 settledPosition);
+        bool grounded = ProbeGround(collisionWorld, position, height, out Vector3 settledPosition);
         if (grounded && velocity.Y <= 0.0f)
         {
             position = settledPosition;
@@ -42,10 +44,11 @@ public sealed class KinematicCharacterController
         }
 
         Vector2 movement = NormalizeMove(input.Move);
-        Vector3 horizontalVelocity = new(movement.X * Settings.WalkSpeed, 0.0f, movement.Y * Settings.WalkSpeed);
+        float speed = Settings.GetSpeed(stance);
+        Vector3 horizontalVelocity = new(movement.X * speed, 0.0f, movement.Y * speed);
         velocity = new Vector3(horizontalVelocity.X, velocity.Y, horizontalVelocity.Z);
 
-        bool jumpAccepted = input.Jump && grounded;
+        bool jumpAccepted = input.Jump && grounded && stance == KinematicCharacterStance.Standing && !input.Crouch;
         if (jumpAccepted)
         {
             velocity = new Vector3(velocity.X, jumpSpeed, velocity.Z);
@@ -57,14 +60,14 @@ public sealed class KinematicCharacterController
         }
 
         Vector3 horizontalDisplacement = new(velocity.X * fixedDeltaSeconds, 0.0f, velocity.Z * fixedDeltaSeconds);
-        MoveResult horizontalMove = MoveHorizontally(collisionWorld, position, horizontalDisplacement, grounded);
+        MoveResult horizontalMove = MoveHorizontally(collisionWorld, position, horizontalDisplacement, grounded, height);
         position = horizontalMove.Position;
 
         bool hitCeiling = false;
         if (MathF.Abs(velocity.Y) > Epsilon)
         {
             Vector3 verticalDisplacement = new(0.0f, velocity.Y * fixedDeltaSeconds, 0.0f);
-            MoveResult verticalMove = MoveWithSlide(collisionWorld, position, verticalDisplacement);
+            MoveResult verticalMove = MoveWithSlide(collisionWorld, position, verticalDisplacement, height);
             position = verticalMove.Position;
 
             if (velocity.Y > 0.0f && verticalMove.HitCeiling)
@@ -80,7 +83,7 @@ public sealed class KinematicCharacterController
             }
         }
 
-        if (!jumpAccepted && velocity.Y <= 0.0f && ProbeGround(collisionWorld, position, out settledPosition))
+        if (!jumpAccepted && velocity.Y <= 0.0f && ProbeGround(collisionWorld, position, height, out settledPosition))
         {
             grounded = true;
             position = settledPosition;
@@ -91,9 +94,9 @@ public sealed class KinematicCharacterController
             grounded = false;
         }
 
-        position = RecoverPenetration(collisionWorld, position);
+        position = RecoverPenetration(collisionWorld, position, height);
 
-        KinematicCharacterState nextState = new(position, velocity, grounded);
+        KinematicCharacterState nextState = new(position, velocity, grounded, stance);
         return new KinematicCharacterStepResult(
             nextState,
             position - startPosition,
@@ -103,12 +106,12 @@ public sealed class KinematicCharacterController
             horizontalMove.SlideIterations);
     }
 
-    private MoveResult MoveHorizontally(MapStaticCollisionWorld collisionWorld, Vector3 position, Vector3 displacement, bool grounded)
+    private MoveResult MoveHorizontally(MapStaticCollisionWorld collisionWorld, Vector3 position, Vector3 displacement, bool grounded, float height)
     {
         if (displacement.LengthSquared() <= Epsilon * Epsilon)
             return new MoveResult(position, false, false, false, 0);
 
-        MoveResult flatMove = MoveWithSlide(collisionWorld, position, displacement);
+        MoveResult flatMove = MoveWithSlide(collisionWorld, position, displacement, height);
         if (!grounded)
             return flatMove;
 
@@ -117,15 +120,16 @@ public sealed class KinematicCharacterController
         if (flatHorizontalDistance >= desiredHorizontalDistance - Settings.SkinWidth)
             return flatMove;
 
-        MoveResult upMove = MoveWithSlide(collisionWorld, position, new Vector3(0.0f, Settings.MaxStepHeight, 0.0f));
+        MoveResult upMove = MoveWithSlide(collisionWorld, position, new Vector3(0.0f, Settings.MaxStepHeight, 0.0f), height);
         if (upMove.HitCeiling)
             return flatMove;
 
-        MoveResult elevatedMove = MoveWithSlide(collisionWorld, upMove.Position, displacement);
+        MoveResult elevatedMove = MoveWithSlide(collisionWorld, upMove.Position, displacement, height);
         MoveResult downMove = MoveWithSlide(
             collisionWorld,
             elevatedMove.Position,
-            new Vector3(0.0f, -(Settings.MaxStepHeight + Settings.GroundProbeDistance), 0.0f));
+            new Vector3(0.0f, -(Settings.MaxStepHeight + Settings.GroundProbeDistance), 0.0f),
+            height);
 
         float stepHeight = downMove.Position.Y - position.Y;
         float steppedProgress = HorizontalProgress(position, downMove.Position, displacement);
@@ -144,7 +148,7 @@ public sealed class KinematicCharacterController
         return flatMove;
     }
 
-    private MoveResult MoveWithSlide(MapStaticCollisionWorld collisionWorld, Vector3 position, Vector3 displacement)
+    private MoveResult MoveWithSlide(MapStaticCollisionWorld collisionWorld, Vector3 position, Vector3 displacement, float height)
     {
         Vector3 remaining = displacement;
         bool hitGround = false;
@@ -156,7 +160,7 @@ public sealed class KinematicCharacterController
             if (remaining.LengthSquared() <= Epsilon * Epsilon)
                 break;
 
-            MapStaticCapsuleCast cast = collisionWorld.CastCapsuleMover(position, Settings.Radius, Settings.Height, remaining);
+            MapStaticCapsuleCast cast = collisionWorld.CastCapsuleMover(position, Settings.Radius, height, remaining);
             if (!cast.Hit)
             {
                 position += remaining;
@@ -171,7 +175,7 @@ public sealed class KinematicCharacterController
             IReadOnlyList<MapStaticCollisionPlane> planes = collisionWorld.CollectCapsuleCollisionPlanes(
                 blockedPosition,
                 Settings.Radius,
-                Settings.Height);
+                height);
 
             if (planes.Count == 0)
             {
@@ -205,10 +209,10 @@ public sealed class KinematicCharacterController
         return new MoveResult(position, hitGround, hitCeiling, false, iterations);
     }
 
-    private bool ProbeGround(MapStaticCollisionWorld collisionWorld, Vector3 position, out Vector3 settledPosition)
+    private bool ProbeGround(MapStaticCollisionWorld collisionWorld, Vector3 position, float height, out Vector3 settledPosition)
     {
         Vector3 probe = new(0.0f, -Settings.GroundProbeDistance, 0.0f);
-        MapStaticCapsuleCast cast = collisionWorld.CastCapsuleMover(position, Settings.Radius, Settings.Height, probe);
+        MapStaticCapsuleCast cast = collisionWorld.CastCapsuleMover(position, Settings.Radius, height, probe);
         if (!cast.Hit)
         {
             settledPosition = position;
@@ -219,7 +223,7 @@ public sealed class KinematicCharacterController
         IReadOnlyList<MapStaticCollisionPlane> planes = collisionWorld.CollectCapsuleCollisionPlanes(
             settledPosition + new Vector3(0.0f, -Settings.SkinWidth, 0.0f),
             Settings.Radius,
-            Settings.Height);
+            height);
 
         if (planes.Count == 0)
             return true;
@@ -227,11 +231,11 @@ public sealed class KinematicCharacterController
         return planes.Any(plane => IsWalkable(NormalizeOrZero(plane.Normal)));
     }
 
-    private Vector3 RecoverPenetration(MapStaticCollisionWorld collisionWorld, Vector3 position)
+    private Vector3 RecoverPenetration(MapStaticCollisionWorld collisionWorld, Vector3 position, float height)
     {
         for (int i = 0; i < Settings.PenetrationRecoveryIterations; i++)
         {
-            IReadOnlyList<MapStaticCollisionPlane> planes = collisionWorld.CollectCapsuleCollisionPlanes(position, Settings.Radius, Settings.Height);
+            IReadOnlyList<MapStaticCollisionPlane> planes = collisionWorld.CollectCapsuleCollisionPlanes(position, Settings.Radius, height);
             if (planes.Count == 0)
                 break;
 
@@ -260,6 +264,37 @@ public sealed class KinematicCharacterController
     }
 
     private bool IsWalkable(Vector3 normal) => normal.Y >= minimumGroundNormalY;
+
+    private KinematicCharacterStance ResolveStance(
+        MapStaticCollisionWorld collisionWorld,
+        KinematicCharacterState state,
+        bool crouchRequested)
+    {
+        if (crouchRequested)
+            return KinematicCharacterStance.Crouched;
+
+        if (state.Stance != KinematicCharacterStance.Crouched)
+            return KinematicCharacterStance.Standing;
+
+        IReadOnlyList<MapStaticCollisionPlane> planes = collisionWorld.CollectCapsuleCollisionPlanes(
+            state.Position,
+            Settings.Radius,
+            Settings.StandingHeight);
+        bool blockingOverlap = planes.Any(plane =>
+            plane.Offset > Settings.SkinWidth &&
+            !IsWalkable(NormalizeOrZero(plane.Normal)));
+        float expansion = Settings.StandingHeight - Settings.CrouchedHeight;
+        MapStaticCapsuleCast expansionCast = collisionWorld.CastCapsuleMover(
+            state.Position,
+            Settings.Radius,
+            Settings.CrouchedHeight,
+            Vector3.UnitY * expansion);
+        bool blockingExpansion = expansionCast.Hit &&
+            (1.0f - expansionCast.Fraction) * expansion > Settings.SkinWidth;
+        return blockingOverlap || blockingExpansion
+            ? KinematicCharacterStance.Crouched
+            : KinematicCharacterStance.Standing;
+    }
 
     private static Vector2 NormalizeMove(Vector2 move)
     {
@@ -305,10 +340,13 @@ public sealed class KinematicCharacterController
     {
         if (!float.IsFinite(settings.Radius) || settings.Radius <= 0.0f)
             throw new ArgumentOutOfRangeException(nameof(settings), "Character radius must be finite and positive.");
-        if (!float.IsFinite(settings.Height) || settings.Height < settings.Radius * 2.0f)
-            throw new ArgumentOutOfRangeException(nameof(settings), "Character height must be finite and at least twice the radius.");
-        if (!float.IsFinite(settings.WalkSpeed) || settings.WalkSpeed < 0.0f)
-            throw new ArgumentOutOfRangeException(nameof(settings), "Walk speed must be finite and non-negative.");
+        if (!float.IsFinite(settings.StandingHeight) || settings.StandingHeight < settings.Radius * 2.0f ||
+            !float.IsFinite(settings.CrouchedHeight) || settings.CrouchedHeight < settings.Radius * 2.0f ||
+            settings.CrouchedHeight > settings.StandingHeight)
+            throw new ArgumentOutOfRangeException(nameof(settings), "Character heights must be finite, at least twice the radius, and crouched height must not exceed standing height.");
+        if (!float.IsFinite(settings.StandingSpeed) || settings.StandingSpeed < 0.0f ||
+            !float.IsFinite(settings.CrouchedSpeed) || settings.CrouchedSpeed < 0.0f)
+            throw new ArgumentOutOfRangeException(nameof(settings), "Character speeds must be finite and non-negative.");
         if (!float.IsFinite(settings.JumpApexHeight) || settings.JumpApexHeight < 0.0f)
             throw new ArgumentOutOfRangeException(nameof(settings), "Jump apex height must be finite and non-negative.");
         if (!float.IsFinite(settings.Gravity) || settings.Gravity <= 0.0f)

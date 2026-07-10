@@ -46,6 +46,8 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public int StaticModelColliderCount => collisionWorld.StaticModelColliderCount;
 
+    public KinematicCharacterSettings CharacterSettings => characterController.Settings;
+
     public IReadOnlyDictionary<ServerPlayerId, AuthoritativePlayerState> Players => players;
 
     public int ActivePlayerCount => players.Count;
@@ -374,7 +376,8 @@ public sealed class HeadlessServerSimulation : IDisposable
             player.Health.Alive,
             CreateWeaponSnapshot(player.Weapon),
             player.LastProcessedInputSequence,
-            player.LastProcessedInputClientTick);
+            player.LastProcessedInputClientTick,
+            player.Character.IsCrouched);
 
     private static ServerSnapshotPlayerKind MapPlayerKind(ServerPlayerKind kind) =>
         kind switch
@@ -502,11 +505,14 @@ public sealed class HeadlessServerSimulation : IDisposable
 
             Vector2 localMove = hasCommand ? command.Move : Vector2.Zero;
             bool jump = hasCommand && (command.Buttons & InputButtons.Jump) != 0;
+            bool crouch = hasCommand
+                ? (command.Buttons & InputButtons.Crouch) != 0
+                : player.Character.IsCrouched;
             Vector2 worldMove = PlayerMovementIntent.ToWorldMovement(localMove, player.Look.YawRadians);
             KinematicCharacterStepResult stepResult = characterController.Step(
                 collisionWorld,
                 player.Character,
-                new KinematicCharacterInput(worldMove, jump),
+                new KinematicCharacterInput(worldMove, jump, crouch),
                 SimulationSettings.FixedDeltaSeconds);
 
             players[playerId] = player with

@@ -22,7 +22,8 @@ public readonly record struct PlayerSnapshotState(
     bool Alive,
     WeaponSnapshotState Weapon,
     uint? LastProcessedInputSequence = null,
-    uint? LastProcessedInputClientTick = null);
+    uint? LastProcessedInputClientTick = null,
+    bool Crouched = false);
 
 public enum ServerSnapshotPlayerKind
 {

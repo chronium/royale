@@ -186,7 +186,7 @@ public sealed class LocalPlayerController : IDisposable
         KinematicCharacterStepResult result = characterController.Step(
             collisionWorld,
             CharacterState,
-            new KinematicCharacterInput(worldMove, input.Jump),
+            new KinematicCharacterInput(worldMove, input.Jump, input.Crouch),
             (float)fixedDeltaSeconds);
 
         CharacterState = result.State;

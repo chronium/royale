@@ -168,7 +168,10 @@ internal sealed class ClientMovementPrediction : IDisposable
         KinematicCharacterStepResult stepResult = characterController.Step(
             collisionWorld,
             characterState,
-            new KinematicCharacterInput(worldMove, (command.Buttons & InputButtons.Jump) != 0),
+            new KinematicCharacterInput(
+                worldMove,
+                (command.Buttons & InputButtons.Jump) != 0,
+                (command.Buttons & InputButtons.Crouch) != 0),
             SimulationSettings.FixedDeltaSeconds);
 
         characterState = stepResult.State;
@@ -178,6 +181,7 @@ internal sealed class ClientMovementPrediction : IDisposable
             Velocity = characterState.Velocity,
             YawRadians = command.YawRadians,
             PitchRadians = command.PitchRadians,
+            Crouched = characterState.IsCrouched,
         };
     }
 
@@ -196,7 +200,8 @@ internal sealed class ClientMovementPrediction : IDisposable
         characterState = new KinematicCharacterState(
             authoritativePlayer.Position,
             authoritativePlayer.Velocity,
-            IsGrounded: false);
+            IsGrounded: false,
+            authoritativePlayer.Crouched ? KinematicCharacterStance.Crouched : KinematicCharacterStance.Standing);
         seeded = true;
     }
 

@@ -910,6 +910,10 @@ public sealed class ScenarioPlayerSnapshotApi(PlayerSnapshotState player) : Scen
 
     public bool alive => player.Alive;
 
+    public bool crouched => player.Crouched;
+
+    public float capsuleHeight => player.Crouched ? 1.1f : 1.8f;
+
     public ScenarioWeaponSnapshotApi weapon => new(player.Weapon);
 }
 
@@ -940,6 +944,12 @@ public sealed class ScenarioPlayerDebugStateApi(ServerPlayerDebugState player) :
     public ScenarioHealthSnapshotApi health => new(player.CurrentHealth, player.MaxHealth);
 
     public bool alive => player.Alive;
+
+    public bool crouched => player.Stance == Royale.Simulation.Movement.KinematicCharacterStance.Crouched;
+
+    public string stance => player.Stance.ToString();
+
+    public float capsuleHeight => player.CapsuleHeight;
 
     public ScenarioPlayerDebugWeaponApi weapon => new(player);
 

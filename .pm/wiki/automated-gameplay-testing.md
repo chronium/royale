@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-10T05:41:45.0841150Z
+modifiedAt: 2026-07-10T15:27:22.6979380Z
 ---
 
 ## Overview
@@ -173,6 +173,10 @@ High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayIns
 `scenario.server.forceStart()` invokes the explicit authoritative force-start hook in both in-process and loopback UDP runtimes. It returns the string `Started` after entering `Countdown`. Rejection is explicit: zero connected players throws `scenario.server.forceStart failed: at least one connected player is required`, and a phase other than `WaitingForPlayers` throws `scenario.server.forceStart failed: the match is not waiting for players`.
 
 Every call records one deterministic test-host event. Success records `server.force_start.accepted` with detail `Started`; rejection records `server.force_start.rejected` with detail `NoPlayers` or `MatchNotWaiting` before throwing. These remain harness observations, not protocol or authoritative gameplay event types.
+
+### Crouch commands and observations
+
+The optional `crouch` field on `scenario.players.input` is a desired-state boolean. Scripts send `crouch = true` to request crouch and `crouch = false` to request standing; omission defaults to false for that command. Snapshot player wrappers expose `crouched` and `capsuleHeight`. Server debug player wrappers expose `crouched`, `stance`, and `capsuleHeight`. These remain observations and intent through the normal protocol boundary, not direct authoritative mutation.
 
 ### Bot Participant Observability
 

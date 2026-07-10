@@ -299,6 +299,9 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         if (input.Fire)
             buttons |= InputButtons.Fire;
 
+        if (input.Crouch)
+            buttons |= InputButtons.Crouch;
+
         return buttons;
     }
 

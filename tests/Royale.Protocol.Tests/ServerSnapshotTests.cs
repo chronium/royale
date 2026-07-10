@@ -312,6 +312,35 @@ public sealed class ServerSnapshotTests
     }
 
     [Fact]
+    public void SnapshotPayloadRoundTripsAuthoritativeCrouchedState()
+    {
+        PlayerSnapshotState crouched = CreatePlayer(1, "rifle", true, null, null) with { Crouched = true };
+        ServerSnapshot decoded = RoundTrip(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [crouched],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+
+        Assert.True(Assert.Single(decoded.Players).Crouched);
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsMalformedCrouchedBoolean()
+    {
+        byte[] payload = WriteSnapshot(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [CreatePlayer(1, "rifle", true, null, null)],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+        int crouchedOffset = FindMatchPhaseOffset(payload) - 1;
+        payload[crouchedOffset] = 2;
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
+    [Fact]
     public void SnapshotPayloadRejectsTruncatedPayload()
     {
         byte[] payload = WriteSnapshot(CreateMinimalSnapshot());
@@ -384,8 +413,8 @@ public sealed class ServerSnapshotTests
     {
         Assert.Equal(128, ProtocolConstants.MaxSnapshotPlayers);
         Assert.Equal(64, ProtocolConstants.MaxSnapshotWeaponIdLength);
-        Assert.Equal(156, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
-        Assert.Equal(20034, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
+        Assert.Equal(157, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
+        Assert.Equal(20162, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
         Assert.True(ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize > ProtocolConstants.PacketHeaderSize);
 
         string maximumWeaponId = new('w', ProtocolConstants.MaxSnapshotWeaponIdLength);

@@ -241,6 +241,7 @@ public sealed class RemoteSnapshotInterpolator
             Velocity = Vector3.Lerp(older.Velocity, newer.Velocity, amount),
             YawRadians = InterpolateAngleRadians(older.YawRadians, newer.YawRadians, amount),
             PitchRadians = older.PitchRadians + (newer.PitchRadians - older.PitchRadians) * amount,
+            Crouched = amount < 0.5f ? older.Crouched : newer.Crouched,
         };
 
     private static PlayerSnapshotState CopyTransform(
@@ -251,6 +252,7 @@ public sealed class RemoteSnapshotInterpolator
             Velocity = transformSample.Velocity,
             YawRadians = transformSample.YawRadians,
             PitchRadians = transformSample.PitchRadians,
+            Crouched = transformSample.Crouched,
         };
 
     private static float InterpolateAngleRadians(float older, float newer, float amount)

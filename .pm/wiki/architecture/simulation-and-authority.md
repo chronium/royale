@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T08:12:01.7128690Z
+modifiedAt: 2026-07-10T15:27:22.6416490Z
 ---
 
 ## Simulation Model
@@ -211,6 +211,12 @@ public readonly record struct PlayerInputSample(
 `PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` and `Fire` are button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled.
 
 `PlayerMovementIntent.ToWorldMovement()` is the shared helper for converting local movement through gameplay yaw before passing world X/Z intent to `KinematicCharacterController`. The local offline player and the headless server both use this helper. Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`.
+
+### Authoritative crouch stance
+
+`GAME-015` adds `Standing` and `Crouched` to the shared kinematic character state. Standing remains the spawn, respawn, and legacy-constructor default. A desired crouch boolean flows through `PlayerInputSample`, `KinematicCharacterInput`, and the existing `InputButtons.Crouch` command bit. Clients send the desired state every fixed tick; repeated commands are idempotent rather than toggle events. When no command is available, the server preserves the participant's actual stance.
+
+The client toggles its desired state only for an owned, non-repeat `C` press. ImGui-captured and freecam key input cannot toggle gameplay crouch. Offline simulation, server authority, prediction, reconciliation replay, and bot/script commands all use the same stance transition rules. Entering crouch is allowed on ground or in air. Jump is rejected while actually crouched or while crouch is requested. A stand request retries every tick and remains crouched until the full standing volume is clear.
 
 ### Server-Owned Bot Input Boundary
 

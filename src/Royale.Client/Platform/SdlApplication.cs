@@ -40,8 +40,10 @@ public sealed unsafe class SdlApplication : IDisposable
     private const int DefaultWindowHeight = 1080;
 
     private readonly InputState input = new();
+    private readonly GameplayInputMapper gameplayInputMapper = new();
     private readonly DebugCamera freeCamera = DebugCamera.CreateDefault();
     private readonly GameplayView gameplayView = GameplayView.CreateDefault();
+    private readonly PlayerEyeHeightSmoother playerEyeHeightSmoother = new();
     private readonly ClientCameraModeController cameraMode = new();
     private readonly RenderViewModeController renderViewMode;
     private readonly LocalPredictionSmoother networkPredictionSmoother = new();
@@ -175,9 +177,16 @@ public sealed unsafe class SdlApplication : IDisposable
             : null;
 
         PlayerSnapshotState? networkPresentationPlayer = TryGetNetworkPresentationPlayer(time);
-        RenderCamera renderCamera = cameraMode.IsFreecam
-            ? freeCamera.ToRenderCamera()
-            : CreateGameplayRenderCamera(networkPresentationPlayer);
+        RenderCamera renderCamera;
+        if (cameraMode.IsFreecam)
+        {
+            playerEyeHeightSmoother.Reset();
+            renderCamera = freeCamera.ToRenderCamera();
+        }
+        else
+        {
+            renderCamera = CreateGameplayRenderCamera(networkPresentationPlayer, time.DeltaSeconds);
+        }
 
         ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot(networkPresentationPlayer, time);
         DebugPrimitiveList? debugPrimitives = loadedMap is null
@@ -282,6 +291,8 @@ public sealed unsafe class SdlApplication : IDisposable
 
         bool wasAlive = localPlayer.Alive;
         localPlayer.DebugRespawn();
+        gameplayInputMapper.Reset();
+        playerEyeHeightSmoother.Reset();
         cameraMode.HandleLocalPlayerAliveTransition(wasAlive, localPlayer.Alive);
     }
 
@@ -441,7 +452,10 @@ public sealed unsafe class SdlApplication : IDisposable
     private void UpdateCamera(FrameTime frameTime)
     {
         bool relativeMouseModeEnabled = Window?.RelativeMouseMode.Enabled == true;
-        lastGameplayInput = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled);
+        lastGameplayInput = gameplayInputMapper.FromInputState(
+            input,
+            relativeMouseModeEnabled,
+            ownsGameplayInput: !cameraMode.IsFreecam);
         networkClient?.Poll();
 
         if (cameraMode.IsFreecam)
@@ -458,18 +472,41 @@ public sealed unsafe class SdlApplication : IDisposable
             networkClient?.ApplyLook(lastGameplayInput);
     }
 
-    private RenderCamera CreateGameplayRenderCamera(PlayerSnapshotState? networkPresentationPlayer)
+    private RenderCamera CreateGameplayRenderCamera(PlayerSnapshotState? networkPresentationPlayer, double deltaSeconds)
     {
         if (localPlayer is not null)
-            return localPlayer.ToRenderCamera();
+        {
+            float target = localPlayer.ViewSettings.GetEyeHeight(localPlayer.CharacterState.Stance);
+            float eyeHeight = playerEyeHeightSmoother.Update(target, deltaSeconds);
+            return GameplayView.CreateRenderCamera(localPlayer.FeetPosition, localPlayer.LookState, eyeHeight);
+        }
 
         if (networkClient is not null)
+        {
+            if (networkPresentationPlayer is not PlayerSnapshotState player)
+            {
+                playerEyeHeightSmoother.Reset();
+                return NetworkSnapshotPresentation.CreateRenderCamera(
+                    networkClient.State,
+                    networkClient.LookState,
+                    gameplayView,
+                    networkPresentationPlayer);
+            }
+
+            KinematicCharacterStance stance = player.Crouched
+                ? KinematicCharacterStance.Crouched
+                : KinematicCharacterStance.Standing;
+            float target = gameplayView.ViewSettings.GetEyeHeight(stance);
+            float eyeHeight = playerEyeHeightSmoother.Update(target, deltaSeconds);
             return NetworkSnapshotPresentation.CreateRenderCamera(
                 networkClient.State,
                 networkClient.LookState,
                 gameplayView,
-                networkPresentationPlayer);
+                networkPresentationPlayer,
+                eyeHeight);
+        }
 
+        playerEyeHeightSmoother.Reset();
         return gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
     }
 
@@ -488,10 +525,14 @@ public sealed unsafe class SdlApplication : IDisposable
 
     private PlayerSnapshotState? TryGetNetworkPresentationPlayer(FrameTime time)
     {
-        if (networkClient is null ||
-            !networkClient.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer))
+        if (networkClient is null)
+            return null;
+
+        if (!networkClient.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer))
         {
             networkPredictionSmoother.Reset();
+            gameplayInputMapper.Reset();
+            playerEyeHeightSmoother.Reset();
             return null;
         }
 

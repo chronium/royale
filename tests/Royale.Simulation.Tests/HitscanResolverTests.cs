@@ -30,6 +30,30 @@ public sealed class HitscanResolverTests
     }
 
     [Fact]
+    public void CrouchedPlayerUsesCrouchedShotOriginAndTargetHeight()
+    {
+        KinematicCharacterState crouched = new(
+            Vector3.Zero,
+            Vector3.Zero,
+            IsGrounded: true,
+            KinematicCharacterStance.Crouched);
+
+        HitscanRay ray = HitscanResolver.CreatePlayerRay(
+            crouched,
+            new PlayerLookState(0.0f, 0.0f),
+            PlayerViewSettings.Default,
+            WeaponCatalog.DefaultRifle);
+        HitscanTarget target = HitscanTarget.FromCharacter(
+            "crouched-target",
+            crouched,
+            new KinematicCharacterSettings());
+
+        Assert.Equal(PlayerViewSettings.DefaultCrouchedEyeHeight, ray.Origin.Y, precision: 4);
+        Assert.Equal(1.1f, target.Height);
+        Assert.Equal(0.35f, target.Radius);
+    }
+
+    [Fact]
     public void RayWithNoStaticObstructionReturnsNoHit()
     {
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateEmptyMap());

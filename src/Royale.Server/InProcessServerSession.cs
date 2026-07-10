@@ -365,7 +365,9 @@ public sealed class InProcessServerSession : IDisposable
             player.Weapon.IsReloading,
             player.LastProcessedInputSequence,
             player.LastProcessedInputClientTick,
-            queuedInputCount);
+            queuedInputCount,
+            player.Character.Stance,
+            simulation.CharacterSettings.GetHeight(player.Character.Stance));
     }
 
     private sealed class InProcessClientState(ServerConnectionId connectionId, ServerPlayerId playerId)

@@ -12,14 +12,18 @@ public static class NetworkSnapshotPresentation
         ClientNetworkState state,
         PlayerLookState localLook,
         GameplayView? gameplayView = null,
-        PlayerSnapshotState? predictedLocalPlayer = null)
+        PlayerSnapshotState? predictedLocalPlayer = null,
+        float? eyeHeight = null)
     {
         ArgumentNullException.ThrowIfNull(state);
 
         Vector3 feetPosition = TryGetPresentationLocalPlayer(state, predictedLocalPlayer, out PlayerSnapshotState player)
             ? player.Position
             : Vector3.Zero;
-        return (gameplayView ?? GameplayView.CreateDefault()).ToRenderCamera(feetPosition, localLook);
+        GameplayView resolvedView = gameplayView ?? GameplayView.CreateDefault();
+        return eyeHeight is float height
+            ? GameplayView.CreateRenderCamera(feetPosition, localLook, height)
+            : resolvedView.ToRenderCamera(feetPosition, localLook);
     }
 
     public static ServerSnapshot? CreatePresentationSnapshot(

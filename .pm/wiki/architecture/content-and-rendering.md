@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T14:29:34.0059550Z
+modifiedAt: 2026-07-10T15:27:22.6833020Z
 ---
 
 ## Content and Map Data
@@ -277,3 +277,9 @@ Weapon visual state
 ```
 
 This distinction prevents rendering concerns from contaminating gameplay authority.
+
+### Crouch presentation
+
+Simulation stance and collision height change immediately. Only the local rendered gameplay eye height is smoothed: it moves linearly between the standing `1.62 m` and crouched `0.95 m` targets and reaches the target within `0.15 s`. The smoother snaps to the current target when no gameplay player exists and resets after offline respawn, network disconnect, and freecam use so presentation state cannot leak between player lifecycles.
+
+Local predicted and remote debug capsules use each player's actual stance height. Remote cameras, player animation, models, weapon poses, and stance animation remain outside `GAME-015`.

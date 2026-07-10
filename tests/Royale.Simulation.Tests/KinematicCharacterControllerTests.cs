@@ -373,6 +373,95 @@ public sealed class KinematicCharacterControllerTests
         Assert.InRange(MathF.Abs(result.State.Position.Z), 0.0f, 0.001f);
     }
 
+    [Fact]
+    public void CrouchedMovementUsesCrouchedSpeedAndPreservesFeetAndRadius()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateFloorMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState start = new(Vector3.Zero, Vector3.Zero, true);
+
+        KinematicCharacterState state = StepMany(
+            controller,
+            collisionWorld,
+            start,
+            new KinematicCharacterInput(new Vector2(1.0f, 0.0f), Jump: false, Crouch: true),
+            60).State;
+
+        Assert.Equal(KinematicCharacterStance.Crouched, state.Stance);
+        Assert.InRange(state.Position.X, 2.40f, 2.60f);
+        Assert.InRange(state.Position.Y, -0.001f, 0.02f);
+        Assert.Equal(0.35f, controller.Settings.Radius);
+        Assert.Equal(1.1f, controller.Settings.GetHeight(state.Stance));
+    }
+
+    [Fact]
+    public void AirborneCrouchChangesStanceImmediatelyWithoutMovingFeet()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateFloorMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState start = new(new Vector3(0.0f, 3.0f, 0.0f), Vector3.Zero, false);
+
+        KinematicCharacterStepResult result = controller.Step(
+            collisionWorld,
+            start,
+            new KinematicCharacterInput(Vector2.Zero, Jump: false, Crouch: true),
+            Tick);
+
+        Assert.Equal(KinematicCharacterStance.Crouched, result.State.Stance);
+        Assert.Equal(start.Position.X, result.State.Position.X);
+        Assert.Equal(start.Position.Z, result.State.Position.Z);
+        Assert.True(result.State.Position.Y < start.Position.Y);
+    }
+
+    [Fact]
+    public void JumpIsRejectedWhileCrouchedOrRequestingCrouch()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateFloorMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState grounded = new(Vector3.Zero, Vector3.Zero, true);
+
+        KinematicCharacterStepResult result = controller.Step(
+            collisionWorld,
+            grounded,
+            new KinematicCharacterInput(Vector2.Zero, Jump: true, Crouch: true),
+            Tick);
+
+        Assert.False(result.JumpAccepted);
+        Assert.Equal(KinematicCharacterStance.Crouched, result.State.Stance);
+        Assert.Equal(0.0f, result.State.Velocity.Y, precision: 4);
+    }
+
+    [Fact]
+    public void StandRequestRemainsCrouchedUnderCeilingAndAutomaticallyStandsAfterClearance()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateCrouchTunnelMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState state = new(Vector3.Zero, Vector3.Zero, true);
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.Zero, Jump: false, Crouch: true),
+            Tick).State;
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.Zero, Jump: false, Crouch: false),
+            Tick).State;
+        Assert.Equal(KinematicCharacterStance.Crouched, state.Stance);
+        Assert.InRange(state.Position.Y, -0.001f, 0.02f);
+
+        state = StepMany(
+            controller,
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(new Vector2(1.0f, 0.0f), Jump: false, Crouch: false),
+            80).State;
+
+        Assert.Equal(KinematicCharacterStance.Standing, state.Stance);
+        Assert.True(state.Position.X > 2.0f);
+    }
+
     private static KinematicCharacterStepResult StepMany(
         KinematicCharacterController controller,
         MapStaticCollisionWorld collisionWorld,
@@ -421,6 +510,10 @@ public sealed class KinematicCharacterControllerTests
     private static GameMap CreateCeilingMap() => CreateMap(
         Box("floor", new Vector3(0.0f, -0.1f, 0.0f), new Vector3(20.0f, 0.2f, 20.0f)),
         Box("ceiling", new Vector3(0.0f, 2.5f, 0.0f), new Vector3(4.0f, 0.2f, 4.0f)));
+
+    private static GameMap CreateCrouchTunnelMap() => CreateMap(
+        Box("floor", new Vector3(0.0f, -0.1f, 0.0f), new Vector3(20.0f, 0.2f, 20.0f)),
+        Box("low-ceiling", new Vector3(0.0f, 1.25f, 0.0f), new Vector3(3.0f, 0.2f, 4.0f)));
 
     private static GameMap CreateWalkableSlopeMap() => CreateMap(
         Box(

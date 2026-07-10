@@ -17,7 +17,7 @@ public sealed class GameplayInputMapperTests
         input.SetKeyDown((int)SDL_Keycode.SDLK_W);
         input.SetKeyDown((int)SDL_Keycode.SDLK_D);
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: false);
 
         Assert.Equal(new Vector2(1.0f, 1.0f), sample.Move);
     }
@@ -31,7 +31,7 @@ public sealed class GameplayInputMapperTests
         input.SetKeyDown((int)SDL_Keycode.SDLK_A);
         input.SetKeyDown((int)SDL_Keycode.SDLK_D);
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: false);
 
         Assert.Equal(Vector2.Zero, sample.Move);
     }
@@ -42,7 +42,7 @@ public sealed class GameplayInputMapperTests
         var input = new InputState();
         input.SetKeyDown((int)SDL_Keycode.SDLK_SPACE);
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: false);
 
         Assert.True(sample.Jump);
     }
@@ -53,7 +53,7 @@ public sealed class GameplayInputMapperTests
         var input = new InputState();
         input.SetMouseButtonDown((int)SDLButton.SDL_BUTTON_LEFT);
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: false);
 
         Assert.True(sample.Fire);
     }
@@ -63,7 +63,7 @@ public sealed class GameplayInputMapperTests
     {
         var input = new InputState();
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: false);
 
         Assert.False(sample.Fire);
     }
@@ -74,7 +74,7 @@ public sealed class GameplayInputMapperTests
         var input = new InputState();
         input.AddMouseDelta(12.0f, -6.0f);
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: false);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: false);
 
         Assert.Equal(Vector2.Zero, sample.LookDelta);
     }
@@ -85,8 +85,37 @@ public sealed class GameplayInputMapperTests
         var input = new InputState();
         input.AddMouseDelta(12.0f, -6.0f);
 
-        PlayerInputSample sample = GameplayInputMapper.FromInputState(input, relativeMouseModeEnabled: true);
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(input, relativeMouseModeEnabled: true);
 
         Assert.Equal(new Vector2(12.0f, -6.0f), sample.LookDelta);
+    }
+
+    [Fact]
+    public void CrouchTogglesOncePerOwnedKeyPress()
+    {
+        var mapper = new GameplayInputMapper();
+        var input = new InputState();
+        input.SetKeyDown((int)SDL_Keycode.SDLK_C);
+
+        Assert.True(mapper.FromInputState(input, false).Crouch);
+        input.BeginFrame();
+        Assert.True(mapper.FromInputState(input, false).Crouch);
+        input.SetKeyUp((int)SDL_Keycode.SDLK_C);
+        input.BeginFrame();
+        input.SetKeyDown((int)SDL_Keycode.SDLK_C);
+        Assert.False(mapper.FromInputState(input, false).Crouch);
+    }
+
+    [Fact]
+    public void UnownedCrouchPressDoesNotToggleDesiredStance()
+    {
+        var mapper = new GameplayInputMapper();
+        var input = new InputState();
+        input.SetKeyDown((int)SDL_Keycode.SDLK_C);
+
+        PlayerInputSample sample = mapper.FromInputState(input, false, ownsGameplayInput: false);
+
+        Assert.False(sample.Crouch);
+        Assert.False(mapper.Crouched);
     }
 }

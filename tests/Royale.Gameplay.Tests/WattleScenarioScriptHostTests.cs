@@ -729,6 +729,22 @@ public sealed class WattleScenarioScriptHostTests
             var snapshot = scenario.observe.latest(player);
 
             scenario.assert.equal(31, snapshot.acknowledgedInputSequence);
+            scenario.assert.isTrue(snapshot.player(player.playerId).crouched);
+            scenario.assert.equal("Crouched", scenario.observe.debugPlayer(player).stance);
+            scenario.assert.near(1.1, scenario.observe.debugPlayer(player).capsuleHeight, 0.001);
+
+            scenario.assert.isTrue(scenario.players.input(player, {
+                sequence = 32,
+                clientTick = 302,
+                moveX = 0.0,
+                moveY = 0.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0,
+                crouch = false
+            }));
+            scenario.server.step(1);
+            snapshot = scenario.observe.latest(player);
+            scenario.assert.equal(false, snapshot.player(player.playerId).crouched);
 
             return true;
             """;

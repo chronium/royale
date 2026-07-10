@@ -66,6 +66,37 @@ public sealed class DebugPrimitiveRenderingTests
     }
 
     [Fact]
+    public void SnapshotDebugCapsuleUsesAuthoritativeStanceHeight()
+    {
+        var primitives = new DebugPrimitiveList();
+        var player = new PlayerSnapshotState(
+            1,
+            ServerSnapshotPlayerKind.Human,
+            Vector3.Zero,
+            Vector3.Zero,
+            0.0f,
+            0.0f,
+            100,
+            100,
+            true,
+            new WeaponSnapshotState("rifle", 30, 90, 0, null, false, null),
+            Crouched: true);
+        var snapshot = new ServerSnapshot(
+            1,
+            1,
+            null,
+            [player],
+            new MatchSnapshotState(ServerSnapshotMatchPhase.Playing, 0, 1, null),
+            new SafeZoneSnapshotState(Vector3.Zero, 10.0f, 10.0f, 0));
+
+        DebugSceneBuilder.AddSnapshotPlayerCapsules(primitives, snapshot);
+
+        Assert.Equal(52, primitives.LineCount);
+        float topSphereCenter = primitives.Lines.SelectMany(line => new[] { line.Start.Y, line.End.Y }).Max();
+        Assert.Equal(1.1f, topSphereCenter + 0.35f, precision: 4);
+    }
+
+    [Fact]
     public void CircleHelperEmitsRequestedLineCount()
     {
         var primitives = new DebugPrimitiveList();

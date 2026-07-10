@@ -70,7 +70,10 @@ public static class DebugSceneBuilder
             Vector4 color = snapshot.LocalPlayerId == player.PlayerId
                 ? NetworkLocalPlayerCapsuleColor
                 : NetworkRemotePlayerCapsuleColor;
-            AddCapsuleAtFeet(primitives, player.Position, settings.Radius, settings.Height, color);
+            float height = settings.GetHeight(player.Crouched
+                ? KinematicCharacterStance.Crouched
+                : KinematicCharacterStance.Standing);
+            AddCapsuleAtFeet(primitives, player.Position, settings.Radius, height, color);
         }
     }
 
@@ -90,7 +93,7 @@ public static class DebugSceneBuilder
     {
         Vector3 feet = localPlayer.FeetPosition;
         float radius = localPlayer.CharacterSettings.Radius;
-        float height = localPlayer.CharacterSettings.Height;
+        float height = localPlayer.CharacterSettings.GetHeight(localPlayer.CharacterState.Stance);
         primitives.AddCapsule(
             feet + new Vector3(0.0f, radius, 0.0f),
             feet + new Vector3(0.0f, height - radius, 0.0f),

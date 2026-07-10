@@ -223,6 +223,7 @@ internal sealed unsafe class ImGuiBackend : IDisposable
             Text(values.LookText);
             Text(values.HealthText);
             Text(values.AliveText);
+            Text(values.StanceText);
             Text(values.GroundedText);
             Text(values.WeaponText);
             Text(values.AmmunitionText);

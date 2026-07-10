@@ -1,7 +1,9 @@
+using System.Numerics;
 using Royale.Content;
 using Royale.Protocol;
 using Royale.Server;
 using Royale.Simulation.Combat;
+using Royale.Simulation.Movement;
 using Royale.Simulation.World;
 
 namespace Royale.Server.Tests;
@@ -597,6 +599,28 @@ public sealed class HeadlessServerSimulationTests
         Assert.Equal(simulation.SafeZoneState.CurrentRadius, snapshot.SafeZone.CurrentRadius);
         Assert.Equal(simulation.SafeZoneState.TargetRadius, snapshot.SafeZone.TargetRadius);
         Assert.Equal(simulation.SafeZoneState.LastUpdatedTick, snapshot.SafeZone.LastUpdatedTick);
+    }
+
+    [Fact]
+    public void AuthoritativeCrouchPersistsWithoutACommandAndReplicatesInSnapshot()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
+        var crouch = new PlayerInputCommand(
+            Sequence: 1,
+            ClientTick: 1,
+            Move: Vector2.Zero,
+            YawRadians: player.Look.YawRadians,
+            PitchRadians: player.Look.PitchRadians,
+            Buttons: InputButtons.Crouch);
+
+        simulation.Step(new Dictionary<ServerPlayerId, PlayerInputCommand> { [player.PlayerId] = crouch });
+        simulation.Step();
+
+        AuthoritativePlayerState authoritative = simulation.Players[player.PlayerId];
+        PlayerSnapshotState snapshot = Assert.Single(simulation.CreateSnapshot().Players);
+        Assert.Equal(KinematicCharacterStance.Crouched, authoritative.Character.Stance);
+        Assert.True(snapshot.Crouched);
     }
 
     [Fact]

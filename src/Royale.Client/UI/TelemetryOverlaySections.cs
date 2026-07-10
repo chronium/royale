@@ -85,7 +85,9 @@ public sealed record TelemetryPlayerValues(
     string WeaponId,
     int? AmmoInMagazine,
     int? ReserveAmmo,
-    int? MagazineCapacity)
+    int? MagazineCapacity,
+    string Stance,
+    float CapsuleHeight)
 {
     public string PositionText => $"Position: {FormatVector(Position)}";
 
@@ -98,6 +100,10 @@ public sealed record TelemetryPlayerValues(
     public string HealthText => $"Health: {CurrentHealth}/{MaxHealth}";
 
     public string AliveText => $"State: {(Alive ? "alive" : "dead")}";
+
+    public string StanceText => string.Create(
+        CultureInfo.InvariantCulture,
+        $"Stance: {Stance} ({CapsuleHeight:0.00} m capsule)");
 
     public string GroundedText => Grounded is bool grounded
         ? $"Grounded: {(grounded ? "yes" : "no")}{(GroundedSource is null ? string.Empty : $" ({GroundedSource})")}"

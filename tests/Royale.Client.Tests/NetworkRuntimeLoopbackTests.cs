@@ -82,6 +82,20 @@ public sealed class NetworkRuntimeLoopbackTests
             Vector3.Distance(
                 new Vector3(finalPlayer.Position.X, 0.0f, finalPlayer.Position.Z),
                 new Vector3(initialPlayer.Position.X, 0.0f, initialPlayer.Position.Z)) > 0.05f);
+
+        PlayerInputSample crouch = moveForward with { Crouch = true };
+        Assert.True(client.FixedUpdate(crouch, clientTick: 31));
+        Assert.True(client.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedCrouch));
+        Assert.True(predictedCrouch.Crouched);
+
+        await PumpUntilAsync(
+            server,
+            client,
+            () => client.State.TryGetLocalPlayer(out PlayerSnapshotState authoritativeCrouch) &&
+                authoritativeCrouch.Crouched);
+
+        Assert.True(client.State.TryGetLocalPlayer(out PlayerSnapshotState crouchedPlayer));
+        Assert.True(crouchedPlayer.Crouched);
     }
 
     private static async Task PumpUntilAsync(

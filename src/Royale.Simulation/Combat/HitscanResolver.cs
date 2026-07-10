@@ -43,7 +43,12 @@ public static class HitscanResolver
         ArgumentNullException.ThrowIfNull(viewSettings);
         ArgumentNullException.ThrowIfNull(weapon);
 
-        return HitscanRay.FromPlayerLook(characterState.Position, lookState, viewSettings, weapon.RangeMeters);
+        return HitscanRay.FromPlayerLook(
+            characterState.Position,
+            lookState,
+            viewSettings,
+            weapon.RangeMeters,
+            characterState.Stance);
     }
 
     private static HitscanHit ResolveStatic(MapStaticCollisionWorld collisionWorld, HitscanRay ray)

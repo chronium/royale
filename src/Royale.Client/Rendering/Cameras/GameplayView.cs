@@ -29,4 +29,18 @@ public sealed class GameplayView
         Vector3 cameraPosition = playerFeetPosition + new Vector3(0.0f, resolvedSettings.EyeHeight, 0.0f);
         return new RenderCamera(cameraPosition, lookState.YawRadians, lookState.PitchRadians);
     }
+
+    public static RenderCamera CreateRenderCamera(
+        Vector3 playerFeetPosition,
+        PlayerLookState lookState,
+        float eyeHeight)
+    {
+        if (!float.IsFinite(eyeHeight) || eyeHeight <= 0.0f)
+            throw new ArgumentOutOfRangeException(nameof(eyeHeight));
+
+        return new RenderCamera(
+            playerFeetPosition + new Vector3(0.0f, eyeHeight, 0.0f),
+            lookState.YawRadians,
+            lookState.PitchRadians);
+    }
 }

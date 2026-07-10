@@ -7,9 +7,16 @@ using SDL;
 
 namespace Royale.Client.Input;
 
-public static class GameplayInputMapper
+public sealed class GameplayInputMapper
 {
-    public static PlayerInputSample FromInputState(InputState input, bool relativeMouseModeEnabled)
+    private bool crouched;
+
+    public bool Crouched => crouched;
+
+    public PlayerInputSample FromInputState(
+        InputState input,
+        bool relativeMouseModeEnabled,
+        bool ownsGameplayInput = true)
     {
         Vector2 move = Vector2.Zero;
 
@@ -29,10 +36,16 @@ public static class GameplayInputMapper
             ? new Vector2(input.MouseDeltaX, input.MouseDeltaY)
             : Vector2.Zero;
 
+        if (ownsGameplayInput && input.WasKeyPressed((int)SDL_Keycode.SDLK_C))
+            crouched = !crouched;
+
         return new PlayerInputSample(
             move,
             Jump: input.IsKeyDown((int)SDL_Keycode.SDLK_SPACE),
             Fire: input.IsMouseButtonDown((int)SDLButton.SDL_BUTTON_LEFT),
-            lookDelta);
+            lookDelta,
+            crouched);
     }
+
+    public void Reset() => crouched = false;
 }

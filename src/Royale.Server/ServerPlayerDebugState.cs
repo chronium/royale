@@ -1,4 +1,5 @@
 using System.Numerics;
+using Royale.Simulation.Movement;
 
 namespace Royale.Server;
 
@@ -21,4 +22,6 @@ public readonly record struct ServerPlayerDebugState(
     bool IsReloading,
     uint? LastProcessedInputSequence,
     uint? LastProcessedInputClientTick,
-    int QueuedInputCount);
+    int QueuedInputCount,
+    KinematicCharacterStance Stance = KinematicCharacterStance.Standing,
+    float CapsuleHeight = 1.8f);

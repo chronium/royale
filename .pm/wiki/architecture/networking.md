@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T08:11:16.3370850Z
+modifiedAt: 2026-07-10T15:27:22.6744080Z
 ---
 
 ## Networking Layers
@@ -208,6 +208,12 @@ ContentVersion = "dev-content-1"
 ```
 
 A server rejects mismatched build ids with `IncompatibleBuild` and mismatched content versions with `IncompatibleContent`. Sophisticated backwards compatibility remains out of scope for the first implementation; incompatible clients and servers fail clearly rather than attempting to continue.
+
+### GAME-015 crouch compatibility
+
+`PlayerInputCommand` continues to carry desired crouch through the existing `InputButtons.Crouch` bit. `PlayerSnapshotState` now appends one validated boolean byte for authoritative `Crouched` state. The maximum per-player snapshot payload is therefore 157 bytes and the maximum full snapshot payload is 20,162 bytes.
+
+This snapshot layout is wire-incompatible with builds from before `GAME-015`. Per the owner decision, the protocol remains version `1.0`; client and server must be deployed in lockstep. Deserialization rejects malformed boolean markers rather than accepting permissive values. Prediction seeds and replay use authoritative crouch, while remote interpolation selects stance discretely from the nearest transform sample rather than blending it.
 
 ## In-Process Development Mode
 

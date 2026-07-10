@@ -33,7 +33,8 @@ public readonly record struct HitscanRay
         Vector3 feetPosition,
         PlayerLookState lookState,
         PlayerViewSettings viewSettings,
-        float length)
+        float length,
+        KinematicCharacterStance stance = KinematicCharacterStance.Standing)
     {
         ArgumentNullException.ThrowIfNull(viewSettings);
 
@@ -50,7 +51,7 @@ public readonly record struct HitscanRay
             -cosPitch * MathF.Cos(lookState.YawRadians));
 
         return new HitscanRay(
-            feetPosition + new Vector3(0.0f, viewSettings.EyeHeight, 0.0f),
+            feetPosition + new Vector3(0.0f, viewSettings.GetEyeHeight(stance), 0.0f),
             direction,
             length);
     }

@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-10T09:45:25.6003350Z
+modifiedAt: 2026-07-10T15:27:22.6660480Z
 ---
 
 ## Physics Architecture
@@ -182,6 +182,14 @@ Step-up attempts are only accepted when the elevated move settles on a walkable 
 Penetration recovery uses the overlap depth reported by Box3D mover planes. Walkable planes can correct small vertical ground contact, while non-walkable planes only push when overlap exceeds the controller skin width. This avoids oscillation when pressing into a wall at a shallow angle: near-contact wall planes are used for clipping but no longer trigger an oversized recovery push on alternate ticks.
 
 Step-up attempts also compare progress along the intended horizontal movement direction. A step is accepted only if the elevated path lands on walkable ground above the current feet height and advances farther along input than the flat slide did. This preserves valid small steps while rejecting shortcut paths that move sideways or backward around obstacle edges.
+
+### Standing and crouched capsules
+
+The controller uses feet-anchored capsules with a constant `0.35 m` radius. Standing height is `1.8 m` at `4.5 m/s`; crouched height is `1.1 m` at `2.5 m/s`. The active stance height is used for capsule casts, collision-plane collection, ground probes, stepping, sliding, and penetration recovery, so feet and radius do not move when stance changes.
+
+Standing clearance is evaluated against the complete volume added when expanding from crouched to standing, plus blocking standing overlaps. Valid walkable ground contact is ignored. Any blocking clearance shorter than skin width keeps the character crouched and the controller automatically retries on later ticks.
+
+Hitscan eye origin changes immediately with authoritative stance: `1.62 m` standing and `0.95 m` crouched. Player target capsules also use the target's authoritative active height.
 
 ## Combat Flow
 

@@ -9,5 +9,5 @@ public readonly record struct HitscanTarget(string Id, Vector3 FeetPosition, flo
         string id,
         KinematicCharacterState state,
         KinematicCharacterSettings settings) =>
-        new(id, state.Position, settings.Radius, settings.Height);
+        new(id, state.Position, settings.Radius, settings.GetHeight(state.Stance));
 }

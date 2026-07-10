@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T14:17:22.3279580Z
+modifiedAt: 2026-07-10T14:19:21.7161490Z
 ---
 
 ## Content and Map Data
@@ -79,6 +79,8 @@ Deterministic captures can select an initial render view and hide ImGui telemetr
 ```text
 dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build --no-restore -- --offline --map prototype-arena --camera-mode freecam --camera-position 25,24,25 --camera-look-at 0,0,0 --render-view normal --hide-telemetry --screenshot /tmp/prototype-arena-normal.bmp --screenshot-after-frames 5
 ```
+
+`BUG-006` raises both south-compound doorway instances to vertical scale `2.5`. Since the source opening reaches local Y=`0.8`, this provides 2.0 metres of clear height for the default 1.8-metre player capsule while preserving doorway width and the rest of the compound layout. Simulation validation casts the full default capsule through both openings rather than relying on a single waist-height ray.
 
 ### Map-Authored Static Models
 

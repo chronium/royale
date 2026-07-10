@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Royale.Box3D.Bindings;
@@ -152,16 +153,21 @@ public sealed class MapStaticCollisionWorldTests
             validateY: false);
     }
 
-    [Fact]
-    public void PrototypeArenaFrontDoorwayOpeningIsTraversableAtPlayerHeight()
+    [Theory]
+    [InlineData(6.0f)]
+    [InlineData(14.0f)]
+    public void PrototypeArenaDoorwayOpeningsClearDefaultPlayerCapsule(float startZ)
     {
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadById("prototype-arena"));
+        var settings = new KinematicCharacterSettings();
 
-        B3RayResult result = collisionWorld.CastRayClosest(
-            new MapVector3(0.0f, 1.0f, 6.0f),
-            new MapVector3(0.0f, 0.0f, 4.0f));
+        MapStaticCapsuleCast result = collisionWorld.CastCapsuleMover(
+            new Vector3(0.0f, 0.01f, startZ),
+            settings.Radius,
+            settings.Height,
+            new Vector3(0.0f, 0.0f, 4.0f));
 
-        Assert.False(result.Hit);
+        Assert.Equal(1.0f, result.Fraction);
     }
 
     [Theory]

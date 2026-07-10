@@ -251,14 +251,14 @@
       "assetId": "kenney-wall-doorway",
       "position": { "x": 0.0, "y": 0.0, "z": 8.0 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
-      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+      "scale": { "x": 1.0, "y": 2.5, "z": 4.0 }
     },
     {
       "id": "south-doorway-rear",
       "assetId": "kenney-wall-doorway",
       "position": { "x": 0.0, "y": 0.0, "z": 16.0 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
-      "scale": { "x": 1.0, "y": 2.0, "z": 4.0 }
+      "scale": { "x": 1.0, "y": 2.5, "z": 4.0 }
     },
     {
       "id": "south-wall-front-west",

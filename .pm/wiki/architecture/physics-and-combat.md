@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-07T07:29:43.9370780Z
+modifiedAt: 2026-07-10T01:51:25.8287880Z
 ---
 
 ## Physics Architecture
@@ -290,6 +290,12 @@ Resetting
     ↓
 WaitingForPlayers
 ```
+
+`BR-001` implements this lifecycle as the server-owned `MatchPhaseStateMachine`. The only legal transition cycle is `WaitingForPlayers -> Countdown -> Playing -> Finished -> Resetting -> WaitingForPlayers`. Same-phase, skipped, reversed, unknown, and transition-tick-regressing requests fail explicitly.
+
+A successful transition records the current authoritative server tick as `PhaseStartedTick` while preserving living-player count and winner state. `HeadlessServerSimulation.TransitionMatchPhase(...)` and the equivalent `InProcessServerSession` entry point provide explicit orchestration hooks.
+
+`BR-001` intentionally does not add automatic transition triggers or phase-aware gameplay gating. `Step()` never advances the phase by itself, and movement and combat continue to run in every phase so existing multiplayer behavior remains unchanged. Minimum-player/countdown triggers, winner assignment, combat or movement gating, and reset mutation belong to `BR-002` and later match-loop tasks.
 
 ## WaitingForPlayers
 

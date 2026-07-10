@@ -169,6 +169,38 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
+    public void TransitionMatchPhaseUsesCurrentAuthoritativeTickAndAppearsInSnapshot()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        simulation.AddPlayer();
+        simulation.Step();
+
+        simulation.TransitionMatchPhase(MatchPhase.Countdown);
+        ServerSnapshot snapshot = simulation.CreateSnapshot();
+
+        Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+        Assert.Equal(1UL, simulation.MatchState.PhaseStartedTick);
+        Assert.Equal(1, simulation.MatchState.LivingPlayerCount);
+        Assert.Null(simulation.MatchState.WinnerPlayerId);
+        Assert.Equal(ServerSnapshotMatchPhase.Countdown, snapshot.Match.Phase);
+        Assert.Equal(1UL, snapshot.Match.PhaseStartedTick);
+        Assert.Equal(1, snapshot.Match.LivingPlayerCount);
+        Assert.Null(snapshot.Match.WinnerPlayerId);
+    }
+
+    [Fact]
+    public void StepDoesNotAdvanceMatchPhaseAutomatically()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        simulation.TransitionMatchPhase(MatchPhase.Countdown);
+
+        simulation.Step();
+
+        Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+        Assert.Equal(0UL, simulation.MatchState.PhaseStartedTick);
+    }
+
+    [Fact]
     public void StepDoesNotUpdateLastProcessedInputSequence()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);

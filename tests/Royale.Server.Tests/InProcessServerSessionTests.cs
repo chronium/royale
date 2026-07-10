@@ -104,6 +104,25 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void TransitionMatchPhaseAppearsInNextProducedSnapshot()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        InProcessClientConnection client = session.ConnectClient();
+        _ = DequeueSnapshot(session, client);
+        session.Step();
+        _ = DequeueSnapshot(session, client);
+
+        session.TransitionMatchPhase(MatchPhase.Countdown);
+        session.Step();
+        ServerSnapshot snapshot = DequeueSnapshot(session, client);
+
+        Assert.Equal(MatchPhase.Countdown, session.MatchPhase);
+        Assert.Equal(ServerSnapshotMatchPhase.Countdown, snapshot.Match.Phase);
+        Assert.Equal(1UL, snapshot.Match.PhaseStartedTick);
+        Assert.Equal(2UL, snapshot.ServerTick);
+    }
+
+    [Fact]
     public void ValidQueuedCommandUpdatesTopLevelAcknowledgement()
     {
         using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);

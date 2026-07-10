@@ -392,8 +392,10 @@ public sealed class ServerObservability : IDisposable
         phase switch
         {
             MatchPhase.WaitingForPlayers => "waiting_for_players",
-            MatchPhase.InProgress => "in_progress",
-            MatchPhase.Completed => "completed",
+            MatchPhase.Countdown => "countdown",
+            MatchPhase.Playing => "playing",
+            MatchPhase.Finished => "finished",
+            MatchPhase.Resetting => "resetting",
             _ => "unknown",
         };
 }

@@ -27,7 +27,7 @@ public sealed class ServerSnapshotTests
             Alive: true,
             Weapon: weapon);
         var match = new MatchSnapshotState(
-            ServerSnapshotMatchPhase.InProgress,
+            ServerSnapshotMatchPhase.Playing,
             PhaseStartedTick: 60,
             LivingPlayerCount: 3,
             WinnerPlayerId: null);
@@ -99,7 +99,7 @@ public sealed class ServerSnapshotTests
                 CreatePlayer(8, "shotgun-\u2603", alive: false, lastFiredTick: null, reloadCompleteTick: 160),
             ],
             match: new MatchSnapshotState(
-                ServerSnapshotMatchPhase.Completed,
+                ServerSnapshotMatchPhase.Finished,
                 PhaseStartedTick: 60,
                 LivingPlayerCount: 1,
                 WinnerPlayerId: 7),
@@ -138,6 +138,40 @@ public sealed class ServerSnapshotTests
         AssertSnapshotEqual(snapshot, decoded);
     }
 
+    [Theory]
+    [InlineData(ServerSnapshotMatchPhase.WaitingForPlayers)]
+    [InlineData(ServerSnapshotMatchPhase.Playing)]
+    [InlineData(ServerSnapshotMatchPhase.Finished)]
+    [InlineData(ServerSnapshotMatchPhase.Countdown)]
+    [InlineData(ServerSnapshotMatchPhase.Resetting)]
+    public void SnapshotPayloadRoundTripsEveryMatchPhase(ServerSnapshotMatchPhase phase)
+    {
+        ServerSnapshot snapshot = CreateMinimalSnapshot() with
+        {
+            Match = DefaultMatch() with { Phase = phase },
+        };
+
+        ServerSnapshot decoded = RoundTrip(snapshot);
+
+        Assert.Equal(phase, decoded.Match.Phase);
+    }
+
+    [Theory]
+    [InlineData(ServerSnapshotMatchPhase.Playing, 1)]
+    [InlineData(ServerSnapshotMatchPhase.Finished, 2)]
+    public void PlayingAndFinishedRetainStableWireValues(
+        ServerSnapshotMatchPhase phase,
+        byte expectedWireValue)
+    {
+        ServerSnapshot snapshot = CreateMinimalSnapshot() with
+        {
+            Match = DefaultMatch() with { Phase = phase },
+        };
+        byte[] payload = WriteSnapshot(snapshot);
+
+        Assert.Equal(expectedWireValue, payload[FindMatchPhaseOffset(payload)]);
+    }
+
     [Fact]
     public void SnapshotPayloadUsesStableLittleEndianLayoutForRepresentativeValues()
     {
@@ -146,7 +180,7 @@ public sealed class ServerSnapshotTests
             acknowledgedInputSequence: 0x01020304,
             players: [],
             match: new MatchSnapshotState(
-                ServerSnapshotMatchPhase.InProgress,
+                ServerSnapshotMatchPhase.Playing,
                 PhaseStartedTick: 0x1122334455667788,
                 LivingPlayerCount: -2,
                 WinnerPlayerId: null),
@@ -331,7 +365,7 @@ public sealed class ServerSnapshotTests
             reloadCompleteTick));
 
     private static MatchSnapshotState DefaultMatch() => new(
-        ServerSnapshotMatchPhase.InProgress,
+        ServerSnapshotMatchPhase.Playing,
         PhaseStartedTick: 60,
         LivingPlayerCount: 0,
         WinnerPlayerId: null);

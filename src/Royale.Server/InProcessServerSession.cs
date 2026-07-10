@@ -89,6 +89,12 @@ public sealed class InProcessServerSession : IDisposable
         return state.Snapshots.TryDequeue(out snapshot);
     }
 
+    public void TransitionMatchPhase(MatchPhase nextPhase)
+    {
+        ThrowIfDisposed();
+        simulation.TransitionMatchPhase(nextPhase);
+    }
+
     public IReadOnlyList<ServerSnapshot> DrainSnapshots(InProcessClientConnection client)
     {
         InProcessClientState state = GetClientState(client);

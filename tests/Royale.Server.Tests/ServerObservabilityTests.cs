@@ -99,6 +99,61 @@ public sealed class ServerObservabilityTests
         Assert.Equal(1, metrics.Latest("royale.server.inputs.queue_depth"));
     }
 
+    [Theory]
+    [InlineData(MatchPhase.WaitingForPlayers, "waiting_for_players")]
+    [InlineData(MatchPhase.Countdown, "countdown")]
+    [InlineData(MatchPhase.Playing, "playing")]
+    [InlineData(MatchPhase.Finished, "finished")]
+    [InlineData(MatchPhase.Resetting, "resetting")]
+    public void MatchPhaseGaugeEmitsOneActiveStableLabel(MatchPhase phase, string expectedLabel)
+    {
+        using MetricRecorder metrics = new("royale.server.match.phase");
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace));
+        using ServerObservability observability = new(loggerFactory);
+
+        observability.UpdateState(0, 0, 0, phase, 0);
+        metrics.CollectObservable();
+
+        IReadOnlyList<MetricMeasurement> measurements = metrics.MeasurementsFor("royale.server.match.phase");
+        Assert.Equal(5, measurements.Count);
+        Assert.Equal(
+            ["waiting_for_players", "playing", "finished", "countdown", "resetting"],
+            measurements.Select(measurement => Assert.IsType<string>(measurement.Tags["phase"])).ToArray());
+        Assert.Equal(1, metrics.Latest("royale.server.match.phase", "phase", expectedLabel));
+        Assert.Equal(1, measurements.Count(measurement => measurement.Value == 1));
+    }
+
+    [Fact]
+    public void MatchPhaseChangesProduceStructuredLogsWithStableNames()
+    {
+        CapturingLoggerProvider provider = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Trace);
+            builder.AddProvider(provider);
+        });
+        using ServerObservability observability = new(loggerFactory);
+
+        observability.UpdateState(0, 0, 0, MatchPhase.WaitingForPlayers, 0);
+        observability.UpdateState(0, 0, 0, MatchPhase.Countdown, 0);
+        observability.UpdateState(0, 0, 0, MatchPhase.Playing, 0);
+        observability.UpdateState(0, 0, 0, MatchPhase.Finished, 0);
+        observability.UpdateState(0, 0, 0, MatchPhase.Resetting, 0);
+        observability.UpdateState(0, 0, 0, MatchPhase.WaitingForPlayers, 0);
+
+        LogEntry[] transitions = provider.Entries
+            .Where(entry => entry.Message.StartsWith("Match phase changed", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Collection(
+            transitions,
+            entry => AssertTransitionLog(entry, "waiting_for_players", "countdown"),
+            entry => AssertTransitionLog(entry, "countdown", "playing"),
+            entry => AssertTransitionLog(entry, "playing", "finished"),
+            entry => AssertTransitionLog(entry, "finished", "resetting"),
+            entry => AssertTransitionLog(entry, "resetting", "waiting_for_players"));
+    }
+
     [Fact]
     public void SentSnapshotsIncrementCounter()
     {
@@ -410,6 +465,13 @@ public sealed class ServerObservabilityTests
             channel: 0);
         runtime.Step();
         return ReadAccept(Assert.Single(transport.SentPackets, packet => ReadHeader(packet.Payload).MessageType == ProtocolMessageType.ServerAccept).Payload);
+    }
+
+    private static void AssertTransitionLog(LogEntry entry, string previous, string current)
+    {
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Equal(previous, entry.Properties["PreviousPhase"]);
+        Assert.Equal(current, entry.Properties["CurrentPhase"]);
     }
 
     private static byte[] FrameClientHello(ClientHello hello)

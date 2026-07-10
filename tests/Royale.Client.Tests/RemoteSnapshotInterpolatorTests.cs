@@ -186,7 +186,7 @@ public sealed class RemoteSnapshotInterpolatorTests
             ? [Local(), remote]
             : [Local()],
         Match: new MatchSnapshotState(
-            ServerSnapshotMatchPhase.InProgress,
+            ServerSnapshotMatchPhase.Playing,
             PhaseStartedTick: 60,
             LivingPlayerCount: remotePlayer is null ? 1 : 2,
             WinnerPlayerId: null),

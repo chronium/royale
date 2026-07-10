@@ -127,7 +127,7 @@ public sealed class ServerSnapshotSenderTests
                     ReloadCompleteTick: null)),
         ],
         Match: new MatchSnapshotState(
-            ServerSnapshotMatchPhase.InProgress,
+            ServerSnapshotMatchPhase.Playing,
             PhaseStartedTick: 60,
             LivingPlayerCount: 1,
             WinnerPlayerId: null),

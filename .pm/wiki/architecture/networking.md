@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T01:36:21.1082250Z
+modifiedAt: 2026-07-10T01:51:25.8592740Z
 ---
 
 ## Networking Layers
@@ -123,6 +123,18 @@ Handshake payload serialization exists for `ClientHello`, `ServerAccept`, and `S
 Snapshot deserialization rejects malformed payloads, oversized player counts, oversized weapon ids, invalid enum values, invalid nullable or boolean markers, truncated data, and trailing bytes.
 
 Event serialization, client disconnect messages, server disconnect messages, snapshot delta compression, and sophisticated acknowledgement policy remain deferred.
+
+`BR-001` keeps protocol v1 unchanged while defining the complete stable one-byte match-phase mapping in snapshot match state:
+
+```text
+0 WaitingForPlayers
+1 Playing
+2 Finished
+3 Countdown
+4 Resetting
+```
+
+Values `1` and `2` preserve the former `InProgress` and `Completed` wire values. Snapshot deserialization accepts only these five defined values, and Wattle scenario snapshot wrappers expose the corresponding names shown above.
 
 ## Replication
 

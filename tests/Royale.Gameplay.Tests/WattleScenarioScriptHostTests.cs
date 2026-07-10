@@ -1,3 +1,4 @@
+using Royale.Protocol;
 using WattleScript.Interpreter;
 
 namespace Royale.Gameplay.Tests;
@@ -5,6 +6,21 @@ namespace Royale.Gameplay.Tests;
 [Collection(Box3DNativeTestCollection.Name)]
 public sealed class WattleScenarioScriptHostTests
 {
+    [Theory]
+    [InlineData(ServerSnapshotMatchPhase.WaitingForPlayers, "WaitingForPlayers")]
+    [InlineData(ServerSnapshotMatchPhase.Playing, "Playing")]
+    [InlineData(ServerSnapshotMatchPhase.Finished, "Finished")]
+    [InlineData(ServerSnapshotMatchPhase.Countdown, "Countdown")]
+    [InlineData(ServerSnapshotMatchPhase.Resetting, "Resetting")]
+    public void MatchSnapshotUsesStableWattleVisiblePhaseNames(
+        ServerSnapshotMatchPhase phase,
+        string expectedName)
+    {
+        var api = new ScenarioMatchSnapshotApi(new MatchSnapshotState(phase, 0, 0, null));
+
+        Assert.Equal(expectedName, api.phase);
+    }
+
     [Fact]
     public void ExecuteRunsWattleSyntax()
     {

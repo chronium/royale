@@ -107,6 +107,12 @@ public sealed class HeadlessServerSimulation : IDisposable
         return players.TryGetValue(playerId, out player);
     }
 
+    public void TransitionMatchPhase(MatchPhase nextPhase)
+    {
+        ThrowIfDisposed();
+        MatchState = MatchPhaseStateMachine.Transition(MatchState, nextPhase, CurrentTick);
+    }
+
     public void AcknowledgePlayerInputSequence(
         ServerPlayerId playerId,
         uint inputSequence,
@@ -260,8 +266,10 @@ public sealed class HeadlessServerSimulation : IDisposable
         phase switch
         {
             MatchPhase.WaitingForPlayers => ServerSnapshotMatchPhase.WaitingForPlayers,
-            MatchPhase.InProgress => ServerSnapshotMatchPhase.InProgress,
-            MatchPhase.Completed => ServerSnapshotMatchPhase.Completed,
+            MatchPhase.Playing => ServerSnapshotMatchPhase.Playing,
+            MatchPhase.Finished => ServerSnapshotMatchPhase.Finished,
+            MatchPhase.Countdown => ServerSnapshotMatchPhase.Countdown,
+            MatchPhase.Resetting => ServerSnapshotMatchPhase.Resetting,
             _ => throw new ArgumentOutOfRangeException(nameof(phase), phase, "Unknown match phase."),
         };
 

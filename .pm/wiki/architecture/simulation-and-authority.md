@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-08T08:09:31.3955310Z
+modifiedAt: 2026-07-10T01:51:25.8520690Z
 ---
 
 ## Simulation Model
@@ -136,6 +136,10 @@ Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player I
 `AuthoritativeWeaponState` stores the current weapon id, magazine ammunition, reserve ammunition, `WeaponFireState`, and reload placeholders. SERVER-006 consumes magazine ammunition and advances rifle fire cadence for accepted server-authoritative shots. Reload behavior remains future work.
 
 `HeadlessServerSimulation.Step()` remains a no-input convenience wrapper. `HeadlessServerSimulation.Step(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand>)` validates supplied commands, applies movement/look/combat intent for the tick, refreshes living-player count, steps the static collision world, and increments the authoritative server tick. Commands for unknown players or protocol-invalid commands fail explicitly.
+
+`BR-001` makes the five-phase match lifecycle concrete in `Royale.Server`: `WaitingForPlayers`, `Countdown`, `Playing`, `Finished`, and `Resetting`. `MatchPhaseStateMachine` owns legal transition validation; `HeadlessServerSimulation` owns the mutable authoritative state and stamps accepted transitions with its current `CurrentTick`. Living-player count and optional winner are preserved by a phase transition because winner selection and reset mutation are separate match-loop responsibilities.
+
+Phase changes are explicit orchestration operations. The fixed simulation `Step()` does not automatically change phase, and this foundation does not yet gate movement or combat by phase. Every subsequently produced authoritative snapshot maps the current server phase and its stamped start tick into the protocol transfer shape.
 
 ## Input Commands
 

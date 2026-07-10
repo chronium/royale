@@ -44,7 +44,9 @@ public readonly record struct SafeZoneSnapshotState(
 
 public enum ServerSnapshotMatchPhase
 {
-    WaitingForPlayers,
-    InProgress,
-    Completed,
+    WaitingForPlayers = 0,
+    Playing = 1,
+    Finished = 2,
+    Countdown = 3,
+    Resetting = 4,
 }

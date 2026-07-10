@@ -17,9 +17,11 @@ public readonly record struct ServerConnectionId(uint Value)
 
 public enum MatchPhase
 {
-    WaitingForPlayers,
-    InProgress,
-    Completed,
+    WaitingForPlayers = 0,
+    Playing = 1,
+    Finished = 2,
+    Countdown = 3,
+    Resetting = 4,
 }
 
 public sealed record AuthoritativePlayerState

@@ -23,6 +23,7 @@ tracks:
   BUG: Bugs
   OBS: Observability and operations
   DEBT: Technical debt
+  BOT: Bots and autonomous players
 milestones:
   M0: Cross-platform technical skeleton
   M1: Gray-box physics sandbox

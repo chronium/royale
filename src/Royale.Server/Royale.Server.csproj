@@ -20,4 +20,10 @@
           CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <RoyaleAssetAudience>server</RoyaleAssetAudience>
+  </PropertyGroup>
+
+  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
+
 </Project>

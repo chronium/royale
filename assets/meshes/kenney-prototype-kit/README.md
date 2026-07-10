@@ -6,6 +6,7 @@ Source: Kenney Prototype Kit
 License: CC0  
 Credit: Kenney, www.kenney.nl
 
-Current asset:
+Current assets:
 
 - `crate.glb`
+- `Textures/colormap.png`, referenced by the crate material

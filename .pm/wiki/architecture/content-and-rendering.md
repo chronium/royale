@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T07:15:22.4631060Z
+modifiedAt: 2026-07-10T08:36:11.0381480Z
 ---
 
 ## Content and Map Data
@@ -63,6 +63,14 @@ Loot points and safe-zone fields are still placeholders at this stage and do not
 Rendering-only data may remain client-specific.
 
 The server should not need textures or shader assets.
+
+### Model Asset Build Pipeline
+
+Model assets are declared in the strict, case-sensitive JSON manifest `assets/model-assets.json`. Manifest version `1` assigns stable lowercase asset IDs and separates optional render content from an explicit collision mode. Render entries name a GLB source plus every required relative resource; paths must be portable, remain under the assets root, and exist at build time. Collision modes are `none`, `convex`, `triangleMesh`, and `separateMesh`; only `separateMesh` accepts a separate GLB source. Generated collision artifact paths cannot be authored in the source manifest.
+
+`tools/Royale.AssetPipeline` validates and normalizes the source manifest during client and server builds. Outputs are deterministic and uncommitted under each project's `obj/<configuration>/<framework>/royale-assets/<audience>` tree. MSBuild input/output tracking skips generation when the manifest and source files are unchanged. Client output receives the normalized runtime catalog, declared GLBs, and declared render resources. Server output receives a collision-only catalog and never receives GLBs, textures, SimpleMesh, or the pipeline tool as runtime dependencies.
+
+The first source asset is `kenney-crate`, using `meshes/kenney-prototype-kit/crate.glb` and its required `Textures/colormap.png`. Both remain CC0 Kenney Prototype Kit content with attribution recorded beside the sources. Map placement transforms remain separate map-owned data; the asset manifest does not add an import-transform layer.
 
 ## Rendering Architecture
 

@@ -53,10 +53,6 @@
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />
 
-    <None Include="..\..\assets\meshes\**\*"
-          CopyToOutputDirectory="PreserveNewest"
-          TargetPath="assets/meshes/%(RecursiveDir)%(Filename)%(Extension)" />
-
     <RoyaleShaderSource Include="Shaders/**/*.vert.hlsl">
       <ShaderStage>vertex</ShaderStage>
     </RoyaleShaderSource>
@@ -79,5 +75,11 @@
           DestinationFiles="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
+
+  <PropertyGroup>
+    <RoyaleAssetAudience>client</RoyaleAssetAudience>
+  </PropertyGroup>
+
+  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
 
 </Project>

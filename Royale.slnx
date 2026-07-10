@@ -12,6 +12,7 @@
     <Project Path="src/Royale.Simulation/Royale.Simulation.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Royale.AssetPipeline.Tests/Royale.AssetPipeline.Tests.csproj" />
     <Project Path="tests/Royale.Box3D.Tests/Royale.Box3D.Tests.csproj" />
     <Project Path="tests/Royale.Client.Tests/Royale.Client.Tests.csproj" />
     <Project Path="tests/Royale.Content.Tests/Royale.Content.Tests.csproj" />
@@ -22,5 +23,8 @@
     <Project Path="tests/Royale.Protocol.Tests/Royale.Protocol.Tests.csproj" />
     <Project Path="tests/Royale.Server.Tests/Royale.Server.Tests.csproj" />
     <Project Path="tests/Royale.Simulation.Tests/Royale.Simulation.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Royale.AssetPipeline/Royale.AssetPipeline.csproj" />
   </Folder>
 </Solution>

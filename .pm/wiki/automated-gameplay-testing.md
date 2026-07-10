@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-08T06:47:05.7971190Z
+modifiedAt: 2026-07-10T01:35:14.0321380Z
 ---
 
 ## Overview
@@ -73,7 +73,7 @@ The script-visible API is narrow and sandboxed. Scripts receive one global objec
 Current `scenario` groups:
 
 * `scenario.server.start(mapId)` starts the original in-process authoritative server runtime for a map such as `graybox`.
-* `scenario.server.startUdp(mapId)` starts a loopback UDP scenario runtime for a map such as `graybox`. The test host reserves an ephemeral local UDP port, starts `NetworkServerRuntime` with `LiteNetLibNetworkTransport` on `127.0.0.1`, and connects scripted clients with their own UDP transports bound to port `0`.
+* `scenario.server.startUdp(mapId)` starts a loopback UDP scenario runtime for a map such as `graybox`. The test host reserves an ephemeral local UDP port, starts `NetworkServerRuntime` with an unwrapped `LiteNetLibNetworkTransport` on `127.0.0.1`, and connects scripted clients through per-player `SimulatedNetworkTransport` wrappers bound to port `0`. Each wrapper starts with no impairment.
 * `scenario.server.stop()` stops the active scenario runtime and invalidates connected script player handles.
 * `scenario.server.step(count)` advances the active authoritative server runtime by a positive number of simulation ticks. In UDP mode each tick also polls client and server transports so packets and snapshots can move through the real socket path.
 * `scenario.server.isRunning` reports whether a scenario runtime is active.
@@ -90,6 +90,13 @@ Current `scenario` groups:
 * `scenario.clock.maxWaitTicks` reports the fixed per-call wait cap, currently `10000` ticks.
 * `scenario.artifacts.record(name, value)` stores an in-memory string artifact value for the current host run.
 * `scenario.artifacts.count` and `scenario.artifacts.names` expose in-memory artifact metadata.
+* `scenario.network.set(player, conditions)` replaces the complete adverse-network configuration for one connected scripted UDP player.
+* `scenario.network.current(player)` returns read-only `latencyMs`, `jitterMs`, `lossChance`, `duplicateChance`, `reorderChance`, and nullable `randomSeed` fields.
+* `scenario.network.clear(player)` restores that player's no-impairment configuration.
+
+Network condition fields are optional. Omitted latency, jitter, and probability fields become `0`; omitted `randomSeed` becomes `nil`. Latency and jitter are finite non-negative milliseconds. Loss, duplication, and reordering are finite probabilities from `0` through `1`. A seed is an int32 integer or `nil`. Unknown fields, invalid field types, out-of-range values, non-finite values, invalid seeds, missing player handles, disconnected or foreign handles, stopped servers, and in-process scenarios fail with script runtime exceptions. Reapplying a seed restarts that player's deterministic impairment sequence.
+
+`set` affects packets queued afterward. Packets already queued keep their prior drop/duplicate/reorder decision and due time. Conditions are per player and apply to both directions at the scripted client wrapper; the unwrapped server transport means each direction is impaired exactly once.
 
 Current assertion helpers:
 
@@ -126,6 +133,7 @@ Recorded test-host event types:
 * `player.connected` and `player.disconnected`
 * `player.input.accepted` and `player.input.rejected`
 * `clock.wait.satisfied` and `clock.wait.timeout`
+* `network.conditions.changed` with the affected player id and invariant ordered condition details
 
 Event wrappers expose `type`, `tick`, optional `playerId`, and optional `detail`.
 
@@ -152,9 +160,9 @@ Clock waits and eventual assertions fail with script runtime exceptions for inva
 Current boundaries:
 
 * Scripts cannot directly mutate authoritative player state such as position, health, ammunition, match phase, safe-zone state, or winner.
-* The API does not expose `moveTo`, `lookAt`, `shootAt`, replay file output, external dedicated-server process launching, or adverse-network controls yet.
+* The API does not expose `moveTo`, `lookAt`, `shootAt`, replay file output, or external dedicated-server process launching.
 * UDP mode is loopback-only inside the gameplay test process. It exercises real UDP packets, LiteNetLib transport lifecycle, protocol framing, handshake, input serialization, and snapshot delivery, but it does not launch a separate `Royale.Server` process.
-* UDP mode does not add client-side prediction, reconciliation, interpolation, packet loss simulation, latency simulation, or other adverse-network controls.
+* UDP mode adds test-host-controlled latency, jitter, loss, duplication, and reordering around scripted clients. It still does not add client-side prediction, reconciliation, or interpolation.
 * Scripts do not receive `PlayerInputCommand`, `InputButtons`, server simulation objects, network transport objects, or authoritative player state directly.
 * Test-host events are not authoritative gameplay event types.
 * Artifact recording is in-memory metadata only; no files are written by `TEST-002`.
@@ -170,13 +178,13 @@ Bounded waits are expressed in ticks, not arbitrary wall-clock sleeps. `scenario
 
 `scenario.assert.eventually` follows the same tick-based polling model as `scenario.clock.waitUntil`, but it throws on timeout instead of returning `false`, making it suitable for assertions that need bounded eventual consistency diagnostics.
 
-Loopback UDP mode keeps the same script-facing tick model, but the harness performs bounded internal socket polling and short wall-clock yields while advancing ticks. This is required because LiteNetLib and OS loopback delivery do not guarantee that packets sent immediately before a tight CPU-only tick loop will be visible to the receiver without giving the socket layer time to run.
+Loopback UDP mode keeps the same script-facing tick model. One shared manual `TimeProvider` advances by one 60 Hz fixed simulation step before each scenario tick, so configured latency and jitter are deterministic and do not sleep in wall-clock time. The harness still performs bounded internal socket polling and short wall-clock yields while advancing ticks because LiteNetLib and OS loopback delivery do not guarantee that packets sent immediately before a tight CPU-only tick loop will be visible to the receiver without giving the socket layer time to run.
 
-The same scenario model should eventually run against:
+The scenario model runs against:
 
 * In-process transport
 * Real loopback UDP transport
-* Simulated adverse-network transport
+* Simulated adverse-network wrappers around real loopback UDP scripted clients
 
 ## File-Backed Scenarios
 
@@ -194,6 +202,7 @@ The current UDP scenarios are:
 
 * `udp-two-clients-see-each-other.wattle`
 * `udp-input-acknowledgement.wattle`
+* `udp-adverse-network-controls.wattle`
 
 ## Replay Artifacts
 

@@ -289,6 +289,86 @@ public sealed class SimulatedNetworkTransportTests
         Assert.Throws<ObjectDisposedException>(() => transport.Poll(new RecordingNetworkEventHandler()));
     }
 
+    [Fact]
+    public void CurrentConditionsReportsLiveReplacement()
+    {
+        FakeNetworkTransport inner = new();
+        SimulatedNetworkConditions initial = new(latency: TimeSpan.FromMilliseconds(10), randomSeed: 7);
+        SimulatedNetworkConditions replacement = new(lossChance: 0.25, randomSeed: 11);
+        using SimulatedNetworkTransport transport = new(inner, initial);
+
+        Assert.Same(initial, transport.CurrentConditions);
+
+        transport.SetConditions(replacement);
+
+        Assert.Same(replacement, transport.CurrentConditions);
+    }
+
+    [Fact]
+    public void ReapplyingConditionsWithSeedResetsRandomSequence()
+    {
+        FakeNetworkTransport inner = new();
+        SimulatedNetworkConditions conditions = new(
+            lossChance: 0.35,
+            duplicateChance: 0.45,
+            randomSeed: 12345);
+        using SimulatedNetworkTransport transport = new(inner, conditions);
+        NetworkPeerId peerId = new(20);
+
+        for (byte payload = 0; payload < 20; payload++)
+            transport.Send(peerId, [payload], NetworkDelivery.Sequenced);
+
+        byte[] firstRun = inner.SentPackets.Select(packet => packet.Payload[0]).ToArray();
+        inner.SentPackets.Clear();
+
+        transport.SetConditions(conditions);
+        for (byte payload = 0; payload < 20; payload++)
+            transport.Send(peerId, [payload], NetworkDelivery.Sequenced);
+
+        byte[] secondRun = inner.SentPackets.Select(packet => packet.Payload[0]).ToArray();
+
+        Assert.NotEmpty(firstRun);
+        Assert.Equal(firstRun, secondRun);
+    }
+
+    [Fact]
+    public void LiveReplacementAffectsNewPacketsButPreservesQueuedPacketDecisions()
+    {
+        FakeNetworkTransport inner = new();
+        ManualTimeProvider timeProvider = new();
+        using SimulatedNetworkTransport transport = new(
+            inner,
+            new SimulatedNetworkConditions(
+                latency: TimeSpan.FromMilliseconds(50),
+                duplicateChance: 1,
+                reorderChance: 1,
+                randomSeed: 99),
+            timeProvider);
+        NetworkPeerId peerId = new(21);
+
+        transport.Send(peerId, [1], NetworkDelivery.Sequenced);
+        transport.Send(peerId, [2], NetworkDelivery.Sequenced);
+        transport.Send(peerId, [3], NetworkDelivery.Sequenced);
+
+        transport.SetConditions(new SimulatedNetworkConditions(lossChance: 1, randomSeed: 99));
+        transport.Send(peerId, [4], NetworkDelivery.Sequenced);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(49));
+        transport.Poll(new RecordingNetworkEventHandler());
+        Assert.Empty(inner.SentPackets);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        transport.Poll(new RecordingNetworkEventHandler());
+
+        byte[] delivered = inner.SentPackets.Select(packet => packet.Payload[0]).ToArray();
+        Assert.Equal(6, delivered.Length);
+        Assert.Equal(2, delivered.Count(payload => payload == 1));
+        Assert.Equal(2, delivered.Count(payload => payload == 2));
+        Assert.Equal(2, delivered.Count(payload => payload == 3));
+        Assert.DoesNotContain((byte)4, delivered);
+        Assert.NotEqual([1, 1, 2, 2, 3, 3], delivered);
+    }
+
     [Theory]
     [InlineData(-0.1)]
     [InlineData(1.1)]

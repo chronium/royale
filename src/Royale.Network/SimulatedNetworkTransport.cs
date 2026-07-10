@@ -5,9 +5,9 @@ namespace Royale.Network;
 public sealed class SimulatedNetworkTransport : INetworkTransport
 {
     private readonly INetworkTransport _inner;
-    private readonly SimulatedNetworkConditions _conditions;
     private readonly TimeProvider _timeProvider;
-    private readonly Random _random;
+    private SimulatedNetworkConditions _conditions;
+    private Random _random;
     private readonly List<PendingPacket> _pendingSends = [];
     private readonly List<PendingPacket> _pendingReceives = [];
     private long _nextPacketOrder;
@@ -22,6 +22,24 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
         _conditions = conditions ?? SimulatedNetworkConditions.None;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _random = _conditions.RandomSeed is int seed ? new Random(seed) : new Random();
+    }
+
+    public SimulatedNetworkConditions CurrentConditions
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _conditions;
+        }
+    }
+
+    public void SetConditions(SimulatedNetworkConditions conditions)
+    {
+        ArgumentNullException.ThrowIfNull(conditions);
+        ThrowIfDisposed();
+
+        _conditions = conditions;
+        _random = conditions.RandomSeed is int seed ? new Random(seed) : new Random();
     }
 
     public void Start(int port)
@@ -128,11 +146,15 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
         queue.Add(new PendingPacket(
             GetDueTime(),
             _nextPacketOrder++,
+            GetReorderPriority(),
             peerId,
             payload,
             delivery,
             channel));
     }
+
+    private int? GetReorderPriority() =>
+        ChanceOccurs(_conditions.ReorderChance) ? _random.Next() : null;
 
     private DateTimeOffset GetDueTime()
     {
@@ -201,18 +223,25 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
 
     private void ReorderIfNeeded(List<PendingPacket> duePackets)
     {
-        if (duePackets.Count <= 1 || !ChanceOccurs(_conditions.ReorderChance))
+        if (duePackets.Count <= 1 || !duePackets.Any(packet => packet.ReorderPriority.HasValue))
         {
             return;
         }
 
         long[] originalOrder = duePackets.Select(packet => packet.Order).ToArray();
-
-        for (int i = duePackets.Count - 1; i > 0; i--)
+        duePackets.Sort(static (left, right) =>
         {
-            int swapIndex = _random.Next(i + 1);
-            (duePackets[i], duePackets[swapIndex]) = (duePackets[swapIndex], duePackets[i]);
-        }
+            if (left.ReorderPriority is int leftPriority && right.ReorderPriority is int rightPriority)
+                return leftPriority.CompareTo(rightPriority);
+
+            if (left.ReorderPriority.HasValue)
+                return -1;
+
+            if (right.ReorderPriority.HasValue)
+                return 1;
+
+            return left.Order.CompareTo(right.Order);
+        });
 
         bool unchanged = true;
         for (int i = 0; i < duePackets.Count; i++)
@@ -249,6 +278,7 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
     private sealed record PendingPacket(
         DateTimeOffset DueTime,
         long Order,
+        int? ReorderPriority,
         NetworkPeerId PeerId,
         byte[] Payload,
         NetworkDelivery Delivery,

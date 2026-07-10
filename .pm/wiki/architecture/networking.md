@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-08T12:23:31.5113210Z
+modifiedAt: 2026-07-10T01:36:21.1082250Z
 ---
 
 ## Networking Layers
@@ -40,7 +40,9 @@ The same higher-level connection code should work with:
 
 The default simulated condition is `SimulatedNetworkConditions.None`, which applies no impairment. Non-default conditions support fixed latency, symmetric jitter around that latency, loss probability, duplicate probability, reorder probability, and an optional random seed for deterministic tests. The wrapper uses `TimeProvider`, so tests can advance simulated time without sleeping.
 
-Runtime controls for this wrapper are intentionally deferred. Client/server CLI flags, WattleScript scenario controls, debug UI toggles, and observability actions should be added by later tasks without changing protocol framing or gameplay authority boundaries.
+`SimulatedNetworkTransport.CurrentConditions` exposes the active immutable condition object, and `SetConditions` replaces it live. Replacement resets the random sequence when a seed is supplied. Drop, duplication, reordering, jitter, and due-time decisions are captured when a packet is queued, so already queued packets keep their original decision and due time after a replacement.
+
+The WattleScript UDP scenario runtime wraps every scripted client transport and leaves the server transport unwrapped. Client-to-server packets are impaired on the client's send path, and server-to-client packets are impaired on the client's receive path, so each direction is impaired exactly once. All scripted UDP client wrappers share a manual clock advanced by one fixed simulation step per scenario tick. `scenario.network.set`, `current`, and `clear` provide deterministic per-player controls while the player remains connected. CLI flags, production runtime controls, debug UI toggles, and broader observability actions remain deferred.
 
 ## Connection
 
@@ -152,7 +154,7 @@ Fallback behavior is intentionally conservative. With fewer than two usable snap
 
 `NetworkClientRuntime` exposes lightweight remote interpolation diagnostics: buffered snapshot count, interpolation delay ticks, last interpolation target tick, and whether the last render used interpolation or fallback.
 
-Bad-network simulation policy, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
+Production bad-network controls, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
 
 ## Protocol Versioning
 

@@ -1,0 +1,97 @@
+scenario.server.startUdp("graybox");
+
+var player = scenario.players.connect();
+
+scenario.network.set(player, {
+    latencyMs = 50,
+    randomSeed = 123
+});
+
+var latencyStartTick = scenario.clock.tick;
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 100,
+    clientTick = 1000,
+    moveX = 0.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+}));
+
+scenario.clock.waitTicks(2);
+scenario.assert.isTrue(scenario.observe.latest(player).acknowledgedInputSequence != 100);
+
+scenario.assert.eventually(180, function() {
+    return scenario.observe.latest(player).acknowledgedInputSequence == 100;
+}, "50 ms one-way latency delays input acknowledgement");
+
+var latencyAckTicks = scenario.clock.tick - latencyStartTick;
+scenario.assert.isTrue(latencyAckTicks >= 6);
+
+scenario.network.set(player, {
+    lossChance = 1,
+    randomSeed = 123
+});
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 101,
+    clientTick = 1001,
+    moveX = 0.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+}));
+
+scenario.clock.waitTicks(12);
+scenario.assert.equal(100, scenario.observe.latest(player).acknowledgedInputSequence);
+
+scenario.network.set(player, {
+    latencyMs = 16,
+    duplicateChance = 1,
+    reorderChance = 1,
+    randomSeed = 321
+});
+
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 102,
+    clientTick = 1002,
+    moveX = 0.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+}));
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 103,
+    clientTick = 1003,
+    moveX = 0.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+}));
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 104,
+    clientTick = 1004,
+    moveX = 0.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+}));
+
+scenario.assert.eventually(180, function() {
+    return scenario.observe.latest(player).acknowledgedInputSequence == 104;
+}, "duplicated and reordered redundant input reaches the newest sequence");
+
+scenario.network.clear(player);
+scenario.assert.isTrue(scenario.players.input(player, {
+    sequence = 105,
+    clientTick = 1005,
+    moveX = 0.0,
+    moveY = 0.0,
+    yawRadians = 0.0,
+    pitchRadians = 0.0
+}));
+
+scenario.assert.eventually(180, function() {
+    return scenario.observe.latest(player).acknowledgedInputSequence == 105;
+}, "clearing network conditions restores normal delivery");
+
+scenario.assert.event("network.conditions.changed");
+return true;

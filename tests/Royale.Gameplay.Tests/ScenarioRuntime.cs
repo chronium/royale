@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Royale.Network;
 using Royale.Protocol;
 using Royale.Server;
+using Royale.Simulation.World;
 using WattleScript.Interpreter;
 
 namespace Royale.Gameplay.Tests;
@@ -133,9 +134,12 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
 {
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DisconnectTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan FixedSimulationStep =
+        TimeSpan.FromSeconds(1.0 / SimulationSettings.TickRateHz);
 
     private readonly LiteNetLibNetworkTransport serverTransport;
     private readonly NetworkServerRuntime server;
+    private readonly ScenarioTimeProvider timeProvider;
     private readonly List<UdpScenarioClient> clients = [];
     private readonly int serverPort;
     private bool disposed;
@@ -143,10 +147,12 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
     private UdpScenarioRuntime(
         LiteNetLibNetworkTransport serverTransport,
         NetworkServerRuntime server,
+        ScenarioTimeProvider timeProvider,
         int serverPort)
     {
         this.serverTransport = serverTransport;
         this.server = server;
+        this.timeProvider = timeProvider;
         this.serverPort = serverPort;
     }
 
@@ -166,10 +172,11 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
 
         try
         {
+            var timeProvider = new ScenarioTimeProvider();
             var runtime = new NetworkServerRuntime(
                 transport,
                 InProcessServerSession.Create(mapId));
-            return new UdpScenarioRuntime(transport, runtime, port);
+            return new UdpScenarioRuntime(transport, runtime, timeProvider, port);
         }
         catch
         {
@@ -182,7 +189,10 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
     {
         ThrowIfDisposed();
 
-        var transport = new LiteNetLibNetworkTransport();
+        var transport = new SimulatedNetworkTransport(
+            new LiteNetLibNetworkTransport(),
+            SimulatedNetworkConditions.None,
+            timeProvider);
         transport.Start(port: 0);
 
         UdpScenarioClient client;
@@ -254,9 +264,22 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
         return server.GetPlayerDebugStates();
     }
 
+    public SimulatedNetworkConditions GetNetworkConditions(ScenarioPlayerHandle player)
+    {
+        UdpScenarioPlayerHandle udpPlayer = RequireUdpPlayer(player);
+        return udpPlayer.Client.NetworkTransport.CurrentConditions;
+    }
+
+    public void SetNetworkConditions(ScenarioPlayerHandle player, SimulatedNetworkConditions conditions)
+    {
+        UdpScenarioPlayerHandle udpPlayer = RequireUdpPlayer(player);
+        udpPlayer.Client.NetworkTransport.SetConditions(conditions);
+    }
+
     public void Step()
     {
         ThrowIfDisposed();
+        timeProvider.Advance(FixedSimulationStep);
         PollClients();
         if (clients.Count > 0)
             Thread.Sleep(1);
@@ -329,19 +352,21 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
 
     private sealed class UdpScenarioClient : INetworkEventHandler, IDisposable
     {
-        private readonly INetworkTransport transport;
+        private readonly SimulatedNetworkTransport transport;
         private readonly NetworkPeerId serverPeerId;
         private NetworkHandshakeClient? handshake;
         private ClientInputSender? inputSender;
         private bool disposed;
 
-        public UdpScenarioClient(INetworkTransport transport, NetworkEndpoint serverEndpoint)
+        public UdpScenarioClient(SimulatedNetworkTransport transport, NetworkEndpoint serverEndpoint)
         {
             this.transport = transport;
             serverPeerId = transport.Connect(serverEndpoint);
         }
 
         public bool IsAccepted => inputSender is not null;
+
+        public SimulatedNetworkTransport NetworkTransport => transport;
 
         public uint PlayerId => handshake?.AcceptedSession?.PlayerId ?? 0;
 
@@ -444,6 +469,18 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
             }
 
             LatestSnapshot = snapshot;
+        }
+    }
+
+    private sealed class ScenarioTimeProvider : TimeProvider
+    {
+        private DateTimeOffset utcNow = DateTimeOffset.UnixEpoch;
+
+        public override DateTimeOffset GetUtcNow() => utcNow;
+
+        public void Advance(TimeSpan duration)
+        {
+            utcNow += duration;
         }
     }
 }

@@ -52,6 +52,8 @@ internal sealed class WattleScenarioScriptHost
         Register<ScenarioClockApi>();
         Register<ScenarioArtifactsApi>();
         Register<ScenarioEventsApi>();
+        Register<ScenarioNetworkApi>();
+        Register<ScenarioNetworkConditionsApi>();
         Register<ScenarioEventApi>();
         Register<ScenarioPlayerApi>();
         Register<ScenarioSnapshotApi>();

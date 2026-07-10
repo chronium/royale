@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Numerics;
+using Royale.Network;
 using Royale.Protocol;
 using Royale.Server;
 using WattleScript.Interpreter;
@@ -22,6 +24,7 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         clock = new ScenarioClockApi(this);
         artifacts = new ScenarioArtifactsApi();
         events = new ScenarioEventsApi(this);
+        network = new ScenarioNetworkApi(this);
     }
 
     public ScenarioServerApi server { get; }
@@ -37,6 +40,8 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
     public ScenarioArtifactsApi artifacts { get; }
 
     public ScenarioEventsApi events { get; }
+
+    public ScenarioNetworkApi network { get; }
 
     internal bool IsRunning => runtime is { IsDisposed: false };
 
@@ -271,6 +276,44 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
             $"No debug state was available for scenario player '{connectedPlayer.playerId}'.");
     }
 
+    internal void SetNetworkConditions(ScenarioPlayerApi player, DynValue conditionsTable)
+    {
+        UdpScenarioRuntime udpRuntime = RequireUdpNetworkRuntime(
+            player,
+            "scenario.network.set",
+            out ScenarioPlayerApi connectedPlayer);
+        SimulatedNetworkConditions conditions = ParseNetworkConditions(conditionsTable);
+
+        udpRuntime.SetNetworkConditions(connectedPlayer.Handle, conditions);
+        RecordEvent(
+            "network.conditions.changed",
+            connectedPlayer.playerId,
+            FormatNetworkConditions(conditions));
+    }
+
+    internal SimulatedNetworkConditions GetNetworkConditions(ScenarioPlayerApi player)
+    {
+        UdpScenarioRuntime udpRuntime = RequireUdpNetworkRuntime(
+            player,
+            "scenario.network.current",
+            out ScenarioPlayerApi connectedPlayer);
+        return udpRuntime.GetNetworkConditions(connectedPlayer.Handle);
+    }
+
+    internal void ClearNetworkConditions(ScenarioPlayerApi player)
+    {
+        UdpScenarioRuntime udpRuntime = RequireUdpNetworkRuntime(
+            player,
+            "scenario.network.clear",
+            out ScenarioPlayerApi connectedPlayer);
+
+        udpRuntime.SetNetworkConditions(connectedPlayer.Handle, SimulatedNetworkConditions.None);
+        RecordEvent(
+            "network.conditions.changed",
+            connectedPlayer.playerId,
+            FormatNetworkConditions(SimulatedNetworkConditions.None));
+    }
+
     public void Dispose()
     {
         StopServer();
@@ -316,11 +359,125 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         if (player is null)
             throw new ScriptRuntimeException("scenario player handle is required.");
 
-        if (!player.isConnected || !playersById.TryGetValue(player.playerId, out ScenarioPlayerApi? connectedPlayer))
+        if (!player.isConnected)
             throw new ScriptRuntimeException($"scenario player '{player.playerId}' is not connected.");
+
+        if (!playersById.TryGetValue(player.playerId, out ScenarioPlayerApi? connectedPlayer) ||
+            !ReferenceEquals(player, connectedPlayer))
+        {
+            throw new ScriptRuntimeException(
+                $"scenario player '{player.playerId}' belongs to a different scenario runtime.");
+        }
 
         return connectedPlayer;
     }
+
+    private UdpScenarioRuntime RequireUdpNetworkRuntime(
+        ScenarioPlayerApi player,
+        string apiName,
+        out ScenarioPlayerApi connectedPlayer)
+    {
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
+        connectedPlayer = RequireConnectedPlayer(player);
+
+        return runningRuntime as UdpScenarioRuntime
+            ?? throw new ScriptRuntimeException(
+                $"{apiName} requires a UDP scenario started with scenario.server.startUdp.");
+    }
+
+    private static SimulatedNetworkConditions ParseNetworkConditions(DynValue conditionsTable)
+    {
+        if (conditionsTable.Type != DataType.Table)
+            throw new ScriptRuntimeException("scenario.network.set requires a conditions table.");
+
+        Table table = conditionsTable.Table;
+        foreach (TablePair pair in table.Pairs)
+        {
+            if (pair.Key.Type != DataType.String || pair.Key.String is not string fieldName ||
+                fieldName is not (
+                    "latencyMs" or
+                    "jitterMs" or
+                    "lossChance" or
+                    "duplicateChance" or
+                    "reorderChance" or
+                    "randomSeed"))
+            {
+                string displayedField = pair.Key.Type == DataType.String
+                    ? pair.Key.String
+                    : pair.Key.ToPrintString();
+                throw new ScriptRuntimeException(
+                    $"scenario.network.set contains unknown field '{displayedField}'.");
+            }
+        }
+
+        return new SimulatedNetworkConditions(
+            latency: ReadOptionalMilliseconds(table, "latencyMs"),
+            jitter: ReadOptionalMilliseconds(table, "jitterMs"),
+            lossChance: ReadOptionalProbability(table, "lossChance"),
+            duplicateChance: ReadOptionalProbability(table, "duplicateChance"),
+            reorderChance: ReadOptionalProbability(table, "reorderChance"),
+            randomSeed: ReadOptionalSeed(table, "randomSeed"));
+    }
+
+    private static TimeSpan ReadOptionalMilliseconds(Table table, string fieldName)
+    {
+        DynValue value = table.Get(fieldName);
+        if (value.IsNil())
+            return TimeSpan.Zero;
+
+        if (value.Type != DataType.Number ||
+            !double.IsFinite(value.Number) ||
+            value.Number < 0 ||
+            value.Number > TimeSpan.MaxValue.TotalMilliseconds)
+        {
+            throw new ScriptRuntimeException(
+                $"scenario.network.set field '{fieldName}' must be finite non-negative milliseconds.");
+        }
+
+        return TimeSpan.FromMilliseconds(value.Number);
+    }
+
+    private static double ReadOptionalProbability(Table table, string fieldName)
+    {
+        DynValue value = table.Get(fieldName);
+        if (value.IsNil())
+            return 0;
+
+        if (value.Type != DataType.Number || !double.IsFinite(value.Number) || value.Number is < 0 or > 1)
+        {
+            throw new ScriptRuntimeException(
+                $"scenario.network.set field '{fieldName}' must be a probability from 0 to 1.");
+        }
+
+        return value.Number;
+    }
+
+    private static int? ReadOptionalSeed(Table table, string fieldName)
+    {
+        DynValue value = table.Get(fieldName);
+        if (value.IsNil())
+            return null;
+
+        if (value.Type != DataType.Number ||
+            !double.IsFinite(value.Number) ||
+            value.Number < int.MinValue ||
+            value.Number > int.MaxValue ||
+            value.Number % 1.0 != 0.0)
+        {
+            throw new ScriptRuntimeException(
+                $"scenario.network.set field '{fieldName}' must be an int32 integer or nil.");
+        }
+
+        return (int)value.Number;
+    }
+
+    private static string FormatNetworkConditions(SimulatedNetworkConditions conditions) =>
+        $"latencyMs={conditions.Latency.TotalMilliseconds.ToString("R", CultureInfo.InvariantCulture)};" +
+        $"jitterMs={conditions.Jitter.TotalMilliseconds.ToString("R", CultureInfo.InvariantCulture)};" +
+        $"lossChance={conditions.LossChance.ToString("R", CultureInfo.InvariantCulture)};" +
+        $"duplicateChance={conditions.DuplicateChance.ToString("R", CultureInfo.InvariantCulture)};" +
+        $"reorderChance={conditions.ReorderChance.ToString("R", CultureInfo.InvariantCulture)};" +
+        $"randomSeed={(conditions.RandomSeed is int seed ? seed.ToString(CultureInfo.InvariantCulture) : "nil")}";
 
     private static PlayerInputCommand ParseInputCommand(DynValue commandTable)
     {
@@ -592,6 +749,32 @@ public sealed class ScenarioEventsApi(ScenarioApi scenario) : ScenarioScriptObje
     public ScenarioEventApi? latest => scenario.LatestEvent;
 
     public void clear() => scenario.ClearEvents();
+}
+
+public sealed class ScenarioNetworkApi(ScenarioApi scenario) : ScenarioScriptObject
+{
+    public void set(ScenarioPlayerApi player, DynValue conditions) =>
+        scenario.SetNetworkConditions(player, conditions);
+
+    public ScenarioNetworkConditionsApi current(ScenarioPlayerApi player) =>
+        new(scenario.GetNetworkConditions(player));
+
+    public void clear(ScenarioPlayerApi player) => scenario.ClearNetworkConditions(player);
+}
+
+public sealed class ScenarioNetworkConditionsApi(SimulatedNetworkConditions conditions) : ScenarioScriptObject
+{
+    public double latencyMs => conditions.Latency.TotalMilliseconds;
+
+    public double jitterMs => conditions.Jitter.TotalMilliseconds;
+
+    public double lossChance => conditions.LossChance;
+
+    public double duplicateChance => conditions.DuplicateChance;
+
+    public double reorderChance => conditions.ReorderChance;
+
+    public int? randomSeed => conditions.RandomSeed;
 }
 
 public sealed class ScenarioEventApi(string type, ulong tick, uint? playerId, string? detail) : ScenarioScriptObject

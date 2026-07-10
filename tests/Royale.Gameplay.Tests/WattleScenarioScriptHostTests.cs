@@ -64,7 +64,8 @@ public sealed class WattleScenarioScriptHostTests
                 and scenario.assert != nil
                 and scenario.clock != nil
                 and scenario.artifacts != nil
-                and scenario.events != nil;
+                and scenario.events != nil
+                and scenario.network != nil;
             """;
 
         DynValue result = new WattleScenarioScriptHost().Execute(source);
@@ -161,6 +162,147 @@ public sealed class WattleScenarioScriptHostTests
         DynValue result = new WattleScenarioScriptHost().Execute(source);
 
         Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioNetworkConditionsSupportReadbackClearEventsAndPerPlayerIsolation()
+    {
+        const string source = """
+            scenario.server.startUdp("graybox");
+            var first = scenario.players.connect();
+            var second = scenario.players.connect();
+
+            scenario.network.set(first, {
+                latencyMs = 50,
+                jitterMs = 10,
+                lossChance = 0.1,
+                duplicateChance = 0.05,
+                reorderChance = 0.2,
+                randomSeed = 123
+            });
+
+            var firstConditions = scenario.network.current(first);
+            var secondConditions = scenario.network.current(second);
+            scenario.assert.equal(50, firstConditions.latencyMs);
+            scenario.assert.equal(10, firstConditions.jitterMs);
+            scenario.assert.equal(0.1, firstConditions.lossChance);
+            scenario.assert.equal(0.05, firstConditions.duplicateChance);
+            scenario.assert.equal(0.2, firstConditions.reorderChance);
+            scenario.assert.equal(123, firstConditions.randomSeed);
+            scenario.assert.equal(0, secondConditions.latencyMs);
+            scenario.assert.equal(0, secondConditions.lossChance);
+            scenario.assert.equal(nil, secondConditions.randomSeed);
+
+            scenario.assert.equal("network.conditions.changed", scenario.events.latest.type);
+            scenario.assert.equal(first.playerId, scenario.events.latest.playerId);
+            scenario.assert.equal(
+                "latencyMs=50;jitterMs=10;lossChance=0.1;duplicateChance=0.05;reorderChance=0.2;randomSeed=123",
+                scenario.events.latest.detail);
+
+            scenario.network.set(first, { latencyMs = 25 });
+            var replaced = scenario.network.current(first);
+            scenario.assert.equal(25, replaced.latencyMs);
+            scenario.assert.equal(0, replaced.jitterMs);
+            scenario.assert.equal(0, replaced.lossChance);
+            scenario.assert.equal(0, replaced.duplicateChance);
+            scenario.assert.equal(0, replaced.reorderChance);
+            scenario.assert.equal(nil, replaced.randomSeed);
+
+            scenario.network.clear(first);
+            var cleared = scenario.network.current(first);
+            scenario.assert.equal(0, cleared.latencyMs);
+            scenario.assert.equal(0, cleared.jitterMs);
+            scenario.assert.equal(0, cleared.lossChance);
+            scenario.assert.equal(0, cleared.duplicateChance);
+            scenario.assert.equal(0, cleared.reorderChance);
+            scenario.assert.equal(nil, cleared.randomSeed);
+            scenario.assert.equal(
+                "latencyMs=0;jitterMs=0;lossChance=0;duplicateChance=0;reorderChance=0;randomSeed=nil",
+                scenario.events.latest.detail);
+
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioNetworkConditionsRejectInProcessScenarios()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.network.set(player, { latencyMs = 10 });
+            """;
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(source));
+
+        Assert.Contains("scenario.server.startUdp", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScenarioNetworkConditionsRejectDisconnectedAndStoppedPlayers()
+    {
+        const string disconnectedSource = """
+            scenario.server.startUdp("graybox");
+            var player = scenario.players.connect();
+            scenario.players.disconnect(player);
+            scenario.network.current(player);
+            """;
+        const string stoppedSource = """
+            scenario.server.startUdp("graybox");
+            var player = scenario.players.connect();
+            scenario.server.stop();
+            scenario.network.clear(player);
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(disconnectedSource));
+        Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(stoppedSource));
+    }
+
+    [Fact]
+    public void ScenarioNetworkConditionsRejectForeignPlayerHandles()
+    {
+        using var firstScenario = new ScenarioApi();
+        using var secondScenario = new ScenarioApi();
+        firstScenario.StartUdpServer("graybox");
+        secondScenario.StartUdpServer("graybox");
+        ScenarioPlayerApi firstPlayer = firstScenario.ConnectPlayer();
+        secondScenario.ConnectPlayer();
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => secondScenario.network.current(firstPlayer));
+
+        Assert.Contains("different scenario runtime", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData("{ unknown = 1 }")]
+    [InlineData("{ latencyMs = -1 }")]
+    [InlineData("{ latencyMs = \"fast\" }")]
+    [InlineData("{ latencyMs = 0.0 / 0.0 }")]
+    [InlineData("{ jitterMs = -0.1 }")]
+    [InlineData("{ jitterMs = 1.0 / 0.0 }")]
+    [InlineData("{ lossChance = 1.1 }")]
+    [InlineData("{ duplicateChance = \"often\" }")]
+    [InlineData("{ reorderChance = -0.1 }")]
+    [InlineData("{ randomSeed = 1.5 }")]
+    [InlineData("{ randomSeed = 2147483648 }")]
+    public void ScenarioNetworkConditionsRejectMalformedTables(string conditions)
+    {
+        string source = $$"""
+            scenario.server.startUdp("graybox");
+            var player = scenario.players.connect();
+            scenario.network.set(player, {{conditions}});
+            """;
+
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T14:24:22.6422030Z
+modifiedAt: 2026-07-10T14:29:34.0059550Z
 ---
 
 ## Content and Map Data
@@ -81,6 +81,8 @@ dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build --no-rest
 ```
 
 `BUG-006` raises both south-compound doorway instances to vertical scale `2.5`. Since the source opening reaches local Y=`0.8`, this provides 2.0 metres of clear height for the default 1.8-metre player capsule while preserving doorway width and the rest of the compound layout. Simulation validation casts the full default capsule through both openings rather than relying on a single waist-height ray.
+
+`BUG-007` aligns the complete wall family at a 2.5-metre world-space top. Ground-level `kenney-wall` and `kenney-wall-corner` instances use vertical scale `2.5`; both doorway arches already use `2.5`, while the north platform rails remain at position Y=`1.0` and scale Y=`1.5`. Horizontal transforms and all non-wall assets remain unchanged. Content validation asserts the common world-space top across all 21 wall, corner, and doorway instances.
 
 ### Map-Authored Static Models
 

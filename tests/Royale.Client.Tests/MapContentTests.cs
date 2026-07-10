@@ -214,6 +214,19 @@ public sealed class MapContentTests
     }
 
     [Fact]
+    public void PrototypeArenaWallFamilyTopsAlignWithDoorways()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+        string[] wallAssetIds = ["kenney-wall", "kenney-wall-corner", "kenney-wall-doorway"];
+        StaticModelDefinition[] walls = map.StaticModels
+            .Where(model => wallAssetIds.Contains(model.AssetId, StringComparer.Ordinal))
+            .ToArray();
+
+        Assert.Equal(21, walls.Length);
+        Assert.All(walls, wall => Assert.Equal(2.5f, wall.Position.Y + wall.Scale.Y));
+    }
+
+    [Fact]
     public void PrototypeArenaSpawnsAreUniqueInBoundsAndFaceArenaCenter()
     {
         GameMap map = MapCatalog.LoadById("prototype-arena");

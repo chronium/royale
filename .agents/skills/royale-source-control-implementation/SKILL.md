@@ -91,8 +91,10 @@ Still run relevant automated validation first. Human validation is an additional
 When starting a dedicated server for project-owner validation, run it in an elevated shell with OTLP export enabled so logs, metrics, and traces flow into the local observability stack. Prefer the local Collector endpoint when available:
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore -- <server arguments>
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore -- --config config/server.development.json
 ```
+
+Use explicit CLI arguments after `--config` only for one-off validation overrides. Launch settings merge as built-in defaults, selected JSON profile, then explicit CLI arguments.
 
 Do not try OTLP-enabled validation server runs in the Codex sandbox first; they are expected to hang there. Request an elevated shell from the start before diagnosing application code.
 

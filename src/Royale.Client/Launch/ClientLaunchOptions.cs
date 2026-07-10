@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Royale.Client.Presentation;
 using Royale.Content;
 using Royale.Protocol;
@@ -30,25 +32,45 @@ public sealed record ClientLaunchOptions(
 
     public static ClientLaunchOptions Parse(IReadOnlyList<string> args)
     {
+        string? configPath = FindConfigPath(args);
+        ClientLaunchProfile? profile = configPath is null ? null : LoadProfile(configPath);
         bool offlineRequested = false;
-        string? connectHost = null;
-        int port = ProtocolConstants.DefaultPort;
-        string mapId = ContentCatalog.DefaultMapId;
-        ClientCameraMode cameraMode = ClientCameraMode.Gameplay;
-        Vector3? cameraPosition = null;
-        Vector3? cameraLookAt = null;
-        string? screenshotPath = null;
-        int screenshotAfterFrames = 0;
+        bool connectRequested = false;
+        ClientLaunchMode mode = profile?.Mode is null
+            ? ClientLaunchMode.Offline
+            : ParseLaunchMode(profile.Mode);
+        string? connectHost = profile?.ConnectHost;
+        int port = profile?.Port ?? ProtocolConstants.DefaultPort;
+        string mapId = profile?.MapId ?? ContentCatalog.DefaultMapId;
+        ClientCameraMode cameraMode = profile?.CameraMode is null
+            ? ClientCameraMode.Gameplay
+            : ParseCameraMode(profile.CameraMode);
+        Vector3? cameraPosition = profile?.CameraPosition is null
+            ? null
+            : ParseVector3(profile.CameraPosition, "cameraPosition");
+        Vector3? cameraLookAt = profile?.CameraLookAt is null
+            ? null
+            : ParseVector3(profile.CameraLookAt, "cameraLookAt");
+        string? screenshotPath = profile?.ScreenshotPath;
+        int screenshotAfterFrames = profile?.ScreenshotAfterFrames ?? 0;
 
         for (int index = 0; index < args.Count; index++)
         {
             switch (args[index])
             {
+                case "--config":
+                    index++;
+                    break;
+
                 case "--offline":
                     offlineRequested = true;
+                    mode = ClientLaunchMode.Offline;
+                    connectHost = null;
                     break;
 
                 case "--connect":
+                    connectRequested = true;
+                    mode = ClientLaunchMode.Connect;
                     connectHost = ReadRequiredValue(args, ref index, "--connect");
                     break;
 
@@ -89,8 +111,26 @@ public sealed record ClientLaunchOptions(
             }
         }
 
-        if (offlineRequested && connectHost is not null)
+        if (offlineRequested && connectRequested)
             throw new ArgumentException("--offline cannot be combined with --connect.");
+
+        if (mode == ClientLaunchMode.Connect && string.IsNullOrWhiteSpace(connectHost))
+            throw new ArgumentException("Connect mode requires connectHost or --connect <host>.");
+
+        if (mode == ClientLaunchMode.Offline && connectHost is not null)
+            throw new ArgumentException("Offline mode forbids connectHost; use --offline to clear a configured host.");
+
+        if (port is < 1 or > 65535)
+            throw new ArgumentException("port must be an integer between 1 and 65535.");
+
+        if (string.IsNullOrWhiteSpace(mapId))
+            throw new ArgumentException("mapId must be a non-empty string.");
+
+        if (screenshotPath is not null && string.IsNullOrWhiteSpace(screenshotPath))
+            throw new ArgumentException("screenshotPath must be a non-empty string or null.");
+
+        if (screenshotAfterFrames < 0)
+            throw new ArgumentException("screenshotAfterFrames must be a positive integer or null.");
 
         if (cameraMode != ClientCameraMode.Freecam && (cameraPosition is not null || cameraLookAt is not null))
             throw new ArgumentException("--camera-position and --camera-look-at require --camera-mode freecam.");
@@ -105,7 +145,7 @@ public sealed record ClientLaunchOptions(
             throw new ArgumentException("--screenshot-after-frames requires --screenshot.");
 
         return new ClientLaunchOptions(
-            connectHost is null ? ClientLaunchMode.Offline : ClientLaunchMode.Connect,
+            mode,
             connectHost,
             port,
             mapId,
@@ -115,6 +155,87 @@ public sealed record ClientLaunchOptions(
             screenshotPath,
             screenshotAfterFrames);
     }
+
+    private static string? FindConfigPath(IReadOnlyList<string> args)
+    {
+        string? configPath = null;
+
+        for (int index = 0; index < args.Count; index++)
+        {
+            if (args[index] != "--config")
+                continue;
+
+            if (configPath is not null)
+                throw new ArgumentException("--config may be supplied only once.");
+
+            configPath = ReadRequiredValue(args, ref index, "--config");
+        }
+
+        return configPath;
+    }
+
+    private static ClientLaunchProfile LoadProfile(string configPath)
+    {
+        string fullPath = Path.GetFullPath(configPath, Environment.CurrentDirectory);
+
+        if (!File.Exists(fullPath))
+            throw new ArgumentException($"Configuration file '{fullPath}' does not exist.");
+
+        try
+        {
+            string json = File.ReadAllText(fullPath);
+            RejectNullProperties(json, fullPath, ["mode", "port", "mapId", "cameraMode"]);
+            return JsonSerializer.Deserialize<ClientLaunchProfile>(json, JsonOptions)
+                ?? throw new ArgumentException($"Configuration file '{fullPath}' must contain a JSON object.");
+        }
+        catch (JsonException exception)
+        {
+            throw new ArgumentException(
+                $"Configuration file '{fullPath}' is malformed: {exception.Message}",
+                exception);
+        }
+    }
+
+    private static void RejectNullProperties(string json, string fullPath, IReadOnlyList<string> propertyNames)
+    {
+        using JsonDocument document = JsonDocument.Parse(
+            json,
+            new JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = JsonCommentHandling.Skip,
+            });
+
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new ArgumentException($"Configuration file '{fullPath}' must contain a JSON object.");
+
+        foreach (string propertyName in propertyNames)
+        {
+            if (document.RootElement.TryGetProperty(propertyName, out JsonElement value) &&
+                value.ValueKind == JsonValueKind.Null)
+            {
+                throw new ArgumentException(
+                    $"Configuration field '{propertyName}' in '{fullPath}' cannot be null; omit it to use the default.");
+            }
+        }
+    }
+
+    private static JsonSerializerOptions JsonOptions { get; } = new()
+    {
+        AllowTrailingCommas = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    };
+
+    private static ClientLaunchMode ParseLaunchMode(string rawMode) =>
+        rawMode switch
+        {
+            "offline" => ClientLaunchMode.Offline,
+            "connect" => ClientLaunchMode.Connect,
+            _ => throw new ArgumentException("mode must be 'offline' or 'connect'."),
+        };
 
     private static ClientCameraMode ParseCameraMode(string rawCameraMode) =>
         rawCameraMode switch
@@ -165,5 +286,26 @@ public sealed record ClientLaunchOptions(
             throw new ArgumentException($"{optionName} requires a non-empty value.");
 
         return value;
+    }
+
+    private sealed class ClientLaunchProfile
+    {
+        public string? Mode { get; init; }
+
+        public string? ConnectHost { get; init; }
+
+        public int? Port { get; init; }
+
+        public string? MapId { get; init; }
+
+        public string? CameraMode { get; init; }
+
+        public string? CameraPosition { get; init; }
+
+        public string? CameraLookAt { get; init; }
+
+        public string? ScreenshotPath { get; init; }
+
+        public int? ScreenshotAfterFrames { get; init; }
     }
 }

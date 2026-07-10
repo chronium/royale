@@ -104,7 +104,13 @@ The `-m:1 --no-restore` flags are intentional for Codex/sandboxed sessions and a
 Run the current client prototype:
 
 ```sh
-dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --offline --map graybox
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --config config/client.production.json
+```
+
+The development profile connects to the local dedicated server without repeating endpoint arguments:
+
+```sh
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --config config/client.development.json
 ```
 
 Useful development controls:
@@ -136,6 +142,15 @@ The server project runs a headless fixed-timestep simulation, loads the selected
 ```sh
 dotnet run --project src/Royale.Server/Royale.Server.csproj -- --port 7777 --map graybox
 ```
+
+Production and short-duration local settings are also available as explicit profiles:
+
+```sh
+dotnet run --project src/Royale.Server/Royale.Server.csproj -- --config config/server.production.json
+dotnet run --project src/Royale.Server/Royale.Server.csproj -- --config config/server.development.json
+```
+
+Both executables merge built-in defaults, then the selected JSON profile, then explicit CLI arguments. `--config <path>` may appear anywhere once; relative paths resolve from the current working directory. Profiles allow comments and trailing commas, but reject unknown fields, malformed JSON, and invalid merged settings. There is no automatic profile discovery or environment-variable expansion.
 
 The default lobby starts preparation when two humans connect or the five-minute wait expires, fills the roster to eight with server-owned bots, and starts play after two minutes of preparation. Override those values for local validation or deployment automation:
 

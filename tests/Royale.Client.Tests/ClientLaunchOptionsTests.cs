@@ -211,6 +211,7 @@ public sealed class ClientLaunchOptionsTests
     [InlineData("--camera-look-at")]
     [InlineData("--screenshot")]
     [InlineData("--screenshot-after-frames")]
+    [InlineData("--config")]
     public void ParseRejectsMissingValues(string option)
     {
         Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse([option]));
@@ -233,6 +234,168 @@ public sealed class ClientLaunchOptionsTests
             : args;
 
         Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(launchArgs));
+    }
+
+    [Fact]
+    public void CommittedProductionProfileParsesExpectedValues()
+    {
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(
+            ["--config", ConfigurationPath("client.production.json")]);
+
+        Assert.Equal(ClientLaunchMode.Offline, options.Mode);
+        Assert.Null(options.ConnectHost);
+        Assert.Equal(7777, options.Port);
+        Assert.Equal("graybox", options.MapId);
+        Assert.Equal(ClientCameraMode.Gameplay, options.CameraMode);
+    }
+
+    [Fact]
+    public void CommittedDevelopmentProfileParsesExpectedValues()
+    {
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(
+            ["--config", ConfigurationPath("client.development.json")]);
+
+        Assert.Equal(ClientLaunchMode.Connect, options.Mode);
+        Assert.Equal("127.0.0.1", options.ConnectHost);
+        Assert.Equal(7777, options.Port);
+        Assert.Equal("graybox", options.MapId);
+        Assert.Equal(ClientCameraMode.Gameplay, options.CameraMode);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CliOverridesProfileRegardlessOfConfigArgumentOrder(bool configFirst)
+    {
+        string configPath = ConfigurationPath("client.development.json");
+        string[] args = configFirst
+            ? ["--config", configPath, "--offline", "--port", "7788"]
+            : ["--offline", "--port", "7788", "--config", configPath];
+
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(args);
+
+        Assert.Equal(ClientLaunchMode.Offline, options.Mode);
+        Assert.Null(options.ConnectHost);
+        Assert.Equal(7788, options.Port);
+    }
+
+    [Fact]
+    public void CliConnectReplacesConfiguredModeAndHost()
+    {
+        ClientLaunchOptions options = ClientLaunchOptions.Parse([
+            "--config",
+            ConfigurationPath("client.production.json"),
+            "--connect",
+            "localhost"
+        ]);
+
+        Assert.Equal(ClientLaunchMode.Connect, options.Mode);
+        Assert.Equal("localhost", options.ConnectHost);
+    }
+
+    [Fact]
+    public void ParseAllowsCommentsAndTrailingCommas()
+    {
+        using var profile = new TemporaryJsonFile("{ /* local */ \"port\": 7788, }");
+
+        Assert.Equal(7788, ClientLaunchOptions.Parse(["--config", profile.Path]).Port);
+    }
+
+    [Fact]
+    public void ProfileSupportsEveryClientStartupOption()
+    {
+        using var profile = new TemporaryJsonFile("""
+            {
+              "mode": "connect",
+              "connectHost": "localhost",
+              "port": 7788,
+              "mapId": "test-map",
+              "cameraMode": "freecam",
+              "cameraPosition": "4,2.2,3",
+              "cameraLookAt": "1.75,0.7,-1.35",
+              "screenshotPath": "/tmp/royale-profile.bmp",
+              "screenshotAfterFrames": 5
+            }
+            """);
+
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(["--config", profile.Path]);
+
+        Assert.Equal(ClientLaunchMode.Connect, options.Mode);
+        Assert.Equal("localhost", options.ConnectHost);
+        Assert.Equal(7788, options.Port);
+        Assert.Equal("test-map", options.MapId);
+        Assert.Equal(ClientCameraMode.Freecam, options.CameraMode);
+        AssertVector(new Vector3(4.0f, 2.2f, 3.0f), Assert.IsType<Vector3>(options.CameraPosition));
+        AssertVector(new Vector3(1.75f, 0.7f, -1.35f), Assert.IsType<Vector3>(options.CameraLookAt));
+        Assert.Equal("/tmp/royale-profile.bmp", options.ScreenshotPath);
+        Assert.Equal(5, options.ScreenshotAfterFrames);
+    }
+
+    [Fact]
+    public void ConfigPathResolvesRelativeToCurrentWorkingDirectory()
+    {
+        string relativePath = System.IO.Path.GetRelativePath(
+            Environment.CurrentDirectory,
+            ConfigurationPath("client.production.json"));
+
+        Assert.Equal(ClientLaunchMode.Offline, ClientLaunchOptions.Parse(["--config", relativePath]).Mode);
+    }
+
+    [Fact]
+    public void ParseRejectsMissingMalformedUnknownAndDuplicateConfig()
+    {
+        using var malformed = new TemporaryJsonFile("{ nope }");
+        using var unknown = new TemporaryJsonFile("{ \"unknown\": 1 }");
+
+        Assert.Throws<ArgumentException>(
+            () => ClientLaunchOptions.Parse(["--config", System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid() + ".json")]));
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--config", malformed.Path]));
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--config", unknown.Path]));
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(
+            ["--config", malformed.Path, "--config", unknown.Path]));
+    }
+
+    [Theory]
+    [InlineData("{ \"mode\": \"invalid\" }")]
+    [InlineData("{ \"mode\": \"connect\" }")]
+    [InlineData("{ \"mode\": \"offline\", \"connectHost\": \"localhost\" }")]
+    [InlineData("{ \"port\": 0 }")]
+    [InlineData("{ \"cameraMode\": \"gameplay\", \"cameraPosition\": \"1,2,3\" }")]
+    [InlineData("{ \"screenshotAfterFrames\": 2 }")]
+    [InlineData("{ \"mode\": null }")]
+    [InlineData("{ \"port\": null }")]
+    public void ParseRejectsInvalidOrConflictingProfileSettings(string json)
+    {
+        using var profile = new TemporaryJsonFile(json);
+
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--config", profile.Path]));
+    }
+
+    private static string ConfigurationPath(string fileName)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = System.IO.Path.Combine(directory.FullName, "config", fileName);
+            if (File.Exists(candidate))
+                return candidate;
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not locate committed profile '{fileName}'.");
+    }
+
+    private sealed class TemporaryJsonFile : IDisposable
+    {
+        public TemporaryJsonFile(string json)
+        {
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"royale-{Guid.NewGuid():N}.json");
+            File.WriteAllText(Path, json);
+        }
+
+        public string Path { get; }
+
+        public void Dispose() => File.Delete(Path);
     }
 
     private static void AssertVector(Vector3 expected, Vector3 actual)

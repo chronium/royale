@@ -1,0 +1,6 @@
+{
+  "mode": "offline",
+  "port": 7777,
+  "mapId": "graybox",
+  "cameraMode": "gameplay"
+}

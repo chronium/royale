@@ -48,6 +48,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\config\client.*.json"
+          Link="config/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+
     <None Include="..\..\assets\meshes\**\*"
           CopyToOutputDirectory="PreserveNewest"
           TargetPath="assets/meshes/%(RecursiveDir)%(Filename)%(Extension)" />

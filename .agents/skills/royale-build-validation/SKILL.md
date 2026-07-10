@@ -45,6 +45,23 @@ Use them only when shell scripts are appropriate for the environment.
 - `restore-desktop.sh` discovers a single `.slnx` or `.sln` and runs restore with `-p:CI_DONT_TARGET_ANDROID=1`.
 - They intentionally fail when multiple solution files exist so the agent does not guess.
 
+## Launch configuration profiles
+
+The client and dedicated server support explicit JSON launch profiles under `config/`.
+
+- Use `--config config/server.development.json` for short local server validation.
+- Use `--config config/client.development.json` for a client that connects to `127.0.0.1:7777` without repeating endpoint arguments.
+- Explicit CLI arguments override selected profile values regardless of where `--config` appears.
+- Do not assume implicit profile discovery or environment detection.
+- Server build and publish output must contain only `server.production.json` and `server.development.json` under `config/`.
+- Client build and publish output must contain only `client.production.json` and `client.development.json` under `config/`.
+
+For a finite OTLP-enabled smoke that advances past the development waiting period without real-time delay, run outside the sandbox:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore --no-build -- --config config/server.development.json --run-ticks 302
+```
+
 ## Shadercross
 
 Client shader builds require the `shadercross` executable to be available on `PATH`.

@@ -1,0 +1,9 @@
+{
+  "port": 7777,
+  "mapId": "graybox",
+  "runTicks": null,
+  "minimumPlayers": 2,
+  "targetPlayers": 8,
+  "waitingSeconds": 300,
+  "preparationSeconds": 120
+}

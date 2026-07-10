@@ -10,7 +10,7 @@
         ]
       },
       "collision": {
-        "mode": "none"
+        "mode": "convex"
       }
     }
   ]

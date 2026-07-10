@@ -1,7 +1,7 @@
 ---
 title: Diagnostics, Testing, and Deployment
 createdAt: 2026-07-05T16:11:12.4857450Z
-modifiedAt: 2026-07-10T08:36:11.0519290Z
+modifiedAt: 2026-07-10T09:13:43.9573280Z
 ---
 
 ## Threading Model
@@ -170,7 +170,7 @@ The initial deployment consists of separate client and server artifacts.
 
 ### Generated Model Asset Boundaries
 
-Client build and publish output includes `assets/model-assets.json` plus declared render GLBs and resources. Server build and publish output includes the same catalog filename projected to gameplay-relevant collision entries only. Render-only assets are omitted entirely from the server catalog and output. Generated catalogs and future collision artifacts are build products and are not committed.
+Client build and publish output includes `assets/model-assets.json`, declared render GLBs and resources, and generated collision artifacts. Server build and publish output includes the same catalog filename projected to gameplay-relevant collision entries plus generated collision artifacts only. Render-only assets, GLBs, textures, SimpleMesh, and the build tool are omitted entirely from the server runtime output. Generated catalogs and collision artifacts are deterministic build products and are not committed.
 
 ## macOS Client
 

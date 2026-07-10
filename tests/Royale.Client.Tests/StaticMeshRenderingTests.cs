@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Royale.Client.Rendering;
 using Royale.Client.Rendering.Cameras;
 using Royale.Client.Rendering.Debug;
@@ -113,14 +114,24 @@ public sealed class StaticMeshRenderingTests
     public void ManifestAssetCacheLoadsByStableIdAndReusesAsset()
     {
         string repositoryRoot = FindRepositoryRoot();
-        StaticMeshAssetCache cache = StaticMeshAssetCache.Load(repositoryRoot);
+        string temporaryRoot = Path.Combine(Path.GetTempPath(), "royale-static-mesh-cache-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            WriteGeneratedAssetFixture(repositoryRoot, temporaryRoot);
+            StaticMeshAssetCache cache = StaticMeshAssetCache.Load(temporaryRoot);
 
-        StaticMeshAsset first = cache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
-        StaticMeshAsset second = cache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
+            StaticMeshAsset first = cache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
+            StaticMeshAsset second = cache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
 
-        Assert.Same(first, second);
-        Assert.Equal(1, cache.LoadedAssetCount);
-        Assert.Throws<KeyNotFoundException>(() => cache.GetRequired("missing-model"));
+            Assert.Same(first, second);
+            Assert.Equal(1, cache.LoadedAssetCount);
+            Assert.Throws<KeyNotFoundException>(() => cache.GetRequired("missing-model"));
+        }
+        finally
+        {
+            if (Directory.Exists(temporaryRoot))
+                Directory.Delete(temporaryRoot, recursive: true);
+        }
     }
 
     [Fact]
@@ -278,6 +289,49 @@ public sealed class StaticMeshRenderingTests
 
     private static string GetKenneyCrateAssetPath() =>
         Path.Combine(FindRepositoryRoot(), StaticMeshAssetPaths.KenneyPrototypeKitCrateRelativePath);
+
+    private static void WriteGeneratedAssetFixture(string repositoryRoot, string outputRoot)
+    {
+        const string modelPath = "meshes/kenney-prototype-kit/crate.glb";
+        const string texturePath = "meshes/kenney-prototype-kit/Textures/colormap.png";
+        string assetRoot = Path.Combine(outputRoot, "assets");
+        CopyAsset(repositoryRoot, assetRoot, modelPath);
+        CopyAsset(repositoryRoot, assetRoot, texturePath);
+
+        var manifest = new ModelAssetManifest
+        {
+            Version = ModelAssetManifest.CurrentVersion,
+            Assets =
+            [
+                new ModelAssetDefinition
+                {
+                    Id = StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId,
+                    Render = new ModelRenderAssetDefinition
+                    {
+                        Source = modelPath,
+                        Resources = [texturePath],
+                    },
+                    Collision = new ModelCollisionAssetDefinition
+                    {
+                        Mode = ModelCollisionMode.Convex,
+                        Artifact = "collision/kenney-crate.json",
+                    },
+                },
+            ],
+        };
+        Directory.CreateDirectory(assetRoot);
+        File.WriteAllText(
+            Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName),
+            JsonSerializer.Serialize(manifest, ModelAssetManifestLoader.CreateSerializerOptions(writeIndented: true)));
+    }
+
+    private static void CopyAsset(string repositoryRoot, string outputAssetRoot, string relativePath)
+    {
+        string source = Path.Combine(repositoryRoot, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        string destination = Path.Combine(outputAssetRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        File.Copy(source, destination);
+    }
 
     private static StaticMeshAsset CreateSinglePrimitiveAsset(StaticMeshGeometry geometry) =>
         new(

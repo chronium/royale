@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\tools\Royale.AssetPipeline\Royale.AssetPipeline.csproj" />
+    <ProjectReference Include="..\..\thirdparty\repos\SimpleMesh\SimpleMesh\SimpleMesh.csproj" />
   </ItemGroup>
 
 </Project>

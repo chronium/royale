@@ -1,5 +1,8 @@
+using System.Numerics;
+using System.Text.Json;
 using Royale.AssetPipeline;
 using Royale.Content;
+using SimpleMesh;
 
 namespace Royale.AssetPipeline.Tests;
 
@@ -185,6 +188,86 @@ public sealed class AssetPipelineTests
         Assert.Contains("invalid path segment", traversal.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CollisionExtractionAppliesHierarchyTransformAndScale()
+    {
+        Model model = CreateTetrahedronModel(
+            Matrix4x4.CreateTranslation(3.0f, 4.0f, 5.0f),
+            Matrix4x4.CreateScale(2.0f));
+
+        CollisionTriangleGeometry geometry = SimpleMeshCollisionGeometryExtractor.Extract(model, "transformed-tetrahedron");
+        ModelCollisionArtifact artifact = ConvexCollisionArtifactGenerator.Generate(geometry, "transformed-tetrahedron");
+
+        Assert.Equal(ModelCollisionArtifactKind.Convex, artifact.Kind);
+        Assert.Contains(new ModelCollisionVertex(3.0f, 4.0f, 5.0f), artifact.Vertices);
+        Assert.Contains(new ModelCollisionVertex(5.0f, 4.0f, 5.0f), artifact.Vertices);
+        Assert.Contains(new ModelCollisionVertex(3.0f, 6.0f, 5.0f), artifact.Vertices);
+        Assert.Contains(new ModelCollisionVertex(3.0f, 4.0f, 7.0f), artifact.Vertices);
+        Assert.Empty(artifact.Indices);
+    }
+
+    [Fact]
+    public void ConvexArtifactIsIndependentOfTriangleWinding()
+    {
+        CollisionTriangleGeometry outward = TetrahedronGeometry(reverseWinding: false);
+        CollisionTriangleGeometry inward = TetrahedronGeometry(reverseWinding: true);
+
+        byte[] first = SerializeCollision(ConvexCollisionArtifactGenerator.Generate(outward, "outward"));
+        byte[] second = SerializeCollision(ConvexCollisionArtifactGenerator.Generate(inward, "inward"));
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void ConvexArtifactRejectsDegenerateAndNonFiniteGeometry()
+    {
+        var degenerate = new CollisionTriangleGeometry(
+            [Vector3.Zero, Vector3.UnitX, Vector3.UnitX * 2.0f],
+            [0, 1, 2]);
+        var nonFinite = new CollisionTriangleGeometry(
+            [Vector3.Zero, Vector3.UnitX, new Vector3(float.NaN, 1.0f, 0.0f)],
+            [0, 1, 2]);
+
+        Assert.Contains(
+            "degenerate triangle",
+            Assert.Throws<InvalidDataException>(() => ConvexCollisionArtifactGenerator.Generate(degenerate, "degenerate")).Message,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "non-finite vertex",
+            Assert.Throws<InvalidDataException>(() => ConvexCollisionArtifactGenerator.Generate(nonFinite, "non-finite")).Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KenneyCrateConvexArtifactIsGeneratedDeterministically()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string sourceRoot = Path.Combine(repositoryRoot, "assets");
+        string manifestPath = Path.Combine(sourceRoot, "model-assets.json");
+        using TestWorkspace workspace = TestWorkspace.Create();
+
+        AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Server);
+        Dictionary<string, byte[]> first = ReadOutput(workspace.OutputRoot);
+        AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Server);
+        Dictionary<string, byte[]> second = ReadOutput(workspace.OutputRoot);
+
+        Assert.Equal(first.Keys, second.Keys);
+        foreach (string path in first.Keys)
+            Assert.Equal(first[path], second[path]);
+
+        ModelAssetManifest catalog = ModelAssetManifestLoader.LoadGenerated(
+            Path.Combine(workspace.OutputRoot, ContentCatalog.ModelAssetManifestFileName));
+        ModelAssetDefinition crate = Assert.Single(catalog.Assets);
+        Assert.Equal("collision/kenney-crate.json", crate.Collision.Artifact);
+        Assert.Null(crate.Render);
+
+        ModelCollisionArtifact artifact = ModelCollisionArtifactLoader.Load(
+            Path.Combine(workspace.OutputRoot, "collision", "kenney-crate.json"));
+        Assert.Equal(ModelCollisionArtifactKind.Convex, artifact.Kind);
+        Assert.Equal(8, artifact.Vertices.Count);
+        Assert.Empty(artifact.Indices);
+    }
+
     private static string ManifestJson() =>
         """
         {
@@ -209,6 +292,59 @@ public sealed class AssetPipelineTests
                 path => Path.GetRelativePath(root, path),
                 File.ReadAllBytes,
                 StringComparer.Ordinal);
+
+    private static byte[] SerializeCollision(ModelCollisionArtifact artifact) =>
+        JsonSerializer.SerializeToUtf8Bytes(
+            artifact,
+            ModelCollisionArtifactLoader.CreateSerializerOptions(writeIndented: true));
+
+    private static CollisionTriangleGeometry TetrahedronGeometry(bool reverseWinding)
+    {
+        Vector3[] vertices = [Vector3.Zero, Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ];
+        int[] outward = [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3];
+        int[] indices = reverseWinding
+            ? outward.Chunk(3).SelectMany(triangle => triangle.Reverse()).ToArray()
+            : outward;
+        return new CollisionTriangleGeometry(vertices, indices);
+    }
+
+    private static Model CreateTetrahedronModel(Matrix4x4 parentTransform, Matrix4x4 childTransform)
+    {
+        CollisionTriangleGeometry source = TetrahedronGeometry(reverseWinding: false);
+        var vertices = new VertexArray(VertexAttributes.None, source.Vertices.Count);
+        for (int index = 0; index < source.Vertices.Count; index++)
+            vertices.Position[index] = source.Vertices[index];
+
+        var material = new Material { Name = "collision" };
+        var geometry = new Geometry(vertices, Indices.FromBuffer(source.Indices.Select(index => (uint)index).ToArray()))
+        {
+            Kind = GeometryKind.Triangles,
+            Groups =
+            [
+                new TriangleGroup(material)
+                {
+                    StartIndex = 0,
+                    BaseVertex = 0,
+                    IndexCount = source.Indices.Count,
+                },
+            ],
+        };
+        var child = new ModelNode { Name = "child", Transform = childTransform, Geometry = geometry };
+        var parent = new ModelNode { Name = "parent", Transform = parentTransform, Children = [child] };
+        return new Model { Roots = [parent], Geometries = [geometry] };
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Royale.slnx")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+        throw new DirectoryNotFoundException("Could not locate the Royale repository root.");
+    }
 
     private sealed class TestWorkspace : IDisposable
     {

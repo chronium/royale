@@ -26,10 +26,11 @@ public static class AssetPipelineProcessor
             Directory.Delete(fullOutputRoot, recursive: true);
         Directory.CreateDirectory(fullOutputRoot);
 
+        ModelAssetManifest withCollisionArtifacts = BuildCollisionArtifacts(source, sourceRoot, fullOutputRoot);
         ModelAssetManifest generated = audience switch
         {
-            AssetPipelineAudience.Client => BuildClient(source, sourceRoot, fullOutputRoot),
-            AssetPipelineAudience.Server => BuildServer(source),
+            AssetPipelineAudience.Client => BuildClient(withCollisionArtifacts, sourceRoot, fullOutputRoot),
+            AssetPipelineAudience.Server => BuildServer(withCollisionArtifacts),
             _ => throw new ArgumentOutOfRangeException(nameof(audience), audience, "Unknown asset pipeline audience."),
         };
 
@@ -56,6 +57,39 @@ public static class AssetPipelineProcessor
 
     private static ModelAssetManifest BuildServer(ModelAssetManifest source) =>
         NormalizeManifest(source, includeRender: false, includeOnlyCollisionAssets: true);
+
+    private static ModelAssetManifest BuildCollisionArtifacts(
+        ModelAssetManifest source,
+        string sourceRoot,
+        string outputRoot)
+    {
+        var assets = new List<ModelAssetDefinition>(source.Assets.Count);
+        foreach (ModelAssetDefinition asset in source.Assets)
+        {
+            if (asset.Collision.Mode == ModelCollisionMode.None)
+            {
+                assets.Add(asset);
+                continue;
+            }
+
+            if (asset.Collision.Mode != ModelCollisionMode.Convex)
+                throw new InvalidDataException($"Asset '{asset.Id}' collision mode '{asset.Collision.Mode}' is not supported by this asset pipeline version.");
+            if (asset.Render is null)
+                throw new InvalidDataException($"Asset '{asset.Id}' convex collision requires a render GLB source.");
+
+            string sourcePath = ModelAssetManifestLoader.ResolveSourcePath(sourceRoot, asset.Render.Source);
+            CollisionTriangleGeometry geometry = SimpleMeshCollisionGeometryExtractor.LoadFromFile(sourcePath);
+            ModelCollisionArtifact artifact = ConvexCollisionArtifactGenerator.Generate(geometry, asset.Id);
+            string relativeArtifactPath = $"collision/{asset.Id}.json";
+            WriteCollisionArtifact(Path.Combine(outputRoot, relativeArtifactPath), artifact);
+            assets.Add(asset with
+            {
+                Collision = asset.Collision with { Artifact = relativeArtifactPath },
+            });
+        }
+
+        return source with { Assets = assets };
+    }
 
     private static ModelAssetManifest NormalizeManifest(
         ModelAssetManifest source,
@@ -95,6 +129,17 @@ public static class AssetPipelineProcessor
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(
             manifest,
             ModelAssetManifestLoader.CreateSerializerOptions(writeIndented: true));
+        using FileStream stream = File.Create(path);
+        stream.Write(json);
+        stream.WriteByte((byte)'\n');
+    }
+
+    private static void WriteCollisionArtifact(string path, ModelCollisionArtifact artifact)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(
+            artifact,
+            ModelCollisionArtifactLoader.CreateSerializerOptions(writeIndented: true));
         using FileStream stream = File.Create(path);
         stream.Write(json);
         stream.WriteByte((byte)'\n');

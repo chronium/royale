@@ -90,6 +90,22 @@ public sealed class NetworkServerRuntimeTests
         Assert.Equal(0, runtime.ActivePlayerCount);
     }
 
+    [Fact]
+    public void ForceStartExposesAuthoritativeSessionResult()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(ContentCatalog.DefaultMapId));
+
+        Assert.Equal(ForceStartResult.NoPlayers, runtime.ForceStart());
+
+        _ = ConnectClient(runtime, transport, new NetworkPeerId(1));
+
+        Assert.Equal(ForceStartResult.Started, runtime.ForceStart());
+        Assert.Equal(ForceStartResult.MatchNotWaiting, runtime.ForceStart());
+    }
+
     private static ServerAccept ConnectClient(
         NetworkServerRuntime runtime,
         FakeNetworkTransport transport,

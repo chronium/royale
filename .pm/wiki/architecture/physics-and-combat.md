@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-10T01:51:25.8287880Z
+modifiedAt: 2026-07-10T05:06:20.5967250Z
 ---
 
 ## Physics Architecture
@@ -275,7 +275,7 @@ The local offline client player and the headless server both use the default-rif
 
 ## Match State Machine
 
-The battle-royale lifecycle is controlled by a server-side state machine.
+The battle-royale lifecycle is controlled by the server-owned `MatchPhaseStateMachine`.
 
 ```text
 WaitingForPlayers
@@ -291,33 +291,35 @@ Resetting
 WaitingForPlayers
 ```
 
-`BR-001` implements this lifecycle as the server-owned `MatchPhaseStateMachine`. The only legal transition cycle is `WaitingForPlayers -> Countdown -> Playing -> Finished -> Resetting -> WaitingForPlayers`. Same-phase, skipped, reversed, unknown, and transition-tick-regressing requests fail explicitly.
+The only legal cycle is forward-only. Same-phase, skipped, reversed, unknown, and transition-tick-regressing requests fail explicitly. Successful transitions record the current authoritative server tick as `PhaseStartedTick` while preserving living-player count and winner state.
 
-A successful transition records the current authoritative server tick as `PhaseStartedTick` while preserving living-player count and winner state. `HeadlessServerSimulation.TransitionMatchPhase(...)` and the equivalent `InProcessServerSession` entry point provide explicit orchestration hooks.
+`BR-002` adds `MatchStartSettings`. The default minimum is two players, the valid range is `1..ProtocolConstants.MaxSnapshotPlayers`, and the countdown is fixed at 300 authoritative ticks (five seconds at 60 Hz). At the beginning of a server step, `WaitingForPlayers` enters `Countdown` once the connected authoritative-player count reaches the configured minimum. `Countdown` enters `Playing` when 300 ticks have elapsed from `PhaseStartedTick`; disconnecting players does not cancel or pause a countdown that has started.
 
-`BR-001` intentionally does not add automatic transition triggers or phase-aware gameplay gating. `Step()` never advances the phase by itself, and movement and combat continue to run in every phase so existing multiplayer behavior remains unchanged. Minimum-player/countdown triggers, winner assignment, combat or movement gating, and reset mutation belong to `BR-002` and later match-loop tasks.
+`ForceStart()` is an explicit server/test-host orchestration hook on the headless simulation, in-process session, and network runtime. It bypasses the configured minimum but still requires at least one player and only succeeds from `WaitingForPlayers`, returning `Started`, `NoPlayers`, or `MatchNotWaiting`. Remote authenticated administration remains outside this API.
+
+Movement, jumping, look updates, input acknowledgement, and client prediction remain active before `Playing` and after `Finished`. Authoritative combat, including damage, fire cadence, and ammunition mutation, runs only during `Playing`. Late joins remain allowed in every phase; participant locking, winner selection, elimination flow, countdown UI, and reset mutation belong to later tasks.
 
 ## WaitingForPlayers
 
-* Accept players
-* Spawn or prepare them in a non-active state
-* Wait for the minimum player count
-* Allow a development force-start command
+* Accept and spawn late-joining players.
+* Continue movement, jump, look, input acknowledgement, and prediction.
+* Wait for the configured minimum player count (default `2`).
+* Permit explicit development force-start when at least one player is connected.
+* Suppress authoritative combat, fire cadence, damage, and ammunition mutation.
 
 ## Countdown
 
-* Lock the participant list if required
-* Select spawn points
-* Reset player state
-* Begin a short countdown
+* Run for exactly 300 authoritative ticks (five seconds at 60 Hz).
+* Continue once started even if the player count drops below the configured minimum.
+* Continue movement, jump, look, input acknowledgement, prediction, and late joins.
+* Suppress authoritative combat, fire cadence, damage, and ammunition mutation.
 
 ## Playing
 
-* Enable movement and combat
-* Update the safe zone
-* Apply zone damage
-* Track living players
-* Detect the winner
+* Permit movement and server-authoritative combat.
+* Continue accepting late joins.
+* Update the safe zone and apply zone damage when those systems are implemented.
+* Track living players and detect the winner in later match-loop work.
 
 ## Finished
 

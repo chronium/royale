@@ -40,6 +40,8 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
 
     public int QueuedInputCommandCount => session.QueuedInputCommandCount;
 
+    public MatchStartSettings MatchStartSettings => session.MatchStartSettings;
+
     public IReadOnlyDictionary<NetworkPeerId, ServerAccept> AcceptedPeers => handshakeServer.AcceptedPeers;
 
     public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates()
@@ -49,14 +51,21 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         return session.GetPlayerDebugStates(CreatePeerIdsByPlayerId());
     }
 
-    public static NetworkServerRuntime Listen(string mapId, int port, ServerObservability? observability = null)
+    public static NetworkServerRuntime Listen(
+        string mapId,
+        int port,
+        MatchStartSettings? matchStartSettings = null,
+        ServerObservability? observability = null)
     {
         var transport = new LiteNetLibNetworkTransport();
         transport.Start(port);
 
         try
         {
-            return new NetworkServerRuntime(transport, InProcessServerSession.Create(mapId), observability);
+            return new NetworkServerRuntime(
+                transport,
+                InProcessServerSession.Create(mapId, matchStartSettings),
+                observability);
         }
         catch
         {
@@ -79,6 +88,14 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         observability?.PlayerDebugStates(GetPlayerDebugStates());
         observability?.TickCompleted(Stopwatch.GetElapsedTime(started));
         return sentSnapshots;
+    }
+
+    public ForceStartResult ForceStart()
+    {
+        ThrowIfDisposed();
+        ForceStartResult result = session.ForceStart();
+        UpdateObservabilityState();
+        return result;
     }
 
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)

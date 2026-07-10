@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T01:51:25.8520690Z
+modifiedAt: 2026-07-10T05:05:56.7783300Z
 ---
 
 ## Simulation Model
@@ -66,6 +66,8 @@ The client frame performs:
 9. Present the frame.
 
 A maximum number of catch-up ticks should be enforced so that a paused debugger or stalled frame does not trigger an uncontrolled simulation spiral.
+
+`BR-002` evaluates the authoritative match-start policy at the beginning of each simulation step, after command validation and before movement or combat mutation. The policy can transition `WaitingForPlayers` to `Countdown` when the configured player minimum is present, and `Countdown` to `Playing` after 300 elapsed server ticks. Movement, look, jump, and acknowledgement processing then run in every phase; combat processing runs only when the resulting phase is `Playing`. Physics steps last and the authoritative tick increments once.
 
 ## Authoritative State
 

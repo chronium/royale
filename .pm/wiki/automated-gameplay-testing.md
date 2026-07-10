@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-10T01:35:14.0321380Z
+modifiedAt: 2026-07-10T05:05:56.7956450Z
 ---
 
 ## Overview
@@ -169,6 +169,10 @@ Current boundaries:
 * API calls that require a running server or connected player fail explicitly when used after stop or disconnect.
 
 High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayInsideZone` should be implemented through lower-level input commands rather than direct state mutation.
+
+`scenario.server.forceStart()` invokes the explicit authoritative force-start hook in both in-process and loopback UDP runtimes. It returns the string `Started` after entering `Countdown`. Rejection is explicit: zero connected players throws `scenario.server.forceStart failed: at least one connected player is required`, and a phase other than `WaitingForPlayers` throws `scenario.server.forceStart failed: the match is not waiting for players`.
+
+Every call records one deterministic test-host event. Success records `server.force_start.accepted` with detail `Started`; rejection records `server.force_start.rejected` with detail `NoPlayers` or `MatchNotWaiting` before throwing. These remain harness observations, not protocol or authoritative gameplay event types.
 
 ## Execution Model
 

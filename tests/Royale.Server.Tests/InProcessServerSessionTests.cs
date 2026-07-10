@@ -357,6 +357,7 @@ public sealed class InProcessServerSessionTests
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
         _ = session.DrainSnapshots(second);
+        EnterPlaying(session);
 
         Assert.True(session.TryEnqueueInputCommand(first, FireCommand(sequence: 1, yawRadians: 0.0f)));
 
@@ -379,6 +380,7 @@ public sealed class InProcessServerSessionTests
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
         _ = session.DrainSnapshots(second);
+        EnterPlaying(session);
 
         FireOnCurrentTick(session, first, sequence: 1);
         StepTicks(session, 5);
@@ -405,6 +407,7 @@ public sealed class InProcessServerSessionTests
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
         _ = session.DrainSnapshots(second);
+        EnterPlaying(session);
         KillSecondPlayer(session, first);
         ServerSnapshot killedSnapshot = session.DrainSnapshots(first)[^1];
         PlayerSnapshotState deadBefore = FindPlayer(killedSnapshot, second.PlayerId);
@@ -431,6 +434,41 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(deadBefore.Weapon.NextAllowedFireTick, deadAfter.Weapon.NextAllowedFireTick);
         Assert.Equal(shooterBefore.CurrentHealth, shooterAfter.CurrentHealth);
         Assert.False(deadAfter.Alive);
+    }
+
+    [Fact]
+    public void PrePlayingInputMovesLooksAndAcknowledgesWithoutMutatingCombatState()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection first = session.ConnectClient();
+        InProcessClientConnection second = session.ConnectClient();
+        _ = session.DrainSnapshots(first);
+        ServerSnapshot initial = session.DrainSnapshots(second)[^1];
+        PlayerSnapshotState shooterBefore = FindPlayer(initial, first.PlayerId);
+        PlayerSnapshotState targetBefore = FindPlayer(initial, second.PlayerId);
+
+        Assert.True(session.TryEnqueueInputCommand(
+            first,
+            FireCommand(sequence: 41, yawRadians: MathF.PI / 2.0f) with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                PitchRadians = 0.2f,
+            }));
+
+        session.Step();
+        ServerSnapshot snapshot = DequeueSnapshot(session, first);
+        PlayerSnapshotState shooterAfter = FindPlayer(snapshot, first.PlayerId);
+        PlayerSnapshotState targetAfter = FindPlayer(snapshot, second.PlayerId);
+
+        Assert.Equal(ServerSnapshotMatchPhase.Countdown, snapshot.Match.Phase);
+        Assert.Equal(41U, snapshot.AcknowledgedInputSequence);
+        Assert.NotEqual(shooterBefore.Position, shooterAfter.Position);
+        Assert.Equal(MathF.PI / 2.0f, shooterAfter.YawRadians);
+        Assert.Equal(0.2f, shooterAfter.PitchRadians);
+        Assert.Equal(shooterBefore.Weapon.AmmoInMagazine, shooterAfter.Weapon.AmmoInMagazine);
+        Assert.Equal(shooterBefore.Weapon.NextAllowedFireTick, shooterAfter.Weapon.NextAllowedFireTick);
+        Assert.Equal(shooterBefore.Weapon.LastFiredTick, shooterAfter.Weapon.LastFiredTick);
+        Assert.Equal(targetBefore.CurrentHealth, targetAfter.CurrentHealth);
     }
 
     [Fact]
@@ -497,6 +535,12 @@ public sealed class InProcessServerSessionTests
     {
         Assert.True(session.TryEnqueueInputCommand(client, FireCommand(sequence, yawRadians: 0.0f)));
         session.Step();
+    }
+
+    private static void EnterPlaying(InProcessServerSession session)
+    {
+        session.TransitionMatchPhase(MatchPhase.Countdown);
+        session.TransitionMatchPhase(MatchPhase.Playing);
     }
 
     private static void KillSecondPlayer(

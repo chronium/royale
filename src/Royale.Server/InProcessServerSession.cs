@@ -27,17 +27,23 @@ public sealed class InProcessServerSession : IDisposable
 
     public MatchPhase MatchPhase => simulation.MatchState.Phase;
 
+    public MatchStartSettings MatchStartSettings => simulation.MatchStartSettings;
+
     public int QueuedInputCommandCount => clients.Values.Sum(client => client.InputCommands.Count);
 
     public bool IsDisposed => disposed;
 
     public bool IsSimulationDisposed => simulation.IsDisposed;
 
-    public static InProcessServerSession Create(string mapId) =>
-        new(HeadlessServerSimulation.Create(mapId));
+    public static InProcessServerSession Create(
+        string mapId,
+        MatchStartSettings? matchStartSettings = null) =>
+        new(HeadlessServerSimulation.Create(mapId, matchStartSettings));
 
-    public static InProcessServerSession Create(GameMap map) =>
-        new(HeadlessServerSimulation.Create(map));
+    public static InProcessServerSession Create(
+        GameMap map,
+        MatchStartSettings? matchStartSettings = null) =>
+        new(HeadlessServerSimulation.Create(map, matchStartSettings));
 
     public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates(
         IReadOnlyDictionary<ServerPlayerId, int>? peerIdsByPlayerId = null)
@@ -93,6 +99,12 @@ public sealed class InProcessServerSession : IDisposable
     {
         ThrowIfDisposed();
         simulation.TransitionMatchPhase(nextPhase);
+    }
+
+    public ForceStartResult ForceStart()
+    {
+        ThrowIfDisposed();
+        return simulation.ForceStart();
     }
 
     public IReadOnlyList<ServerSnapshot> DrainSnapshots(InProcessClientConnection client)

@@ -98,6 +98,29 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
         StepRunningServer(count);
     }
 
+    internal string ForceStartServer()
+    {
+        IScenarioRuntime runningRuntime = RequireRunningRuntime();
+        ForceStartResult result = runningRuntime.ForceStart();
+
+        if (result == ForceStartResult.Started)
+        {
+            RecordEvent("server.force_start.accepted", detail: result.ToString());
+            return result.ToString();
+        }
+
+        RecordEvent("server.force_start.rejected", detail: result.ToString());
+
+        throw result switch
+        {
+            ForceStartResult.NoPlayers => new ScriptRuntimeException(
+                "scenario.server.forceStart failed: at least one connected player is required."),
+            ForceStartResult.MatchNotWaiting => new ScriptRuntimeException(
+                "scenario.server.forceStart failed: the match is not waiting for players."),
+            _ => new ScriptRuntimeException($"scenario.server.forceStart failed: unexpected result '{result}'."),
+        };
+    }
+
     internal ulong WaitTicks(int count)
     {
         if (count < 1 || count > MaxClockWaitTicks)
@@ -570,6 +593,8 @@ public sealed class ScenarioServerApi(ScenarioApi scenario) : ScenarioScriptObje
     public void stop() => scenario.StopServer();
 
     public void step(int count) => scenario.StepServer(count);
+
+    public string forceStart() => scenario.ForceStartServer();
 }
 
 public sealed class ScenarioPlayersApi(ScenarioApi scenario) : ScenarioScriptObject

@@ -12,16 +12,21 @@ public sealed class HeadlessServerSimulation : IDisposable
     private readonly GameMap map;
     private readonly MapStaticCollisionWorld collisionWorld;
     private readonly KinematicCharacterController characterController = new();
+    private readonly MatchStartSettings matchStartSettings;
     private readonly Dictionary<ServerPlayerId, AuthoritativePlayerState> players = [];
     private readonly Dictionary<ServerPlayerId, SpawnReservation> spawnReservations = [];
     private uint nextPlayerId = 1;
     private bool disposed;
 
-    private HeadlessServerSimulation(GameMap map, MapStaticCollisionWorld collisionWorld)
+    private HeadlessServerSimulation(
+        GameMap map,
+        MapStaticCollisionWorld collisionWorld,
+        MatchStartSettings matchStartSettings)
     {
         this.map = map;
         MapId = map.Id;
         this.collisionWorld = collisionWorld;
+        this.matchStartSettings = matchStartSettings;
         SafeZoneState = CreateSafeZoneState(map);
         MatchState = new AuthoritativeMatchState(
             MatchPhase.WaitingForPlayers,
@@ -40,25 +45,32 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public AuthoritativeMatchState MatchState { get; private set; }
 
+    public MatchStartSettings MatchStartSettings => matchStartSettings;
+
     public AuthoritativeSafeZoneState SafeZoneState { get; private set; }
 
     public bool IsDisposed => disposed;
 
-    public static HeadlessServerSimulation Create(string mapId)
+    public static HeadlessServerSimulation Create(
+        string mapId,
+        MatchStartSettings? matchStartSettings = null)
     {
         GameMap map = MapCatalog.LoadById(mapId);
-        return Create(map);
+        return Create(map, matchStartSettings);
     }
 
-    public static HeadlessServerSimulation Create(GameMap map)
+    public static HeadlessServerSimulation Create(
+        GameMap map,
+        MatchStartSettings? matchStartSettings = null)
     {
         ArgumentNullException.ThrowIfNull(map);
+        matchStartSettings ??= MatchStartSettings.Default;
 
         MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
 
         try
         {
-            return new HeadlessServerSimulation(map, collisionWorld);
+            return new HeadlessServerSimulation(map, collisionWorld, matchStartSettings);
         }
         catch
         {
@@ -111,6 +123,20 @@ public sealed class HeadlessServerSimulation : IDisposable
     {
         ThrowIfDisposed();
         MatchState = MatchPhaseStateMachine.Transition(MatchState, nextPhase, CurrentTick);
+    }
+
+    public ForceStartResult ForceStart()
+    {
+        ThrowIfDisposed();
+
+        if (MatchState.Phase != MatchPhase.WaitingForPlayers)
+            return ForceStartResult.MatchNotWaiting;
+
+        if (players.Count == 0)
+            return ForceStartResult.NoPlayers;
+
+        TransitionMatchPhase(MatchPhase.Countdown);
+        return ForceStartResult.Started;
     }
 
     public void AcknowledgePlayerInputSequence(
@@ -171,8 +197,10 @@ public sealed class HeadlessServerSimulation : IDisposable
         ArgumentNullException.ThrowIfNull(inputCommands);
 
         ValidateInputCommands(inputCommands);
+        ApplyMatchStartPolicy();
         ApplyMovement(inputCommands);
-        ApplyCombat(inputCommands);
+        if (MatchState.Phase == MatchPhase.Playing)
+            ApplyCombat(inputCommands);
         RefreshLivingPlayerCount();
 
         collisionWorld.Step(SimulationSettings.FixedDeltaSeconds, SimulationSettings.PhysicsSubStepCount);
@@ -284,6 +312,21 @@ public sealed class HeadlessServerSimulation : IDisposable
     {
         int livingPlayerCount = players.Values.Count(player => player.Health.Alive);
         MatchState = MatchState with { LivingPlayerCount = livingPlayerCount };
+    }
+
+    private void ApplyMatchStartPolicy()
+    {
+        if (MatchState.Phase == MatchPhase.WaitingForPlayers &&
+            players.Count >= matchStartSettings.MinimumPlayers)
+        {
+            TransitionMatchPhase(MatchPhase.Countdown);
+        }
+
+        if (MatchState.Phase == MatchPhase.Countdown &&
+            CurrentTick - MatchState.PhaseStartedTick >= (ulong)MatchStartSettings.CountdownTicks)
+        {
+            TransitionMatchPhase(MatchPhase.Playing);
+        }
     }
 
     private void ValidateInputCommands(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand> inputCommands)

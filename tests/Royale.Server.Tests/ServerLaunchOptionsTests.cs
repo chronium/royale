@@ -14,6 +14,7 @@ public sealed class ServerLaunchOptionsTests
         Assert.Equal(ProtocolConstants.DefaultPort, options.Port);
         Assert.Equal(ContentCatalog.DefaultMapId, options.MapId);
         Assert.Null(options.RunTicks);
+        Assert.Equal(MatchStartSettings.DefaultMinimumPlayers, options.MinimumPlayers);
     }
 
     [Fact]
@@ -32,6 +33,25 @@ public sealed class ServerLaunchOptionsTests
         ServerLaunchOptions options = ServerLaunchOptions.Parse(["--run-ticks", "5"]);
 
         Assert.Equal(5, options.RunTicks);
+    }
+
+    [Fact]
+    public void ParseAcceptsCustomMinimumPlayers()
+    {
+        ServerLaunchOptions options = ServerLaunchOptions.Parse(["--minimum-players", "17"]);
+
+        Assert.Equal(17, options.MinimumPlayers);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("129")]
+    [InlineData("not-a-number")]
+    public void ParseRejectsInvalidMinimumPlayers(string value)
+    {
+        Assert.Throws<ArgumentException>(
+            () => ServerLaunchOptions.Parse(["--minimum-players", value]));
     }
 
     [Theory]
@@ -57,6 +77,7 @@ public sealed class ServerLaunchOptionsTests
     [InlineData("--port")]
     [InlineData("--map")]
     [InlineData("--run-ticks")]
+    [InlineData("--minimum-players")]
     public void ParseRejectsMissingValues(string option)
     {
         Assert.Throws<ArgumentException>(() => ServerLaunchOptions.Parse([option]));

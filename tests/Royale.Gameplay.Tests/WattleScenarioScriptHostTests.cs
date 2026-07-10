@@ -106,6 +106,60 @@ public sealed class WattleScenarioScriptHostTests
     }
 
     [Fact]
+    public void ScenarioServerForceStartWorksInProcessAndRecordsAcceptedEvent()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.assert.equal("Started", scenario.server.forceStart());
+            scenario.server.step(1);
+            scenario.assert.equal("Countdown", scenario.observe.latest(player).match.phase);
+            scenario.assert.event("server.force_start.accepted");
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioServerForceStartWorksOverUdpAndRecordsAcceptedEvent()
+    {
+        const string source = """
+            scenario.server.startUdp("graybox");
+            var player = scenario.players.connect();
+            scenario.assert.equal("Started", scenario.server.forceStart());
+            scenario.assert.eventually(120, function() {
+                return scenario.observe.latest(player).match.phase == "Countdown";
+            }, "UDP force-start countdown snapshot");
+            scenario.assert.event("server.force_start.accepted");
+            return true;
+            """;
+
+        DynValue result = new WattleScenarioScriptHost().Execute(source);
+
+        Assert.True(result.Boolean);
+    }
+
+    [Fact]
+    public void ScenarioServerForceStartRejectsNoPlayersWithDeterministicEvent()
+    {
+        const string source = """
+            scenario.server.start("graybox");
+            scenario.server.forceStart();
+            """;
+        using var scenario = new ScenarioApi();
+
+        ScriptRuntimeException ex = Assert.Throws<ScriptRuntimeException>(
+            () => new WattleScenarioScriptHost().Execute(source, scenario));
+
+        Assert.Contains("at least one connected player", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("server.force_start.rejected", scenario.LatestEvent?.type);
+        Assert.Equal("NoPlayers", scenario.LatestEvent?.detail);
+    }
+
+    [Fact]
     public void ScenarioServerStartUdpRejectsInvalidMapId()
     {
         const string source = """
@@ -1034,7 +1088,7 @@ public sealed class WattleScenarioScriptHostTests
             scenario.assert.equal(false, firstPlayer.weapon.isReloading);
 
             scenario.assert.equal(snapshot.livingPlayerCount, snapshot.match.livingPlayerCount);
-            scenario.assert.equal("WaitingForPlayers", snapshot.match.phase);
+            scenario.assert.equal("Countdown", snapshot.match.phase);
             scenario.assert.equal(nil, snapshot.match.winnerPlayerId);
             scenario.assert.isTrue(snapshot.safeZone.currentRadius > 0);
             scenario.assert.isTrue(snapshot.safeZone.targetRadius > 0);

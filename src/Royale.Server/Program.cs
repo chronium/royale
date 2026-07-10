@@ -22,7 +22,11 @@ try
 {
     ServerLaunchOptions options = ServerLaunchOptions.Parse(args);
     var descriptor = ServerDescriptor.Create();
-    using NetworkServerRuntime runtime = NetworkServerRuntime.Listen(options.MapId, options.Port, observability);
+    using NetworkServerRuntime runtime = NetworkServerRuntime.Listen(
+        options.MapId,
+        options.Port,
+        new MatchStartSettings(options.MinimumPlayers),
+        observability);
     string runMode = options.RunTicks is int runTicks
         ? $"finite {runTicks} ticks"
         : "until shutdown";
@@ -31,9 +35,10 @@ try
     serverRunActivity?.SetTag("server.tick_rate_hz", SimulationSettings.TickRateHz);
     serverRunActivity?.SetTag("server.headless", descriptor.IsHeadless);
     serverRunActivity?.SetTag("server.run_mode", options.RunTicks is null ? "until_shutdown" : "finite");
+    serverRunActivity?.SetTag("server.minimum_players", options.MinimumPlayers);
 
     logger.ZLogInformation(
-        $"Royale server starting. Protocol {ProtocolConstants.Version}, port {options.Port}, map {runtime.MapId}, tick {SimulationSettings.TickRateHz} Hz, headless {descriptor.IsHeadless}, run {runMode}, UDP listen enabled.");
+        $"Royale server starting. Protocol {ProtocolConstants.Version}, port {options.Port}, map {runtime.MapId}, minimum players {options.MinimumPlayers}, tick {SimulationSettings.TickRateHz} Hz, headless {descriptor.IsHeadless}, run {runMode}, UDP listen enabled.");
 
     ServerSimulationRunResult result = await ServerSimulationLoop.RunAsync(runtime, options, shutdown.Token);
     serverRunActivity?.SetTag("server.ticks_run", result.TicksRun);

@@ -29,6 +29,8 @@ internal interface IScenarioRuntime : IDisposable
 
     IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates();
 
+    ForceStartResult ForceStart();
+
     void Step();
 }
 
@@ -105,6 +107,8 @@ internal sealed class InProcessScenarioRuntime : IScenarioRuntime
     }
 
     public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates() => session.GetPlayerDebugStates();
+
+    public ForceStartResult ForceStart() => session.ForceStart();
 
     public void Step()
     {
@@ -262,6 +266,12 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
     {
         ThrowIfDisposed();
         return server.GetPlayerDebugStates();
+    }
+
+    public ForceStartResult ForceStart()
+    {
+        ThrowIfDisposed();
+        return server.ForceStart();
     }
 
     public SimulatedNetworkConditions GetNetworkConditions(ScenarioPlayerHandle player)

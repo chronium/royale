@@ -4,18 +4,20 @@ using Royale.Protocol;
 
 namespace Royale.Server;
 
-public sealed record ServerLaunchOptions(int Port, string MapId, int? RunTicks)
+public sealed record ServerLaunchOptions(int Port, string MapId, int? RunTicks, int MinimumPlayers)
 {
     public static ServerLaunchOptions Default { get; } = new(
         ProtocolConstants.DefaultPort,
         ContentCatalog.DefaultMapId,
-        RunTicks: null);
+        RunTicks: null,
+        MatchStartSettings.DefaultMinimumPlayers);
 
     public static ServerLaunchOptions Parse(IReadOnlyList<string> args)
     {
         int port = ProtocolConstants.DefaultPort;
         string mapId = ContentCatalog.DefaultMapId;
         int? runTicks = null;
+        int minimumPlayers = MatchStartSettings.DefaultMinimumPlayers;
 
         for (int index = 0; index < args.Count; index++)
         {
@@ -33,12 +35,17 @@ public sealed record ServerLaunchOptions(int Port, string MapId, int? RunTicks)
                     runTicks = ParseRunTicks(ReadRequiredValue(args, ref index, "--run-ticks"));
                     break;
 
+                case "--minimum-players":
+                    minimumPlayers = ParseMinimumPlayers(
+                        ReadRequiredValue(args, ref index, "--minimum-players"));
+                    break;
+
                 default:
                     throw new ArgumentException($"Unknown argument '{args[index]}'.");
             }
         }
 
-        return new ServerLaunchOptions(port, mapId, runTicks);
+        return new ServerLaunchOptions(port, mapId, runTicks, minimumPlayers);
     }
 
     private static int ParsePort(string rawPort)
@@ -55,6 +62,22 @@ public sealed record ServerLaunchOptions(int Port, string MapId, int? RunTicks)
             throw new ArgumentException("--run-ticks must be a positive integer.");
 
         return runTicks;
+    }
+
+    private static int ParseMinimumPlayers(string rawMinimumPlayers)
+    {
+        if (!int.TryParse(
+                rawMinimumPlayers,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out int minimumPlayers) ||
+            minimumPlayers is < 1 or > ProtocolConstants.MaxSnapshotPlayers)
+        {
+            throw new ArgumentException(
+                $"--minimum-players must be an integer between 1 and {ProtocolConstants.MaxSnapshotPlayers}.");
+        }
+
+        return minimumPlayers;
     }
 
     private static string ReadRequiredValue(IReadOnlyList<string> args, ref int index, string optionName)

@@ -26,12 +26,24 @@ public sealed class MapContentTests
         GameMap map = MapCatalog.LoadById("graybox");
 
         Assert.NotEmpty(map.StaticBoxes);
+        Assert.NotEmpty(map.StaticModels);
         Assert.NotEmpty(map.SpawnPoints);
         Assert.NotEmpty(map.LootPoints);
         Assert.True(map.WorldBounds.Min.X < map.WorldBounds.Max.X);
         Assert.True(map.WorldBounds.Min.Y < map.WorldBounds.Max.Y);
         Assert.True(map.WorldBounds.Min.Z < map.WorldBounds.Max.Z);
         Assert.True(map.SafeZone.Radius > 0.0f);
+    }
+
+    [Fact]
+    public void GrayboxDeclaresTheKenneyCrateAsMapOwnedContent()
+    {
+        StaticModelDefinition crate = Assert.Single(MapCatalog.LoadDefault().StaticModels);
+
+        Assert.Equal("crate-south-east", crate.Id);
+        Assert.Equal("kenney-crate", crate.AssetId);
+        Assert.Equal(new MapVector3(6.0f, 0.0f, 5.0f), crate.Position);
+        Assert.Equal(new MapVector3(1.25f, 1.25f, 1.25f), crate.Scale);
     }
 
     [Fact]
@@ -220,6 +232,56 @@ public sealed class MapContentTests
             """));
 
         Assert.Contains("spawn point 'spawn-a' position must be inside worldBounds", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StaticModelRequiresUniqueIdAssetAndNonzeroFiniteScale()
+    {
+        InvalidDataException duplicate = LoadInvalidMap("duplicate-static-content", """
+            {
+              "id": "duplicate-static-content",
+              "name": "Duplicate Static Content",
+              "worldBounds": { "min": { "x": -2, "y": -1, "z": -2 }, "max": { "x": 2, "y": 2, "z": 2 } },
+              "safeZone": { "center": { "x": 0, "y": 0, "z": 0 }, "radius": 1 },
+              "spawnPoints": [{ "id": "spawn", "position": { "x": 0, "y": 0, "z": 0 } }],
+              "staticModels": [{
+                "id": "ground",
+                "assetId": "crate",
+                "position": { "x": 0, "y": 0, "z": 0 },
+                "rotationEuler": { "x": 0, "y": 0, "z": 0 },
+                "scale": { "x": 1, "y": 1, "z": 1 }
+              }],
+              "staticBoxes": [{
+                "id": "ground",
+                "position": { "x": 0, "y": -0.1, "z": 0 },
+                "size": { "x": 2, "y": 0.2, "z": 2 }
+              }]
+            }
+            """);
+        Assert.Contains("static content id 'ground' must be unique", duplicate.Message, StringComparison.Ordinal);
+
+        InvalidDataException zeroScale = LoadInvalidMap("zero-model-scale", """
+            {
+              "id": "zero-model-scale",
+              "name": "Zero Model Scale",
+              "worldBounds": { "min": { "x": -2, "y": -1, "z": -2 }, "max": { "x": 2, "y": 2, "z": 2 } },
+              "safeZone": { "center": { "x": 0, "y": 0, "z": 0 }, "radius": 1 },
+              "spawnPoints": [{ "id": "spawn", "position": { "x": 0, "y": 0, "z": 0 } }],
+              "staticModels": [{
+                "id": "crate",
+                "assetId": "kenney-crate",
+                "position": { "x": 0, "y": 0, "z": 0 },
+                "rotationEuler": { "x": 0, "y": 0, "z": 0 },
+                "scale": { "x": 0, "y": 1, "z": 1 }
+              }],
+              "staticBoxes": [{
+                "id": "ground",
+                "position": { "x": 0, "y": -0.1, "z": 0 },
+                "size": { "x": 2, "y": 0.2, "z": 2 }
+              }]
+            }
+            """);
+        Assert.Contains("scale components must be non-zero", zeroScale.Message, StringComparison.Ordinal);
     }
 
     private static InvalidDataException LoadInvalidMap(string mapId, string json)

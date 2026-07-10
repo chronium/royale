@@ -27,4 +27,10 @@
     <ProjectReference Include="..\..\thirdparty\repos\wattlescript\src\WattleScript.Interpreter\WattleScript.Interpreter.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <RoyaleAssetAudience>server</RoyaleAssetAudience>
+  </PropertyGroup>
+
+  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
+
 </Project>

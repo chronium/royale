@@ -168,7 +168,7 @@ public sealed class DebugPrimitiveNativeRenderingTests
             48;
         Assert.True(primitives.LineCount >= expectedMinimumLineCount);
         Assert.False(collisionWorld.IsDisposed);
-        Assert.Equal(map.StaticBoxes.Count, collisionWorld.ColliderCount);
+        Assert.Equal(map.StaticBoxes.Count + map.StaticModels.Count, collisionWorld.ColliderCount);
     }
 
     [Fact]

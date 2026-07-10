@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T09:20:45.5573480Z
+modifiedAt: 2026-07-10T09:44:55.4228860Z
 ---
 
 ## Content and Map Data
@@ -63,6 +63,12 @@ Loot points and safe-zone fields are still placeholders at this stage and do not
 Rendering-only data may remain client-specific.
 
 The server should not need textures or shader assets.
+
+### Map-Authored Static Models
+
+`GAME-011` adds `staticModels` to shared map JSON. Each entry declares a unique instance `id`, stable model `assetId`, `position`, `rotationEuler`, and explicit non-zero 3D `scale`. Instance IDs share the static-content namespace with `staticBoxes`; transforms must be finite and the placement origin must remain inside world bounds. The shared transform convention is `scale * yaw/pitch/roll rotation * translation` through `MapStaticModelTransforms`. GLB import/node transforms remain baked asset-local data and are not duplicated in map content.
+
+The default graybox map owns `crate-south-east`, referencing `kenney-crate` at `(6, 0, 5)`, yaw `25.714286` degrees, and uniform scale `1.25`. `MapStaticMeshScene` groups instances by asset ID, resolves each ID through the generated client catalog/cache, and emits one render batch per asset primitive with the map instance transforms. Missing render assets fail with map and asset context. There is no hard-coded crate preview placement.
 
 ### Model Asset Build Pipeline
 
@@ -158,11 +164,11 @@ The crate is drawn by the same basic static mesh shader, depth target, and flat 
 
 ### Manifest-Addressed Model Rendering
 
-`RENDER-011` replaces direct crate-path loading with `StaticMeshAssetCache`, which reads the generated client `assets/model-assets.json` catalog and caches loaded assets by stable ID. `SimpleMeshStaticMeshLoader` uses `Model.FromFile` so relative and embedded GLB image resources populate `Model.Images`; node transforms are applied to positions and inverse-transpose normals, while UVs, triangle-group material boundaries, linear base-color factors, and referenced image bytes are preserved as small project-owned render primitives.
+`StaticMeshAssetCache` reads the generated client `assets/model-assets.json` catalog and caches loaded assets by stable ID. `SimpleMeshStaticMeshLoader` uses `Model.FromFile` so relative and embedded GLB image resources populate `Model.Images`; node transforms are applied to positions and inverse-transpose normals, while UVs, triangle-group material boundaries, linear base-color factors, and referenced image bytes are preserved as small project-owned render primitives.
 
-The static mesh vertex layout now carries position, normal, and one UV set. The existing SDL GPU mesh pipeline binds one base-color texture and sampler per material batch, multiplies the sampled color by the material factor and existing directional lighting, and uses a shared white fallback for untextured gray-box geometry. PNG/JPEG bytes are decoded through SDL3 `SDL_LoadSurface_IO`, converted to RGBA32, uploaded as sRGB SDL GPU textures, cached for shared material image data, and disposed with the renderer. The Kenney nearest-filtered atlas uses repeat addressing. This is intentionally limited to opaque base-color materials; it does not add a material graph, PBR pipeline, animation, skinning, or server dependency.
+The static mesh vertex layout carries position, normal, and one UV set. The SDL GPU mesh pipeline binds one base-color texture and sampler per material batch, multiplies the sampled color by the material factor and directional lighting, and uses a shared white fallback for untextured gray-box geometry. PNG/JPEG bytes are decoded through SDL3 `SDL_LoadSurface_IO`, converted to RGBA32, uploaded as sRGB SDL GPU textures, cached for shared material image data, and disposed with the renderer. The Kenney nearest-filtered atlas uses repeat addressing. This is intentionally limited to opaque base-color materials; it does not add a material graph, PBR pipeline, animation, skinning, or server dependency.
 
-The temporary crate preview remains a client-only instance until `GAME-011` replaces it with map-authored model instances. Its unobstructed validation placement is `(6, 0, 5)`. The deterministic validation capture uses freecam position `(8, 2.2, 8)` looking at `(6, 0.5, 5)` and exits after five frames.
+`GAME-011` supplies model instances exclusively from shared map content. The deterministic crate validation uses freecam position `(8, 2.2, 8)` looking at `(6, 0.5, 5)`, captures after five frames, and verifies the textured map-authored crate plus aligned Box3D debug hull without human validation.
 
 ## Shader Build Pipeline
 

@@ -44,6 +44,8 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public int StaticColliderCount => collisionWorld.ColliderCount;
 
+    public int StaticModelColliderCount => collisionWorld.StaticModelColliderCount;
+
     public IReadOnlyDictionary<ServerPlayerId, AuthoritativePlayerState> Players => players;
 
     public int ActivePlayerCount => players.Count;

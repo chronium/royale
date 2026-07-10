@@ -135,6 +135,20 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void ClientTestRuntimePackagesRenderAndCollisionContentForMapModels()
+    {
+        string assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
+        ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
+            Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName));
+        ModelAssetDefinition crate = Assert.Single(manifest.Assets, asset => asset.Id == "kenney-crate");
+
+        Assert.NotNull(crate.Render);
+        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Render.Source.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Render.Resources[0].Replace('/', Path.DirectorySeparatorChar))));
+        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Collision.Artifact!.Replace('/', Path.DirectorySeparatorChar))));
+    }
+
+    [Fact]
     public void UnitBoxMeshFacesHaveStableOutwardNormals()
     {
         StaticMeshGeometry mesh = UnitBoxMesh.Create();
@@ -199,7 +213,8 @@ public sealed class StaticMeshRenderingTests
     public void MapStaticMeshSceneKeepsMapStaticBoxesOnUnitBoxPath()
     {
         GameMap map = MapCatalog.LoadDefault();
-        StaticMeshScene scene = MapStaticMeshScene.CreateScene(map, CreateSinglePrimitiveAsset(UnitBoxMesh.Create()));
+        StaticMeshAsset modelAsset = CreateSinglePrimitiveAsset(UnitBoxMesh.Create());
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(map, AssetMap(modelAsset));
 
         Assert.Equal(map.StaticBoxes.Count, scene.UnitBoxInstances.Count);
         Assert.Single(scene.ModelAssetBatches);
@@ -211,20 +226,32 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
-    public void MapStaticMeshSceneIncludesCrateSmokeMeshSeparateFromMapStaticBoxes()
+    public void MapStaticMeshSceneIncludesMapAuthoredCrateSeparateFromMapStaticBoxes()
     {
         StaticMeshAsset crateAsset = SimpleMeshStaticMeshLoader.LoadAssetFromFile(
             StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId,
             GetKenneyCrateAssetPath());
-        StaticMeshScene scene = MapStaticMeshScene.CreateScene(MapCatalog.LoadDefault(), crateAsset);
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(MapCatalog.LoadDefault(), AssetMap(crateAsset));
 
-        StaticMeshRenderBatch smokeBatch = Assert.Single(scene.ModelAssetBatches);
-        StaticMeshInstance smokeInstance = Assert.Single(smokeBatch.Instances);
+        StaticMeshRenderBatch modelBatch = Assert.Single(scene.ModelAssetBatches);
+        StaticMeshInstance modelInstance = Assert.Single(modelBatch.Instances);
 
-        Assert.Same(crateAsset.Primitives[0].Geometry, smokeBatch.Geometry);
-        Assert.Same(crateAsset.Primitives[0].Material, smokeBatch.Material);
-        Assert.Equal("crate-smoke", smokeInstance.DebugName);
-        Assert.DoesNotContain(scene.UnitBoxInstances, instance => instance.DebugName == smokeInstance.DebugName);
+        Assert.Same(crateAsset.Primitives[0].Geometry, modelBatch.Geometry);
+        Assert.Same(crateAsset.Primitives[0].Material, modelBatch.Material);
+        Assert.Equal("crate-south-east", modelInstance.DebugName);
+        Assert.DoesNotContain(scene.UnitBoxInstances, instance => instance.DebugName == modelInstance.DebugName);
+    }
+
+    [Fact]
+    public void MapStaticMeshSceneRejectsUnloadedMapAssetWithContext()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+
+        KeyNotFoundException exception = Assert.Throws<KeyNotFoundException>(() =>
+            MapStaticMeshScene.CreateScene(map, new Dictionary<string, StaticMeshAsset>()));
+
+        Assert.Contains("Map 'graybox'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("kenney-crate", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,10 +284,11 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
-    public void StaticMeshShaderConstantsCanBeCreatedForCrateSmokeInstance()
+    public void StaticMeshShaderConstantsCanBeCreatedForMapModelInstance()
     {
         RenderCamera camera = DebugCamera.CreateDefault().ToRenderCamera();
-        StaticMeshInstance instance = MapStaticMeshScene.CreateCrateSmokeInstance();
+        StaticModelDefinition model = Assert.Single(MapCatalog.LoadDefault().StaticModels);
+        var instance = new StaticMeshInstance(MapStaticMeshScene.CreateTransform(model), model.Id);
 
         StaticMeshInstanceShaderConstants constants = StaticMeshDraw.CreateShaderConstants(instance, camera, 1280, 720);
 
@@ -285,6 +313,25 @@ public sealed class StaticMeshRenderingTests
             Matrix4x4.CreateTranslation(1.0f, 2.0f, 3.0f);
 
         Assert.Equal(expected, MapStaticMeshScene.CreateTransform(staticBox));
+    }
+
+    [Fact]
+    public void StaticModelTransformsUseScalePositionAndEulerRotation()
+    {
+        var model = new StaticModelDefinition
+        {
+            Id = "model",
+            AssetId = "asset",
+            Position = new MapVector3(1.0f, 2.0f, 3.0f),
+            RotationEuler = new MapVector3(0.0f, 90.0f, 0.0f),
+            Scale = new MapVector3(2.0f, 3.0f, 4.0f),
+        };
+        Matrix4x4 expected =
+            Matrix4x4.CreateScale(2.0f, 3.0f, 4.0f) *
+            Matrix4x4.CreateFromYawPitchRoll(MathF.PI / 2.0f, 0.0f, 0.0f) *
+            Matrix4x4.CreateTranslation(1.0f, 2.0f, 3.0f);
+
+        Assert.Equal(expected, MapStaticMeshScene.CreateTransform(model));
     }
 
     private static string GetKenneyCrateAssetPath() =>
@@ -335,8 +382,14 @@ public sealed class StaticMeshRenderingTests
 
     private static StaticMeshAsset CreateSinglePrimitiveAsset(StaticMeshGeometry geometry) =>
         new(
-            "test-asset",
+            StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId,
             [new StaticMeshPrimitive("test-primitive", geometry, StaticMeshMaterial.GrayBox)]);
+
+    private static IReadOnlyDictionary<string, StaticMeshAsset> AssetMap(StaticMeshAsset asset) =>
+        new Dictionary<string, StaticMeshAsset>(StringComparer.Ordinal)
+        {
+            [asset.Id] = asset,
+        };
 
     private static string FindRepositoryRoot()
     {

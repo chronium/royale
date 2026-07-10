@@ -8,6 +8,8 @@ public sealed record GameMap
 
     public List<StaticBoxDefinition> StaticBoxes { get; init; } = [];
 
+    public List<StaticModelDefinition> StaticModels { get; init; } = [];
+
     public List<MapSpawnPoint> SpawnPoints { get; init; } = [];
 
     public List<MapLootPoint> LootPoints { get; init; } = [];

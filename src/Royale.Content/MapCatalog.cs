@@ -85,13 +85,32 @@ public static class MapCatalog
         if (map.StaticBoxes.Count == 0)
             throw InvalidMap(path, "at least one static box is required.");
 
+        var staticContentIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (StaticBoxDefinition box in map.StaticBoxes)
         {
             if (string.IsNullOrWhiteSpace(box.Id))
                 throw InvalidMap(path, "static box id is required.");
+            if (!staticContentIds.Add(box.Id))
+                throw InvalidMap(path, $"static content id '{box.Id}' must be unique.");
 
             if (box.Size.X <= 0.0f || box.Size.Y <= 0.0f || box.Size.Z <= 0.0f)
                 throw InvalidMap(path, $"static box '{box.Id}' size components must be positive.");
+        }
+
+        foreach (StaticModelDefinition model in map.StaticModels)
+        {
+            if (string.IsNullOrWhiteSpace(model.Id))
+                throw InvalidMap(path, "static model id is required.");
+            if (!staticContentIds.Add(model.Id))
+                throw InvalidMap(path, $"static content id '{model.Id}' must be unique.");
+            if (string.IsNullOrWhiteSpace(model.AssetId))
+                throw InvalidMap(path, $"static model '{model.Id}' assetId is required.");
+            if (!IsFinite(model.Position) || !IsFinite(model.RotationEuler) || !IsFinite(model.Scale))
+                throw InvalidMap(path, $"static model '{model.Id}' transform components must be finite.");
+            if (model.Scale.X == 0.0f || model.Scale.Y == 0.0f || model.Scale.Z == 0.0f)
+                throw InvalidMap(path, $"static model '{model.Id}' scale components must be non-zero.");
+            if (!Contains(map.WorldBounds, model.Position))
+                throw InvalidMap(path, $"static model '{model.Id}' position must be inside worldBounds.");
         }
 
         if (map.SpawnPoints.Count == 0)
@@ -131,6 +150,9 @@ public static class MapCatalog
         position.X <= bounds.Max.X &&
         position.Y <= bounds.Max.Y &&
         position.Z <= bounds.Max.Z;
+
+    private static bool IsFinite(MapVector3 value) =>
+        float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
 
     private static InvalidDataException InvalidMap(string path, string message) =>
         new($"Map file '{path}' is invalid: {message}");

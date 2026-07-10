@@ -5,26 +5,37 @@ namespace Royale.Client.Rendering.Meshes;
 
 public static class MapStaticMeshScene
 {
-    private const string CrateSmokeInstanceDebugName = "crate-smoke";
-
     public static IReadOnlyList<StaticMeshInstance> CreateInstances(GameMap map) =>
         map.StaticBoxes
             .Select(staticBox => new StaticMeshInstance(CreateTransform(staticBox), staticBox.Id))
             .ToArray();
 
-    public static StaticMeshScene CreateScene(GameMap map, StaticMeshAsset crateAsset)
+    public static StaticMeshScene CreateScene(
+        GameMap map,
+        IReadOnlyDictionary<string, StaticMeshAsset> assets)
     {
         ArgumentNullException.ThrowIfNull(map);
-        ArgumentNullException.ThrowIfNull(crateAsset);
+        ArgumentNullException.ThrowIfNull(assets);
 
-        StaticMeshInstance previewInstance = CreateCrateSmokeInstance();
-        StaticMeshRenderBatch[] modelBatches = crateAsset.Primitives
-            .Select(primitive => new StaticMeshRenderBatch(
-                $"{crateAsset.Id}/{primitive.DebugName}",
-                primitive.Geometry,
-                [previewInstance],
-                primitive.Material))
-            .ToArray();
+        var modelBatches = new List<StaticMeshRenderBatch>();
+        foreach (IGrouping<string, StaticModelDefinition> assetInstances in
+            map.StaticModels.GroupBy(model => model.AssetId, StringComparer.Ordinal))
+        {
+            if (!assets.TryGetValue(assetInstances.Key, out StaticMeshAsset? asset))
+                throw new KeyNotFoundException($"Map '{map.Id}' references unloaded model asset '{assetInstances.Key}'.");
+
+            StaticMeshInstance[] instances = assetInstances
+                .Select(model => new StaticMeshInstance(CreateTransform(model), model.Id))
+                .ToArray();
+            foreach (StaticMeshPrimitive primitive in asset.Primitives)
+            {
+                modelBatches.Add(new StaticMeshRenderBatch(
+                    $"{asset.Id}/{primitive.DebugName}",
+                    primitive.Geometry,
+                    instances,
+                    primitive.Material));
+            }
+        }
 
         return new StaticMeshScene(
             CreateInstances(map),
@@ -34,10 +45,6 @@ public static class MapStaticMeshScene
     public static Matrix4x4 CreateTransform(StaticBoxDefinition staticBox) =>
         MapStaticBoxTransforms.CreateWorldMatrix(staticBox);
 
-    public static StaticMeshInstance CreateCrateSmokeInstance() =>
-        new(
-            Matrix4x4.CreateScale(1.25f) *
-            Matrix4x4.CreateFromYawPitchRoll(MathF.PI / 7.0f, 0.0f, 0.0f) *
-            Matrix4x4.CreateTranslation(6.0f, 0.0f, 5.0f),
-            CrateSmokeInstanceDebugName);
+    public static Matrix4x4 CreateTransform(StaticModelDefinition staticModel) =>
+        MapStaticModelTransforms.CreateWorldMatrix(staticModel);
 }

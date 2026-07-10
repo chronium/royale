@@ -27,5 +27,5 @@ public readonly record struct HitscanHit(
 
     public bool IsTarget => Type == HitscanHitType.Target;
 
-    public string? StaticColliderId => StaticCollider?.StaticBoxId;
+    public string? StaticColliderId => StaticCollider?.ContentId;
 }

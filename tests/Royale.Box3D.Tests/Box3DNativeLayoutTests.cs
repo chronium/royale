@@ -60,6 +60,7 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3MeshTriangle>(12);
         AssertSize<B3MeshNode>(32);
         AssertSize<B3MeshData>(88);
+        AssertSize<B3Mesh>(24);
     }
 
     [Fact]
@@ -344,6 +345,8 @@ public sealed class Box3DNativeLayoutTests
         AssertOffset<B3MeshData>(nameof(B3MeshData.MaterialOffset), 76);
         AssertOffset<B3MeshData>(nameof(B3MeshData.MaterialCount), 80);
         AssertOffset<B3MeshData>(nameof(B3MeshData.FlagsOffset), 84);
+        AssertOffset<B3Mesh>(nameof(B3Mesh.Data), 0);
+        AssertOffset<B3Mesh>(nameof(B3Mesh.Scale), 8);
     }
 
     [Fact]

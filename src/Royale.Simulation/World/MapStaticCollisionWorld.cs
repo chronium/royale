@@ -30,11 +30,18 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
 
     public int ColliderCount => colliders.Count;
 
+    public int StaticBoxColliderCount => colliders.Count(collider => collider.Kind == MapStaticColliderKind.Box);
+
+    public int StaticModelColliderCount => colliders.Count(collider => collider.Kind == MapStaticColliderKind.Model);
+
     public bool IsDisposed => disposed;
 
-    public static MapStaticCollisionWorld Create(GameMap map)
+    public static MapStaticCollisionWorld Create(GameMap map) => Create(map, AppContext.BaseDirectory);
+
+    public static MapStaticCollisionWorld Create(GameMap map, string baseDirectory)
     {
         ArgumentNullException.ThrowIfNull(map);
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
 
         B3WorldDef worldDef = Box3DBindingSurface.b3DefaultWorldDef();
         worldDef.Gravity = ToB3Vector(Vector3.Zero);
@@ -51,6 +58,9 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
 
             foreach (StaticBoxDefinition staticBox in map.StaticBoxes)
                 collisionWorld.CreateStaticBoxCollider(staticBox);
+
+            if (map.StaticModels.Count > 0)
+                collisionWorld.CreateStaticModelColliders(map, baseDirectory);
 
             return collisionWorld;
         }
@@ -174,9 +184,110 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
         if (!shape.IsValid)
             throw new InvalidOperationException($"Box3D did not create a valid hull shape for map box '{staticBox.Id}'.");
 
-        var collider = new MapStaticCollider(staticBox.Id, body.Id, shape.Id);
+        var collider = new MapStaticCollider(
+            staticBox.Id,
+            MapStaticColliderKind.Box,
+            null,
+            MapStaticBoxTransforms.CreateWorldMatrix(staticBox),
+            body.Id,
+            shape.Id);
         colliders.Add(collider);
         collidersByShape.Add(shape.Id, collider);
+    }
+
+    private void CreateStaticModelColliders(GameMap map, string baseDirectory)
+    {
+        string assetRoot = Path.Combine(baseDirectory, "assets");
+        string manifestPath = Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName);
+        ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
+        Dictionary<string, ModelAssetDefinition> assets = manifest.Assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
+
+        foreach (StaticModelDefinition staticModel in map.StaticModels)
+        {
+            if (!assets.TryGetValue(staticModel.AssetId, out ModelAssetDefinition? asset))
+                throw new InvalidDataException($"Map '{map.Id}' static model '{staticModel.Id}' references missing asset '{staticModel.AssetId}'.");
+            if (asset.Collision.Mode == ModelCollisionMode.None || string.IsNullOrWhiteSpace(asset.Collision.Artifact))
+                throw new InvalidDataException($"Map '{map.Id}' static model '{staticModel.Id}' asset '{staticModel.AssetId}' has no generated collision artifact.");
+
+            string artifactPath = ModelAssetManifestLoader.ResolveSourcePath(assetRoot, asset.Collision.Artifact);
+            ModelCollisionArtifact artifact = ModelCollisionArtifactLoader.Load(artifactPath);
+            ValidateArtifactKind(map.Id, staticModel, asset, artifact);
+            CreateStaticModelCollider(staticModel, asset, artifact);
+        }
+    }
+
+    private void CreateStaticModelCollider(
+        StaticModelDefinition staticModel,
+        ModelAssetDefinition asset,
+        ModelCollisionArtifact artifact)
+    {
+        B3BodyDef bodyDef = Box3DBindingSurface.b3DefaultBodyDef();
+        bodyDef.Type = B3BodyType.StaticBody;
+        bodyDef.Position = ToB3Position(staticModel.Position);
+        bodyDef.Rotation = ToB3Quaternion(MapStaticModelTransforms.CreateRotation(staticModel));
+        Box3DBody body = world.CreateBody(in bodyDef);
+        B3ShapeDef shapeDef = Box3DBindingSurface.b3DefaultShapeDef();
+        Box3DShape shape;
+
+        if (artifact.Kind == ModelCollisionArtifactKind.Convex)
+        {
+            B3Vec3[] scaledPoints = artifact.Vertices
+                .Select(vertex => new B3Vec3
+                {
+                    X = vertex.X * staticModel.Scale.X,
+                    Y = vertex.Y * staticModel.Scale.Y,
+                    Z = vertex.Z * staticModel.Scale.Z,
+                })
+                .ToArray();
+            using Box3DHull hull = Box3DHull.Create(scaledPoints);
+            shape = body.CreateHullShape(in shapeDef, hull);
+        }
+        else
+        {
+            B3Vec3[] vertices = artifact.Vertices
+                .Select(vertex => new B3Vec3 { X = vertex.X, Y = vertex.Y, Z = vertex.Z })
+                .ToArray();
+            var settings = new Box3DMeshCreationSettings(
+                WeldTolerance: 0.0f,
+                WeldVertices: false,
+                UseMedianSplit: false,
+                IdentifyEdges: true);
+            using Box3DMesh mesh = Box3DMesh.Create(vertices, artifact.Indices.ToArray(), in settings);
+            shape = body.CreateMeshShape(
+                in shapeDef,
+                mesh,
+                ToB3Vector(staticModel.Scale));
+        }
+
+        if (!shape.IsValid)
+            throw new InvalidOperationException($"Box3D did not create a valid static shape for map model '{staticModel.Id}'.");
+
+        var collider = new MapStaticCollider(
+            staticModel.Id,
+            MapStaticColliderKind.Model,
+            asset.Id,
+            MapStaticModelTransforms.CreateWorldMatrix(staticModel),
+            body.Id,
+            shape.Id);
+        colliders.Add(collider);
+        collidersByShape.Add(shape.Id, collider);
+    }
+
+    private static void ValidateArtifactKind(
+        string mapId,
+        StaticModelDefinition staticModel,
+        ModelAssetDefinition asset,
+        ModelCollisionArtifact artifact)
+    {
+        ModelCollisionArtifactKind expected = asset.Collision.Mode == ModelCollisionMode.Convex
+            ? ModelCollisionArtifactKind.Convex
+            : ModelCollisionArtifactKind.TriangleMesh;
+        if (artifact.Kind != expected)
+        {
+            throw new InvalidDataException(
+                $"Map '{mapId}' static model '{staticModel.Id}' asset '{asset.Id}' collision mode " +
+                $"'{asset.Collision.Mode}' requires a '{expected}' artifact, but '{artifact.Kind}' was loaded.");
+        }
     }
 
     private void ThrowIfDisposed()

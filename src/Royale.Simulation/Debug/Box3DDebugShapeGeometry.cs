@@ -23,6 +23,7 @@ public sealed class Box3DDebugShapeGeometry
         return debugShape.Type switch
         {
             B3ShapeType.HullShape => CreateHull(debugShape.ShapeId, debugShape.Shape),
+            B3ShapeType.MeshShape => CreateMesh(debugShape.ShapeId, debugShape.Shape),
             B3ShapeType.CapsuleShape => CreateCapsule(debugShape.ShapeId, debugShape.Shape),
             B3ShapeType.SphereShape => CreateSphere(debugShape.ShapeId, debugShape.Shape),
             _ => new Box3DDebugShapeGeometry(debugShape.ShapeId, debugShape.Type, []),
@@ -65,6 +66,43 @@ public sealed class Box3DDebugShapeGeometry
         return new Box3DDebugShapeGeometry(shapeId, B3ShapeType.CapsuleShape, builder.ToArray());
     }
 
+    private static unsafe Box3DDebugShapeGeometry CreateMesh(B3ShapeId shapeId, nint meshPointer)
+    {
+        if (meshPointer == nint.Zero)
+            return new Box3DDebugShapeGeometry(shapeId, B3ShapeType.MeshShape, []);
+
+        B3Mesh* mesh = (B3Mesh*)meshPointer;
+        if (mesh->Data == nint.Zero)
+            return new Box3DDebugShapeGeometry(shapeId, B3ShapeType.MeshShape, []);
+
+        B3MeshData* data = (B3MeshData*)mesh->Data;
+        B3Vec3* vertices = (B3Vec3*)((byte*)data + data->VertexOffset);
+        B3MeshTriangle* triangles = (B3MeshTriangle*)((byte*)data + data->TriangleOffset);
+        var segments = new List<Box3DDebugShapeSegment>(data->TriangleCount * 3);
+        var edges = new HashSet<(int First, int Second)>();
+
+        for (int triangleIndex = 0; triangleIndex < data->TriangleCount; triangleIndex++)
+        {
+            B3MeshTriangle triangle = triangles[triangleIndex];
+            AddEdge(triangle.Index1, triangle.Index2);
+            AddEdge(triangle.Index2, triangle.Index3);
+            AddEdge(triangle.Index3, triangle.Index1);
+        }
+
+        return new Box3DDebugShapeGeometry(shapeId, B3ShapeType.MeshShape, segments);
+
+        void AddEdge(int first, int second)
+        {
+            (int First, int Second) key = first < second ? (first, second) : (second, first);
+            if (!edges.Add(key))
+                return;
+
+            segments.Add(new Box3DDebugShapeSegment(
+                Scale(vertices[first], mesh->Scale),
+                Scale(vertices[second], mesh->Scale)));
+        }
+    }
+
     private static unsafe Box3DDebugShapeGeometry CreateSphere(B3ShapeId shapeId, nint spherePointer)
     {
         if (spherePointer == nint.Zero)
@@ -80,6 +118,9 @@ public sealed class Box3DDebugShapeGeometry
     }
 
     private static Vector3 ToVector3(B3Vec3 vector) => new(vector.X, vector.Y, vector.Z);
+
+    private static Vector3 Scale(B3Vec3 vector, B3Vec3 scale) =>
+        new(vector.X * scale.X, vector.Y * scale.Y, vector.Z * scale.Z);
 
     private sealed class DebugShapeSegmentBuilder
     {

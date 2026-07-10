@@ -58,7 +58,7 @@ internal sealed class ClientMovementPrediction : IDisposable
         {
             GameMap map = loadMap(mapId);
             collisionWorld = MapStaticCollisionWorld.Create(map);
-            StaticColliderCount = map.StaticBoxes.Count;
+            StaticColliderCount = collisionWorld.ColliderCount;
         }
         catch
         {

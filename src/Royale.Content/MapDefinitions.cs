@@ -11,6 +11,19 @@ public sealed record StaticBoxDefinition
     public MapVector3 RotationEuler { get; init; } = new();
 }
 
+public sealed record StaticModelDefinition
+{
+    public string Id { get; init; } = string.Empty;
+
+    public string AssetId { get; init; } = string.Empty;
+
+    public MapVector3 Position { get; init; } = new();
+
+    public MapVector3 RotationEuler { get; init; } = new();
+
+    public MapVector3 Scale { get; init; } = new(1.0f, 1.0f, 1.0f);
+}
+
 public sealed record MapSpawnPoint
 {
     public string Id { get; init; } = string.Empty;

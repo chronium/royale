@@ -19,4 +19,10 @@
     <ProjectReference Include="..\..\src\Royale.Simulation\Royale.Simulation.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <RoyaleAssetAudience>server</RoyaleAssetAudience>
+  </PropertyGroup>
+
+  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
+
 </Project>

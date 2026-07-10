@@ -228,9 +228,12 @@ public sealed unsafe class SdlApplication : IDisposable
             networkClient = NetworkClientRuntime.Connect(options.ConnectHost!, options.Port);
 
         StaticMeshAssetCache assetCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
-        StaticMeshAsset crateAsset = assetCache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
-        StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, crateAsset);
-        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes.");
+        Dictionary<string, StaticMeshAsset> mapAssets = map.StaticModels
+            .Select(model => model.AssetId)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(assetId => assetId, assetCache.GetRequired, StringComparer.Ordinal);
+        StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, mapAssets);
+        logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and {map.StaticModels.Count} static models.");
 
         logger.ZLogInformation($"Creating SDL window.");
         Window = SdlWindow.Create(
@@ -404,7 +407,7 @@ public sealed unsafe class SdlApplication : IDisposable
                 mouseCaptured,
                 renderViewMode.Mode,
                 localPlayer,
-                loadedMap?.StaticBoxes.Count ?? 0);
+                localPlayer.CollisionWorld.ColliderCount);
         }
 
         return new ImGuiDebugOverlayState(

@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using System.Text.Json;
 using Royale.Box3D.Bindings;
 using Royale.Content;
 using Royale.Simulation.Combat;
@@ -10,6 +12,8 @@ namespace Royale.Simulation.Tests;
 [Collection(Box3DNativeTestCollection.Name)]
 public sealed class MapStaticCollisionWorldTests
 {
+    private static readonly B3DrawShapeFcn DrawShapeCallback = OnDrawShape;
+
     [Fact]
     public void LoadingDefaultGrayboxAndBuildingStaticCollisionWorldSucceeds()
     {
@@ -18,7 +22,7 @@ public sealed class MapStaticCollisionWorldTests
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
 
         Assert.True(Box3DBindingSurface.b3World_IsValid(collisionWorld.WorldId));
-        Assert.Equal(map.StaticBoxes.Count, collisionWorld.ColliderCount);
+        Assert.Equal(map.StaticBoxes.Count + map.StaticModels.Count, collisionWorld.ColliderCount);
     }
 
     [Fact]
@@ -28,8 +32,10 @@ public sealed class MapStaticCollisionWorldTests
 
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
 
-        Assert.Equal(map.StaticBoxes.Select(staticBox => staticBox.Id), collisionWorld.Colliders.Select(collider => collider.StaticBoxId));
-        foreach (MapStaticCollider collider in collisionWorld.Colliders)
+        Assert.Equal(
+            map.StaticBoxes.Select(staticBox => staticBox.Id),
+            collisionWorld.Colliders.Where(collider => collider.Kind == MapStaticColliderKind.Box).Select(collider => collider.ContentId));
+        foreach (MapStaticCollider collider in collisionWorld.Colliders.Where(collider => collider.Kind == MapStaticColliderKind.Box))
         {
             Assert.True(Box3DBindingSurface.b3Body_IsValid(collider.BodyId));
             Assert.True(Box3DBindingSurface.b3Shape_IsValid(collider.ShapeId));
@@ -39,7 +45,73 @@ public sealed class MapStaticCollisionWorldTests
     }
 
     [Fact]
-    public void ShapeIdsMapBackToStaticBoxIds()
+    public void DefaultGrayboxCreatesMapAuthoredCrateHullWithSharedTransform()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        StaticModelDefinition model = Assert.Single(map.StaticModels);
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+
+        MapStaticCollider collider = Assert.Single(
+            collisionWorld.Colliders,
+            candidate => candidate.Kind == MapStaticColliderKind.Model);
+
+        Assert.Equal(model.Id, collider.ContentId);
+        Assert.Equal(model.AssetId, collider.AssetId);
+        Assert.Equal(MapStaticModelTransforms.CreateWorldMatrix(model), collider.WorldTransform);
+        Assert.Equal(B3ShapeType.HullShape, Box3DBindingSurface.b3Shape_GetType(collider.ShapeId));
+        Assert.Equal(model.Position.X, Box3DBindingSurface.b3Body_GetPosition(collider.BodyId).X);
+
+        B3RayResult hit = collisionWorld.CastRayClosest(
+            new MapVector3(model.Position.X, 2.0f, model.Position.Z),
+            new MapVector3(0.0f, -3.0f, 0.0f));
+        Assert.True(hit.Hit);
+        Assert.True(collisionWorld.TryGetCollider(hit.ShapeId, out MapStaticCollider? hitCollider));
+        Assert.Equal(model.Id, hitCollider!.ContentId);
+        Assert.InRange(hit.Point.Y, 0.62f, 0.63f);
+    }
+
+    [Theory]
+    [InlineData(ModelCollisionMode.TriangleMesh)]
+    [InlineData(ModelCollisionMode.SeparateMesh)]
+    public void GeneratedTriangleArtifactsCreateQueryableStaticModelCollision(ModelCollisionMode mode)
+    {
+        using GeneratedCollisionWorkspace workspace = GeneratedCollisionWorkspace.Create(mode, ModelCollisionArtifactKind.TriangleMesh);
+        GameMap map = CreateModelMap("triangle-asset");
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map, workspace.Root);
+
+        MapStaticCollider collider = Assert.Single(collisionWorld.Colliders);
+        Assert.Equal(B3ShapeType.MeshShape, Box3DBindingSurface.b3Shape_GetType(collider.ShapeId));
+        B3RayResult hit = collisionWorld.CastRayClosest(
+            new MapVector3(0.0f, 3.0f, 0.0f),
+            new MapVector3(0.0f, -4.0f, 0.0f));
+        Assert.True(hit.Hit);
+        Assert.Equal(collider.ShapeId, hit.ShapeId);
+        Assert.InRange(hit.Point.Y, 0.99f, 1.01f);
+
+        IReadOnlyList<Box3DDebugShapeGeometry> debugShapes = CaptureDebugShapes(collisionWorld);
+        Box3DDebugShapeGeometry meshDebug = Assert.Single(debugShapes, shape => shape.Type == B3ShapeType.MeshShape);
+        Assert.Equal(5, meshDebug.Segments.Count);
+    }
+
+    [Fact]
+    public void MissingAssetAndMismatchedArtifactFailWithMapContext()
+    {
+        using GeneratedCollisionWorkspace missing = GeneratedCollisionWorkspace.CreateEmpty();
+        InvalidDataException missingException = Assert.Throws<InvalidDataException>(() =>
+            MapStaticCollisionWorld.Create(CreateModelMap("missing-asset"), missing.Root));
+        Assert.Contains("static model 'model-instance'", missingException.Message, StringComparison.Ordinal);
+        Assert.Contains("missing asset 'missing-asset'", missingException.Message, StringComparison.Ordinal);
+
+        using GeneratedCollisionWorkspace mismatch = GeneratedCollisionWorkspace.Create(
+            ModelCollisionMode.Convex,
+            ModelCollisionArtifactKind.TriangleMesh);
+        InvalidDataException mismatchException = Assert.Throws<InvalidDataException>(() =>
+            MapStaticCollisionWorld.Create(CreateModelMap("triangle-asset"), mismatch.Root));
+        Assert.Contains("requires a 'Convex' artifact", mismatchException.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShapeIdsMapBackToStaticContentIds()
     {
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
 
@@ -47,7 +119,7 @@ public sealed class MapStaticCollisionWorldTests
         {
             Assert.True(collisionWorld.TryGetCollider(collider.ShapeId, out MapStaticCollider? resolved));
             Assert.NotNull(resolved);
-            Assert.Equal(collider.StaticBoxId, resolved.StaticBoxId);
+            Assert.Equal(collider.ContentId, resolved.ContentId);
         }
     }
 
@@ -62,7 +134,7 @@ public sealed class MapStaticCollisionWorldTests
 
         Assert.True(result.Hit);
         Assert.True(collisionWorld.TryGetCollider(result.ShapeId, out MapStaticCollider? collider));
-        Assert.Equal("ground-main", collider!.StaticBoxId);
+        Assert.Equal("ground-main", collider!.ContentId);
         Assert.InRange(result.Point.Y, -0.001f, 0.001f);
     }
 
@@ -77,7 +149,7 @@ public sealed class MapStaticCollisionWorldTests
 
         Assert.True(result.Hit);
         Assert.True(collisionWorld.TryGetCollider(result.ShapeId, out MapStaticCollider? collider));
-        Assert.Equal("boundary-north-wall", collider!.StaticBoxId);
+        Assert.Equal("boundary-north-wall", collider!.ContentId);
     }
 
     [Fact]
@@ -89,14 +161,14 @@ public sealed class MapStaticCollisionWorldTests
             new MapVector3(2.0f, 0.1f, -3.2f),
             new MapVector3(4.0f, 1.4f, -0.8f));
 
-        Assert.Contains(colliders, collider => collider.StaticBoxId == "center-cover-north-east");
+        Assert.Contains(colliders, collider => collider.ContentId == "center-cover-north-east");
     }
 
     [Fact]
     public void RampRotationIsAppliedToStaticColliderTransform()
     {
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());
-        MapStaticCollider ramp = Assert.Single(collisionWorld.Colliders, collider => collider.StaticBoxId == "ramp-platform-approach");
+        MapStaticCollider ramp = Assert.Single(collisionWorld.Colliders, collider => collider.ContentId == "ramp-platform-approach");
 
         B3Quat rotation = Box3DBindingSurface.b3Body_GetRotation(ramp.BodyId);
 
@@ -115,7 +187,7 @@ public sealed class MapStaticCollisionWorldTests
             new MapVector3(-6.95f, 0.65f, 2.7f),
             new MapVector3(-5.25f, 0.9f, 3.15f));
 
-        Assert.Contains(colliders, collider => collider.StaticBoxId == "ramp-platform-approach");
+        Assert.Contains(colliders, collider => collider.ContentId == "ramp-platform-approach");
     }
 
     [Fact]
@@ -197,5 +269,135 @@ public sealed class MapStaticCollisionWorldTests
         Assert.False(Box3DBindingSurface.b3Shape_IsValid(shapeId));
         Assert.Throws<ObjectDisposedException>(() => collisionWorld.CastRayClosest(new MapVector3(), new MapVector3(0.0f, -1.0f, 0.0f)));
         Assert.Throws<ObjectDisposedException>(() => collisionWorld.Step(SimulationSettings.FixedDeltaSeconds, SimulationSettings.PhysicsSubStepCount));
+    }
+
+    private static GameMap CreateModelMap(string assetId) => new()
+    {
+        Id = "model-map",
+        Name = "Model Map",
+        StaticModels =
+        [
+            new StaticModelDefinition
+            {
+                Id = "model-instance",
+                AssetId = assetId,
+                Position = new MapVector3(0.0f, 1.0f, 0.0f),
+                RotationEuler = new MapVector3(0.0f, 35.0f, 0.0f),
+                Scale = new MapVector3(1.5f, 1.0f, 1.5f),
+            },
+        ],
+        WorldBounds = new MapBounds
+        {
+            Min = new MapVector3(-5.0f, -2.0f, -5.0f),
+            Max = new MapVector3(5.0f, 5.0f, 5.0f),
+        },
+        SafeZone = new SafeZoneDefinition { Radius = 4.0f },
+    };
+
+    private static IReadOnlyList<Box3DDebugShapeGeometry> CaptureDebugShapes(MapStaticCollisionWorld collisionWorld)
+    {
+        var shapes = new List<Box3DDebugShapeGeometry>();
+        GCHandle context = GCHandle.Alloc(shapes);
+        try
+        {
+            B3DebugDraw draw = Box3DBindingSurface.b3DefaultDebugDraw();
+            draw.DrawShapeFcn = Marshal.GetFunctionPointerForDelegate(DrawShapeCallback);
+            draw.DrawShapes = true;
+            draw.Context = GCHandle.ToIntPtr(context);
+            Box3DBindingSurface.b3World_Draw(collisionWorld.WorldId, ref draw, Box3DBindingSurface.B3DefaultMaskBits);
+            return shapes;
+        }
+        finally
+        {
+            context.Free();
+        }
+    }
+
+    private static bool OnDrawShape(nint userShape, B3WorldTransform transform, B3HexColor color, nint context)
+    {
+        _ = transform;
+        _ = color;
+        if (userShape != nint.Zero &&
+            GCHandle.FromIntPtr(userShape).Target is Box3DDebugShapeGeometry geometry)
+        {
+            ((List<Box3DDebugShapeGeometry>)GCHandle.FromIntPtr(context).Target!).Add(geometry);
+        }
+        return true;
+    }
+
+    private sealed class GeneratedCollisionWorkspace : IDisposable
+    {
+        private GeneratedCollisionWorkspace(string root) => Root = root;
+
+        public string Root { get; }
+
+        public static GeneratedCollisionWorkspace Create(
+            ModelCollisionMode mode,
+            ModelCollisionArtifactKind artifactKind)
+        {
+            GeneratedCollisionWorkspace workspace = CreateEmpty();
+            string assetRoot = Path.Combine(workspace.Root, "assets");
+            const string artifactPath = "collision/triangle-asset.json";
+            var manifest = new ModelAssetManifest
+            {
+                Version = ModelAssetManifest.CurrentVersion,
+                Assets =
+                [
+                    new ModelAssetDefinition
+                    {
+                        Id = "triangle-asset",
+                        Collision = new ModelCollisionAssetDefinition
+                        {
+                            Mode = mode,
+                            Artifact = artifactPath,
+                        },
+                    },
+                ],
+            };
+            var artifact = new ModelCollisionArtifact
+            {
+                Version = ModelCollisionArtifact.CurrentVersion,
+                Kind = artifactKind,
+                Vertices =
+                [
+                    new ModelCollisionVertex(-1.0f, 0.0f, -1.0f),
+                    new ModelCollisionVertex(-1.0f, 0.0f, 1.0f),
+                    new ModelCollisionVertex(1.0f, 0.0f, -1.0f),
+                    new ModelCollisionVertex(1.0f, 0.0f, 1.0f),
+                ],
+                Indices = artifactKind == ModelCollisionArtifactKind.TriangleMesh
+                    ? [0, 1, 2, 2, 1, 3]
+                    : [],
+            };
+            WriteJson(
+                Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName),
+                manifest,
+                ModelAssetManifestLoader.CreateSerializerOptions(writeIndented: true));
+            WriteJson(
+                Path.Combine(assetRoot, artifactPath.Replace('/', Path.DirectorySeparatorChar)),
+                artifact,
+                ModelCollisionArtifactLoader.CreateSerializerOptions(writeIndented: true));
+            return workspace;
+        }
+
+        public static GeneratedCollisionWorkspace CreateEmpty()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "royale-model-collision-" + Guid.NewGuid().ToString("N"));
+            string assetRoot = Path.Combine(root, "assets");
+            Directory.CreateDirectory(assetRoot);
+            WriteJson(
+                Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName),
+                new ModelAssetManifest { Version = ModelAssetManifest.CurrentVersion },
+                ModelAssetManifestLoader.CreateSerializerOptions(writeIndented: true));
+            return new GeneratedCollisionWorkspace(root);
+        }
+
+        public void Dispose() => Directory.Delete(Root, recursive: true);
+
+        private static void WriteJson<T>(string path, T value, JsonSerializerOptions options)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(value, options));
+        }
     }
 }

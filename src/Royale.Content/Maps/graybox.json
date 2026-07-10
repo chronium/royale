@@ -105,6 +105,15 @@
       "position": { "x": -7.0, "y": 0.35, "z": 8.0 }
     }
   ],
+  "staticModels": [
+    {
+      "id": "crate-south-east",
+      "assetId": "kenney-crate",
+      "position": { "x": 6.0, "y": 0.0, "z": 5.0 },
+      "rotationEuler": { "x": 0.0, "y": 25.714286, "z": 0.0 },
+      "scale": { "x": 1.25, "y": 1.25, "z": 1.25 }
+    }
+  ],
   "staticBoxes": [
     {
       "id": "ground-main",

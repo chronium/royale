@@ -715,3 +715,10 @@ public struct B3MeshData
     public int MaterialCount;
     public int FlagsOffset;
 }
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3Mesh
+{
+    public nint Data;
+    public B3Vec3 Scale;
+}

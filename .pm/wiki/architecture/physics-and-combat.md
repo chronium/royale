@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-10T09:29:07.2512390Z
+modifiedAt: 2026-07-10T09:45:25.6003350Z
 ---
 
 ## Physics Architecture
@@ -138,6 +138,10 @@ This type exists to build and query gray-box map collision for gameplay systems.
 `MapStaticCollisionWorld` now configures Box3D `createDebugShape` and `destroyDebugShape` callbacks when the world is created. The callbacks capture geometry-only local wire segments for Box3D hull, capsule, and sphere debug shapes as managed handles stored behind Box3D's opaque `userShape` pointer. This keeps collision-world debug geometry backed by Box3D while avoiding any SDL, renderer, or client UI dependency in simulation code.
 
 `BR-003` extends `MapSpawnSelector.TrySelectSpawn()` with an explicitly ordered candidate overload. The existing overloads remain deterministic and scan `GameMap.SpawnPoints` in map order; callers that supply candidates control the evaluation order while static collision and reservation rejection remain unchanged. Authoritative server admission no longer uses raw map order: it filters to valid, unreserved candidates whose complete player radius fits inside the initial safe-zone circle, shuffles those candidates, and asks the selector to accept the first valid result.
+
+`GAME-011` extends the same world with one authoritative collider per `GameMap.StaticModels` entry. The simulation loads the generated audience catalog from `assets/model-assets.json`, resolves the referenced collision artifact, verifies that `convex` maps to a convex support-point artifact and `triangleMesh`/`separateMesh` map to an indexed triangle artifact, then creates a static body using the shared map position and rotation. Convex scale is baked into support points before native hull creation; mesh scale is supplied explicitly to the retained Box3D mesh shape. Missing assets, absent artifacts, kind mismatches, malformed geometry, and invalid native creation fail with map instance and asset context.
+
+`MapStaticCollider` identifies box versus model content, retains the map content ID, optional asset ID, and shared world transform, and maps every native shape ID back to authored content for queries and diagnostics. `MapStaticCollisionWorld` exposes total, box, and model collider counts. Client prediction and the headless authoritative server use the same collision builder; only generated artifacts are consumed, so SimpleMesh, GLBs, textures, and rendering code do not enter the server runtime.
 
 ## Player Controller
 

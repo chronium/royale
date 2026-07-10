@@ -660,3 +660,58 @@ public unsafe struct B3BoxHull
     public fixed byte Padding[2];
     public fixed float BoxPlanes[24];
 }
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct B3MeshDef
+{
+    public B3Vec3* Vertices;
+    public int* Indices;
+    public byte* MaterialIndices;
+    public float WeldTolerance;
+    public int VertexCount;
+    public int TriangleCount;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool WeldVertices;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool UseMedianSplit;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool IdentifyEdges;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3MeshTriangle
+{
+    public int Index1;
+    public int Index2;
+    public int Index3;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3MeshNode
+{
+    public B3Vec3 LowerBound;
+    public uint Data;
+    public B3Vec3 UpperBound;
+    public uint TriangleOffset;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct B3MeshData
+{
+    public ulong Version;
+    public int ByteCount;
+    public uint Hash;
+    public B3Aabb Bounds;
+    public float SurfaceArea;
+    public int TreeHeight;
+    public int DegenerateCount;
+    public int NodeOffset;
+    public int NodeCount;
+    public int VertexOffset;
+    public int VertexCount;
+    public int TriangleOffset;
+    public int TriangleCount;
+    public int MaterialOffset;
+    public int MaterialCount;
+    public int FlagsOffset;
+}

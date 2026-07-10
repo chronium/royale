@@ -5,12 +5,14 @@ namespace Royale.Box3D;
 public sealed class Box3DShape : IDisposable
 {
     private readonly Box3DBody body;
+    private IDisposable? geometryLease;
     private bool disposed;
 
-    internal Box3DShape(Box3DBody body, B3ShapeId id)
+    internal Box3DShape(Box3DBody body, B3ShapeId id, IDisposable? geometryLease = null)
     {
         this.body = body;
         Id = id;
+        this.geometryLease = geometryLease;
     }
 
     public B3ShapeId Id { get; }
@@ -79,19 +81,32 @@ public sealed class Box3DShape : IDisposable
         if (disposed)
             return;
 
-        if (body.IsValid && Box3DBindingSurface.b3Shape_IsValid(Id))
-            Box3DBindingSurface.b3DestroyShape(Id, updateBodyMass: true);
-
-        disposed = true;
+        try
+        {
+            if (body.IsValid && Box3DBindingSurface.b3Shape_IsValid(Id))
+                Box3DBindingSurface.b3DestroyShape(Id, updateBodyMass: true);
+        }
+        finally
+        {
+            disposed = true;
+            ReleaseGeometryLease();
+        }
     }
 
     internal void InvalidateFromBody()
     {
+        if (disposed)
+            return;
+
         disposed = true;
+        ReleaseGeometryLease();
     }
 
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
     }
+
+    private void ReleaseGeometryLease() =>
+        Interlocked.Exchange(ref geometryLease, null)?.Dispose();
 }

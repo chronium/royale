@@ -155,8 +155,33 @@ public static class Box3DBindingSurface
     [DllImport(NativeLibraryName, EntryPoint = "b3MakeCubeHull", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3BoxHull b3MakeCubeHull(float halfWidth);
 
+    [DllImport(NativeLibraryName, EntryPoint = "b3CreateHull", CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe B3HullData* b3CreateHull(B3Vec3* points, int pointCount, int maxVertexCount);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3DestroyHull", CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe void b3DestroyHull(B3HullData* hull);
+
     [DllImport(NativeLibraryName, EntryPoint = "b3CreateHullShape", CallingConvention = CallingConvention.Cdecl)]
     public static extern B3ShapeId b3CreateHullShape(B3BodyId bodyId, in B3ShapeDef def, in B3HullData hull);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3CreateMesh", CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe B3MeshData* b3CreateMesh(
+        in B3MeshDef def,
+        int* degenerateTriangleIndices,
+        int degenerateCapacity);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3DestroyMesh", CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe void b3DestroyMesh(B3MeshData* mesh);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3GetHeight", CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe int b3GetHeight(B3MeshData* mesh);
+
+    [DllImport(NativeLibraryName, EntryPoint = "b3CreateMeshShape", CallingConvention = CallingConvention.Cdecl)]
+    public static extern unsafe B3ShapeId b3CreateMeshShape(
+        B3BodyId bodyId,
+        in B3ShapeDef def,
+        B3MeshData* mesh,
+        B3Vec3 scale);
 
     [DllImport(NativeLibraryName, EntryPoint = "b3DestroyShape", CallingConvention = CallingConvention.Cdecl)]
     public static extern void b3DestroyShape(B3ShapeId shapeId, [MarshalAs(UnmanagedType.I1)] bool updateBodyMass);

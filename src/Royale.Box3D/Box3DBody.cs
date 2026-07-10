@@ -99,6 +99,58 @@ public sealed class Box3DBody : IDisposable
         return shape;
     }
 
+    public unsafe Box3DShape CreateHullShape(in B3ShapeDef shapeDef, Box3DHull hull)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(hull);
+
+        B3HullData* nativeHull = hull.GetNativeData();
+        B3ShapeId shapeId = Box3DBindingSurface.b3CreateHullShape(Id, in shapeDef, in *nativeHull);
+        if (!Box3DBindingSurface.b3Shape_IsValid(shapeId))
+            throw new InvalidOperationException("Box3D did not create a valid hull shape.");
+
+        var shape = new Box3DShape(this, shapeId);
+        shapes.Add(shape);
+        return shape;
+    }
+
+    public unsafe Box3DShape CreateMeshShape(
+        in B3ShapeDef shapeDef,
+        Box3DMesh mesh,
+        B3Vec3 scale)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(mesh);
+        if (Type != B3BodyType.StaticBody)
+            throw new InvalidOperationException("Box3D mesh shapes may only be attached to static bodies.");
+        if (!float.IsFinite(scale.X) || !float.IsFinite(scale.Y) || !float.IsFinite(scale.Z) ||
+            scale.X == 0.0f || scale.Y == 0.0f || scale.Z == 0.0f)
+        {
+            throw new ArgumentException("Mesh scale components must be finite and non-zero.", nameof(scale));
+        }
+
+        Box3DMesh.Box3DMeshReference? meshReference = mesh.AcquireShapeReference();
+        try
+        {
+            B3ShapeId shapeId = Box3DBindingSurface.b3CreateMeshShape(
+                Id,
+                in shapeDef,
+                meshReference.NativeData,
+                scale);
+            if (!Box3DBindingSurface.b3Shape_IsValid(shapeId))
+                throw new InvalidOperationException("Box3D did not create a valid mesh shape.");
+
+            var shape = new Box3DShape(this, shapeId, meshReference);
+            meshReference = null;
+            shapes.Add(shape);
+            return shape;
+        }
+        finally
+        {
+            meshReference?.Dispose();
+        }
+    }
+
     public Box3DShape CreateCapsuleShape(in B3ShapeDef shapeDef, in B3Capsule capsule)
     {
         ThrowIfDisposed();
@@ -117,11 +169,11 @@ public sealed class Box3DBody : IDisposable
         if (disposed)
             return;
 
-        foreach (Box3DShape shape in shapes)
-            shape.InvalidateFromBody();
-
         if (world.IsValid && Box3DBindingSurface.b3Body_IsValid(Id))
             Box3DBindingSurface.b3DestroyBody(Id);
+
+        foreach (Box3DShape shape in shapes)
+            shape.InvalidateFromBody();
 
         disposed = true;
     }

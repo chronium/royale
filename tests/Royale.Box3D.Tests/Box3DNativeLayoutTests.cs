@@ -56,6 +56,10 @@ public sealed class Box3DNativeLayoutTests
         AssertSize<B3HullFace>(1);
         AssertSize<B3HullData>(136);
         AssertSize<B3BoxHull>(440);
+        AssertSize<B3MeshDef>(40);
+        AssertSize<B3MeshTriangle>(12);
+        AssertSize<B3MeshNode>(32);
+        AssertSize<B3MeshData>(88);
     }
 
     [Fact]
@@ -301,6 +305,45 @@ public sealed class Box3DNativeLayoutTests
         AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxFaces), 336);
         AssertOffset<B3BoxHull>(nameof(B3BoxHull.Padding), 342);
         AssertOffset<B3BoxHull>(nameof(B3BoxHull.BoxPlanes), 344);
+    }
+
+    [Fact]
+    public void MeshOffsetsMatchPinnedBox3DLayout()
+    {
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.Vertices), 0);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.Indices), 8);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.MaterialIndices), 16);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.WeldTolerance), 24);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.VertexCount), 28);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.TriangleCount), 32);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.WeldVertices), 36);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.UseMedianSplit), 37);
+        AssertOffset<B3MeshDef>(nameof(B3MeshDef.IdentifyEdges), 38);
+
+        AssertOffset<B3MeshTriangle>(nameof(B3MeshTriangle.Index1), 0);
+        AssertOffset<B3MeshTriangle>(nameof(B3MeshTriangle.Index2), 4);
+        AssertOffset<B3MeshTriangle>(nameof(B3MeshTriangle.Index3), 8);
+        AssertOffset<B3MeshNode>(nameof(B3MeshNode.LowerBound), 0);
+        AssertOffset<B3MeshNode>(nameof(B3MeshNode.Data), 12);
+        AssertOffset<B3MeshNode>(nameof(B3MeshNode.UpperBound), 16);
+        AssertOffset<B3MeshNode>(nameof(B3MeshNode.TriangleOffset), 28);
+
+        AssertOffset<B3MeshData>(nameof(B3MeshData.Version), 0);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.ByteCount), 8);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.Hash), 12);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.Bounds), 16);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.SurfaceArea), 40);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.TreeHeight), 44);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.DegenerateCount), 48);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.NodeOffset), 52);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.NodeCount), 56);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.VertexOffset), 60);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.VertexCount), 64);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.TriangleOffset), 68);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.TriangleCount), 72);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.MaterialOffset), 76);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.MaterialCount), 80);
+        AssertOffset<B3MeshData>(nameof(B3MeshData.FlagsOffset), 84);
     }
 
     [Fact]

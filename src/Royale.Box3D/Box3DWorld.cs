@@ -57,11 +57,11 @@ public sealed class Box3DWorld : IDisposable
         if (disposed)
             return;
 
-        foreach (Box3DBody body in bodies)
-            body.InvalidateFromWorld();
-
         if (Box3DBindingSurface.b3World_IsValid(Id))
             Box3DBindingSurface.b3DestroyWorld(Id);
+
+        foreach (Box3DBody body in bodies)
+            body.InvalidateFromWorld();
 
         disposed = true;
     }

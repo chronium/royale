@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RoyaleEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
     <RoyaleEffectiveRuntimeIdentifier Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
   </PropertyGroup>

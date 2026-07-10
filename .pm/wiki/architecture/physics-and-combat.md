@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-10T08:11:38.0129970Z
+modifiedAt: 2026-07-10T09:29:07.2512390Z
 ---
 
 ## Physics Architecture
@@ -114,6 +114,14 @@ Every layout-sensitive binding type must have tests that verify native size and 
 Native Box3D tests currently require the macOS ARM64 artifact at `thirdparty/artifacts/box3d/osx-arm64/lib/libbox3d.0.1.0.dylib`; build it with `sh thirdparty/build-box3d-macos.sh` before running tests on macOS ARM64 until final runtime native-library packaging is completed.
 
 `RENDER-006` extends the low-level Box3D binding surface with debug draw support: `b3DebugDraw`, `b3DebugShape`, `b3Sphere`, `b3DefaultDebugDraw`, `b3World_Draw`, and managed delegate types for debug shape creation/destruction plus shape, segment, transform, point, sphere, capsule, bounds, box, and string drawing callbacks. The bindings remain low-level P/Invoke types and are covered by native layout and callback tests.
+
+### Generated Hull and Mesh Ownership
+
+`PHYS-011` extends the low-level surface with `b3CreateHull`/`b3DestroyHull`, `b3MeshDef`/`b3MeshData`, `b3CreateMesh`/`b3DestroyMesh`, `b3GetHeight`, and `b3CreateMeshShape`. Managed native layouts mirror the pinned Box3D headers and are covered by size and offset tests.
+
+`Box3DHull` and `Box3DMesh` are SafeHandle-backed disposable resources created from validated managed spans. Hull shapes clone hull geometry into the Box3D world, so a source `Box3DHull` may be disposed immediately after shape creation. Mesh shapes do not clone `b3MeshData`; `Box3DShape` therefore retains a native mesh lease until shape, body, or world disposal. Disposing the public mesh owner prevents new shapes but defers native destruction while existing shapes still reference it.
+
+Mesh creation requires explicit weld, split, and edge-identification settings. The managed layer rejects incomplete indices, out-of-range indices, repeated triangle vertices, non-finite values, degenerate geometry, non-finite or zero instance scale, and mesh attachment to non-static bodies before crossing the native boundary. The physics projects remain independent of `Royale.Content`; conversion from versioned collision artifacts into Box3D vectors belongs to the shared simulation/map integration layer.
 
 ## Static Map Collision
 

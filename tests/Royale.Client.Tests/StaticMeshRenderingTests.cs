@@ -135,17 +135,37 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
-    public void ClientTestRuntimePackagesRenderAndCollisionContentForMapModels()
+    public void ManifestAssetCacheLoadsEveryKenneyEnvironmentModel()
+    {
+        StaticMeshAssetCache cache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+        ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
+            Path.Combine(AppContext.BaseDirectory, "assets", ContentCatalog.ModelAssetManifestFileName));
+
+        Assert.Equal(10, manifest.Assets.Count);
+        foreach (ModelAssetDefinition definition in manifest.Assets)
+        {
+            StaticMeshAsset asset = cache.GetRequired(definition.Id);
+            Assert.Equal(definition.Id, asset.Id);
+            Assert.NotEmpty(asset.Primitives);
+            Assert.All(asset.Primitives, primitive => Assert.NotEmpty(primitive.Geometry.Indices));
+        }
+        Assert.Equal(manifest.Assets.Count, cache.LoadedAssetCount);
+    }
+
+    [Fact]
+    public void ClientTestRuntimePackagesRenderAndCollisionContentForAllEnvironmentModels()
     {
         string assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
         ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName));
-        ModelAssetDefinition crate = Assert.Single(manifest.Assets, asset => asset.Id == "kenney-crate");
-
-        Assert.NotNull(crate.Render);
-        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Render.Source.Replace('/', Path.DirectorySeparatorChar))));
-        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Render.Resources[0].Replace('/', Path.DirectorySeparatorChar))));
-        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Collision.Artifact!.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.Equal(10, manifest.Assets.Count);
+        foreach (ModelAssetDefinition asset in manifest.Assets)
+        {
+            ModelRenderAssetDefinition render = Assert.IsType<ModelRenderAssetDefinition>(asset.Render);
+            Assert.True(File.Exists(Path.Combine(assetRoot, render.Source.Replace('/', Path.DirectorySeparatorChar))));
+            Assert.Equal(["meshes/kenney-prototype-kit/Textures/colormap.png"], render.Resources);
+            Assert.True(File.Exists(Path.Combine(assetRoot, asset.Collision.Artifact!.Replace('/', Path.DirectorySeparatorChar))));
+        }
     }
 
     [Fact]

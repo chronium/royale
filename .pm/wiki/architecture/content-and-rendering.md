@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T13:34:09.4198960Z
+modifiedAt: 2026-07-10T13:40:55.2978460Z
 ---
 
 ## Content and Map Data
@@ -79,6 +79,10 @@ Model assets are declared in the strict, case-sensitive JSON manifest `assets/mo
 The first source asset is `kenney-crate`, using `meshes/kenney-prototype-kit/crate.glb` and its required `Textures/colormap.png`. Both remain CC0 Kenney Prototype Kit content with attribution recorded beside the sources. Map placement transforms remain separate map-owned data; the asset manifest does not add an import-transform layer.
 
 `DEBT-002` validates external GLB dependencies before generated output is created. The source-manifest loader inspects GLB 2.0 JSON `buffers[].uri` and `images[].uri` values, resolves non-data URIs relative to the render GLB, and requires the resulting asset-root-relative path to appear exactly in that asset's `render.resources`. Missing declarations fail with asset, GLB, URI, and resolved-path context, preventing a render asset from reaching client startup without all of its external files.
+
+`GAME-012` expands the committed Kenney Prototype Kit set to ten reusable environment assets, all sharing `meshes/kenney-prototype-kit/Textures/colormap.png`: `kenney-column`, `kenney-crate`, `kenney-floor-square`, `kenney-floor-thick`, `kenney-shape-slope`, `kenney-stairs`, `kenney-target-a-round`, `kenney-wall`, `kenney-wall-corner`, and `kenney-wall-doorway`. Floor-square, stairs, wall-corner, and wall-doorway use `triangleMesh`; the remaining assets use `convex`. No dynamic bodies, animation, doors, browser, editor, or generalized material system is introduced.
+
+The selected Kenney models use valid glTF `UNSIGNED_BYTE` indices, supported through the focused SimpleMesh project patch recorded under `thirdparty/patches/SimpleMesh`. Triangle-mesh cooking deterministically discards degenerate source/canonicalized faces while retaining and sorting valid faces; it fails if none remain. Convex cooking retains its stricter degenerate-triangle rejection. Tests build deterministic client and server outputs, load every model through `StaticMeshAssetCache`, and create a valid native Box3D shape from every generated artifact.
 
 #### Convex Collision Artifacts
 

@@ -282,7 +282,7 @@ public sealed class AssetPipelineTests
     }
 
     [Fact]
-    public void KenneyCrateConvexArtifactIsGeneratedDeterministically()
+    public void KenneyEnvironmentSetProducesDeterministicSeparatedClientAndServerPackages()
     {
         string repositoryRoot = FindRepositoryRoot();
         string sourceRoot = Path.Combine(repositoryRoot, "assets");
@@ -290,25 +290,65 @@ public sealed class AssetPipelineTests
         using TestWorkspace workspace = TestWorkspace.Create();
 
         AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Server);
-        Dictionary<string, byte[]> first = ReadOutput(workspace.OutputRoot);
+        Dictionary<string, byte[]> firstServer = ReadOutput(workspace.OutputRoot);
         AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Server);
-        Dictionary<string, byte[]> second = ReadOutput(workspace.OutputRoot);
+        Dictionary<string, byte[]> secondServer = ReadOutput(workspace.OutputRoot);
 
-        Assert.Equal(first.Keys, second.Keys);
-        foreach (string path in first.Keys)
-            Assert.Equal(first[path], second[path]);
+        Assert.Equal(firstServer.Keys, secondServer.Keys);
+        foreach (string path in firstServer.Keys)
+            Assert.Equal(firstServer[path], secondServer[path]);
 
-        ModelAssetManifest catalog = ModelAssetManifestLoader.LoadGenerated(
+        ModelAssetManifest serverCatalog = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(workspace.OutputRoot, ContentCatalog.ModelAssetManifestFileName));
-        ModelAssetDefinition crate = Assert.Single(catalog.Assets);
-        Assert.Equal("collision/kenney-crate.json", crate.Collision.Artifact);
-        Assert.Null(crate.Render);
+        Assert.Equal(10, serverCatalog.Assets.Count);
+        Assert.All(serverCatalog.Assets, asset => Assert.Null(asset.Render));
+        Assert.DoesNotContain(firstServer.Keys, path => path.EndsWith(".glb", StringComparison.Ordinal));
+        Assert.DoesNotContain(firstServer.Keys, path => path.EndsWith(".png", StringComparison.Ordinal));
 
-        ModelCollisionArtifact artifact = ModelCollisionArtifactLoader.Load(
-            Path.Combine(workspace.OutputRoot, "collision", "kenney-crate.json"));
-        Assert.Equal(ModelCollisionArtifactKind.Convex, artifact.Kind);
-        Assert.Equal(8, artifact.Vertices.Count);
-        Assert.Empty(artifact.Indices);
+        var expectedModes = new Dictionary<string, ModelCollisionMode>(StringComparer.Ordinal)
+        {
+            ["kenney-column"] = ModelCollisionMode.Convex,
+            ["kenney-crate"] = ModelCollisionMode.Convex,
+            ["kenney-floor-square"] = ModelCollisionMode.TriangleMesh,
+            ["kenney-floor-thick"] = ModelCollisionMode.Convex,
+            ["kenney-shape-slope"] = ModelCollisionMode.Convex,
+            ["kenney-stairs"] = ModelCollisionMode.TriangleMesh,
+            ["kenney-target-a-round"] = ModelCollisionMode.Convex,
+            ["kenney-wall"] = ModelCollisionMode.Convex,
+            ["kenney-wall-corner"] = ModelCollisionMode.TriangleMesh,
+            ["kenney-wall-doorway"] = ModelCollisionMode.TriangleMesh,
+        };
+        Assert.Equal(expectedModes.Keys.Order(), serverCatalog.Assets.Select(asset => asset.Id));
+        foreach (ModelAssetDefinition asset in serverCatalog.Assets)
+        {
+            Assert.Equal(expectedModes[asset.Id], asset.Collision.Mode);
+            Assert.Equal($"collision/{asset.Id}.json", asset.Collision.Artifact);
+            string artifactPath = Assert.IsType<string>(asset.Collision.Artifact);
+            ModelCollisionArtifact artifact = ModelCollisionArtifactLoader.Load(
+                Path.Combine(workspace.OutputRoot, artifactPath.Replace('/', Path.DirectorySeparatorChar)));
+            Assert.NotEmpty(artifact.Vertices);
+            Assert.Equal(
+                asset.Collision.Mode == ModelCollisionMode.Convex
+                    ? ModelCollisionArtifactKind.Convex
+                    : ModelCollisionArtifactKind.TriangleMesh,
+                artifact.Kind);
+        }
+
+        AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Client);
+        Dictionary<string, byte[]> firstClient = ReadOutput(workspace.OutputRoot);
+        AssetPipelineProcessor.Build(manifestPath, sourceRoot, workspace.OutputRoot, AssetPipelineAudience.Client);
+        Dictionary<string, byte[]> secondClient = ReadOutput(workspace.OutputRoot);
+        Assert.Equal(firstClient.Keys, secondClient.Keys);
+        foreach (string path in firstClient.Keys)
+            Assert.Equal(firstClient[path], secondClient[path]);
+
+        ModelAssetManifest clientCatalog = ModelAssetManifestLoader.LoadGenerated(
+            Path.Combine(workspace.OutputRoot, ContentCatalog.ModelAssetManifestFileName));
+        const string sharedTexture = "meshes/kenney-prototype-kit/Textures/colormap.png";
+        Assert.Equal(10, clientCatalog.Assets.Count);
+        Assert.All(clientCatalog.Assets, asset => Assert.Equal([sharedTexture], asset.Render!.Resources));
+        Assert.Equal(10, firstClient.Keys.Count(path => path.EndsWith(".glb", StringComparison.Ordinal)));
+        Assert.Single(firstClient.Keys, path => path == sharedTexture.Replace('/', Path.DirectorySeparatorChar));
     }
 
     [Fact]
@@ -418,7 +458,7 @@ public sealed class AssetPipelineTests
     }
 
     [Fact]
-    public void TriangleMeshArtifactRejectsInvalidAndCollapsedTriangles()
+    public void TriangleMeshArtifactRejectsInvalidIndicesAndAllCollapsedTriangles()
     {
         var invalidIndex = new CollisionTriangleGeometry(
             [Vector3.Zero, Vector3.UnitX, Vector3.UnitY],
@@ -432,9 +472,22 @@ public sealed class AssetPipelineTests
             Assert.Throws<InvalidDataException>(() => TriangleMeshCollisionArtifactGenerator.Generate(invalidIndex, "invalid-index")).Message,
             StringComparison.Ordinal);
         Assert.Contains(
-            "after canonicalization",
+            "did not contain non-degenerate triangle geometry",
             Assert.Throws<InvalidDataException>(() => TriangleMeshCollisionArtifactGenerator.Generate(collapsed, "collapsed")).Message,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TriangleMeshArtifactDeterministicallyDiscardsDegenerateTriangles()
+    {
+        CollisionTriangleGeometry tetrahedron = TetrahedronGeometry(reverseWinding: false);
+        var withDegenerate = new CollisionTriangleGeometry(
+            tetrahedron.Vertices,
+            tetrahedron.Indices.Concat([0, 0, 1]).ToArray());
+
+        Assert.Equal(
+            SerializeCollision(TriangleMeshCollisionArtifactGenerator.Generate(tetrahedron, "clean")),
+            SerializeCollision(TriangleMeshCollisionArtifactGenerator.Generate(withDegenerate, "with-degenerate")));
     }
 
     private static string ManifestJson() =>

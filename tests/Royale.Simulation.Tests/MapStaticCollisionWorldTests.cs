@@ -70,6 +70,45 @@ public sealed class MapStaticCollisionWorldTests
         Assert.InRange(hit.Point.Y, 0.62f, 0.63f);
     }
 
+    [Fact]
+    public void EveryKenneyEnvironmentCollisionArtifactCreatesAValidBox3DShape()
+    {
+        string assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
+        ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
+            Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName));
+        var map = new GameMap
+        {
+            Id = "kenney-environment-validation",
+            Name = "Kenney Environment Validation",
+            WorldBounds = new MapBounds
+            {
+                Min = new MapVector3(-20.0f, -2.0f, -20.0f),
+                Max = new MapVector3(20.0f, 8.0f, 20.0f),
+            },
+            SafeZone = new SafeZoneDefinition { Radius = 20.0f },
+            StaticModels = manifest.Assets.Select((asset, index) => new StaticModelDefinition
+            {
+                Id = $"instance-{asset.Id}",
+                AssetId = asset.Id,
+                Position = new MapVector3(-18.0f + (index * 4.0f), 0.0f, 0.0f),
+                Scale = new MapVector3(1.0f, 1.0f, 1.0f),
+            }).ToList(),
+        };
+
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+
+        Assert.Equal(10, collisionWorld.ColliderCount);
+        foreach (MapStaticCollider collider in collisionWorld.Colliders)
+        {
+            Assert.True(Box3DBindingSurface.b3Body_IsValid(collider.BodyId));
+            Assert.True(Box3DBindingSurface.b3Shape_IsValid(collider.ShapeId));
+            ModelAssetDefinition asset = Assert.Single(manifest.Assets, candidate => candidate.Id == collider.AssetId);
+            Assert.Equal(
+                asset.Collision.Mode == ModelCollisionMode.Convex ? B3ShapeType.HullShape : B3ShapeType.MeshShape,
+                Box3DBindingSurface.b3Shape_GetType(collider.ShapeId));
+        }
+    }
+
     [Theory]
     [InlineData(ModelCollisionMode.TriangleMesh)]
     [InlineData(ModelCollisionMode.SeparateMesh)]

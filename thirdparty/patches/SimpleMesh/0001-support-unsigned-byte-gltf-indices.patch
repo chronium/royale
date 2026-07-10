@@ -1,0 +1,20 @@
+diff --git a/SimpleMesh/Formats/GLTF/GLTFGeometry.cs b/SimpleMesh/Formats/GLTF/GLTFGeometry.cs
+index 8cf28dd..a824ca6 100644
+--- a/SimpleMesh/Formats/GLTF/GLTFGeometry.cs
++++ b/SimpleMesh/Formats/GLTF/GLTFGeometry.cs
+@@ -405,11 +405,13 @@ namespace SimpleMesh.Formats.GLTF
+         {
+             var off = ByteOffset + BufferView.ByteOffset + (GetStride() * i);
+             var buf = BufferView.Buffer.Buffer;
+-            if (ComponentType == ComponentType.UInt16)
++            if (ComponentType == ComponentType.UInt8)
++                return buf[off];
++            else if (ComponentType == ComponentType.UInt16)
+                 return BitConverter.ToUInt16(buf, off);
+             else if (ComponentType == ComponentType.UInt32)
+                 return BitConverter.ToUInt32(buf, off);
+-            throw new ModelLoadException("Indices can only be unsigned int or unsigned short");
++            throw new ModelLoadException("Indices can only be unsigned byte, unsigned short or unsigned int");
+         }
+ 
+         public float GetFloat(int i)

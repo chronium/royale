@@ -9,13 +9,13 @@ public sealed record CollisionTriangleGeometry(IReadOnlyList<Vector3> Vertices, 
 
 public static class SimpleMeshCollisionGeometryExtractor
 {
-    public static CollisionTriangleGeometry LoadFromFile(string path)
+    public static CollisionTriangleGeometry LoadFromFile(string path, bool discardDegenerateTriangles = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return Extract(Model.FromFile(path), path);
+        return Extract(Model.FromFile(path), path, discardDegenerateTriangles);
     }
 
-    public static CollisionTriangleGeometry Extract(Model model, string context)
+    public static CollisionTriangleGeometry Extract(Model model, string context, bool discardDegenerateTriangles = false)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
@@ -23,7 +23,7 @@ public static class SimpleMeshCollisionGeometryExtractor
         var vertices = new List<Vector3>();
         var indices = new List<int>();
         foreach (ModelNode root in model.Roots)
-            AppendNode(root, Matrix4x4.Identity, vertices, indices, context);
+            AppendNode(root, Matrix4x4.Identity, vertices, indices, context, discardDegenerateTriangles);
 
         if (indices.Count == 0)
             throw new InvalidDataException($"Collision source '{context}' did not contain triangle geometry.");
@@ -35,14 +35,15 @@ public static class SimpleMeshCollisionGeometryExtractor
         Matrix4x4 parentTransform,
         List<Vector3> vertices,
         List<int> indices,
-        string context)
+        string context,
+        bool discardDegenerateTriangles)
     {
         Matrix4x4 worldTransform = node.Transform * parentTransform;
         if (node.Geometry is not null)
-            AppendGeometry(node.Geometry, worldTransform, vertices, indices, context, node.Name);
+            AppendGeometry(node.Geometry, worldTransform, vertices, indices, context, node.Name, discardDegenerateTriangles);
 
         foreach (ModelNode child in node.Children)
-            AppendNode(child, worldTransform, vertices, indices, context);
+            AppendNode(child, worldTransform, vertices, indices, context, discardDegenerateTriangles);
     }
 
     private static void AppendGeometry(
@@ -51,7 +52,8 @@ public static class SimpleMeshCollisionGeometryExtractor
         List<Vector3> vertices,
         List<int> indices,
         string context,
-        string nodeName)
+        string nodeName,
+        bool discardDegenerateTriangles)
     {
         if (geometry.Kind != GeometryKind.Triangles)
             throw new InvalidDataException($"Collision source '{context}' node '{nodeName}' is not triangle geometry.");
@@ -83,7 +85,12 @@ public static class SimpleMeshCollisionGeometryExtractor
                 Vector3 edgeA = vertices[triangleStart + 1] - vertices[triangleStart];
                 Vector3 edgeB = vertices[triangleStart + 2] - vertices[triangleStart];
                 if (Vector3.Cross(edgeA, edgeB).LengthSquared() <= 1e-12f)
-                    throw new InvalidDataException($"Collision source '{context}' node '{nodeName}' contains a degenerate triangle.");
+                {
+                    vertices.RemoveRange(triangleStart, 3);
+                    indices.RemoveRange(indices.Count - 3, 3);
+                    if (!discardDegenerateTriangles)
+                        throw new InvalidDataException($"Collision source '{context}' node '{nodeName}' contains a degenerate triangle.");
+                }
             }
         }
     }
@@ -230,9 +237,12 @@ public static class TriangleMeshCollisionArtifactGenerator
             Vector3 b = ReadVertex(geometry, offset + 1, context);
             Vector3 c = ReadVertex(geometry, offset + 2, context);
             if (Vector3.Cross(b - a, c - a).LengthSquared() <= 1e-12f)
-                throw new InvalidDataException($"Collision source '{context}' contains a degenerate triangle after canonicalization.");
+                continue;
             sourceTriangles.Add((a, b, c));
         }
+
+        if (sourceTriangles.Count == 0)
+            throw new InvalidDataException($"Collision source '{context}' did not contain non-degenerate triangle geometry after canonicalization.");
 
         Vector3[] sortedVertices = sourceTriangles
             .SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C })

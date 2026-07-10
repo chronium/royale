@@ -22,9 +22,12 @@ public sealed class HeadlessServerSimulationTests
         string assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
         ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName));
-        ModelAssetDefinition crate = Assert.Single(manifest.Assets);
-        Assert.Null(crate.Render);
-        Assert.True(File.Exists(Path.Combine(assetRoot, crate.Collision.Artifact!.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.Equal(10, manifest.Assets.Count);
+        Assert.All(manifest.Assets, asset =>
+        {
+            Assert.Null(asset.Render);
+            Assert.True(File.Exists(Path.Combine(assetRoot, asset.Collision.Artifact!.Replace('/', Path.DirectorySeparatorChar))));
+        });
         Assert.False(Directory.Exists(Path.Combine(assetRoot, "meshes")));
         Assert.Equal(0UL, simulation.CurrentTick);
         Assert.False(simulation.IsDisposed);

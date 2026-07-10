@@ -75,7 +75,7 @@ Each script initializes or reuses an ignored repository under `thirdparty/repos/
 
 `fetch-blurgtext.sh` also initializes the upstream submodules needed by BlurgText's committed source tree, including `deps/libraqm`, `deps/SheenBidi`, `deps/libunibreak`, `deps/plutosvg`, and nested `deps/plutosvg/plutovg`.
 
-SimpleMesh has no project patches, submodules, or native build steps at the pinned revision. It is Apache-2.0 licensed, managed-only, targets `net8.0`, supports OBJ, Collada, and embedded-buffer glTF/glb import, and imports Y-up geometry. `RENDER-010` owns adding any future project reference or mesh loading/rendering code.
+SimpleMesh has one project patch adding glTF `UNSIGNED_BYTE` index accessor support required by the Kenney Prototype Kit environment set. It has no submodules or native build steps at the pinned revision. It is Apache-2.0 licensed, managed-only, targets `net8.0`, supports OBJ, Collada, and glTF/glb import, and imports Y-up geometry.
 
 WattleScript has no project patches, submodules, or native build steps at the pinned revision. It is BSD 3-Clause licensed and contains string-library parts derived from KopiLua under the upstream license notice. It is fetched as interpreter source for automated gameplay test orchestration only. `TEST-001` owns adding any future test host, scenario API, script execution, smoke tests, or project references; WattleScript must not become a runtime dependency of the client, server, simulation, or protocol projects.
 

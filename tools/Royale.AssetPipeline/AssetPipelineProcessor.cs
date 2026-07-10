@@ -83,7 +83,9 @@ public static class AssetPipelineProcessor
                 _ => throw new InvalidDataException($"Asset '{asset.Id}' collision mode '{asset.Collision.Mode}' is not supported by this asset pipeline version."),
             };
             string sourcePath = ModelAssetManifestLoader.ResolveSourcePath(sourceRoot, relativeSource);
-            CollisionTriangleGeometry geometry = SimpleMeshCollisionGeometryExtractor.LoadFromFile(sourcePath);
+            CollisionTriangleGeometry geometry = SimpleMeshCollisionGeometryExtractor.LoadFromFile(
+                sourcePath,
+                discardDegenerateTriangles: asset.Collision.Mode != ModelCollisionMode.Convex);
             ModelCollisionArtifact artifact = asset.Collision.Mode == ModelCollisionMode.Convex
                 ? ConvexCollisionArtifactGenerator.Generate(geometry, asset.Id)
                 : TriangleMeshCollisionArtifactGenerator.Generate(geometry, asset.Id);

@@ -181,14 +181,17 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(second.PlayerId.Value, secondSnapshot.LocalPlayerId);
         Assert.Equal(10U, firstSnapshot.AcknowledgedInputSequence);
         Assert.Equal(20U, secondSnapshot.AcknowledgedInputSequence);
-        Assert.Equal(2, firstSnapshot.Players.Count);
-        Assert.Equal(2, secondSnapshot.Players.Count);
+        Assert.Equal(MatchStartSettings.DefaultTargetPlayers, firstSnapshot.Players.Count);
+        Assert.Equal(MatchStartSettings.DefaultTargetPlayers, secondSnapshot.Players.Count);
     }
 
     [Fact]
     public void StepAppliesMovementAndLookToAuthoritativeSnapshots()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
+        using InProcessServerSession session = InProcessServerSession.Create(
+            CreateOpenArenaMap(),
+            new MatchStartSettings(targetPlayers: 2),
+            spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(first)[^1];
@@ -221,7 +224,10 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void QueuedCommandsAreConsumedOldestFirstAcrossServerTicks()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
+        using InProcessServerSession session = InProcessServerSession.Create(
+            CreateOpenArenaMap(),
+            new MatchStartSettings(targetPlayers: 2),
+            spawnSeed: 0);
         InProcessClientConnection client = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(client)[^1];
         Vector3 initialPosition = FindPlayer(initial, client.PlayerId).Position;
@@ -265,7 +271,10 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void ShortPressReleaseBurstMovesForOneServerTickThenStops()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
+        using InProcessServerSession session = InProcessServerSession.Create(
+            CreateOpenArenaMap(),
+            new MatchStartSettings(targetPlayers: 2),
+            spawnSeed: 0);
         InProcessClientConnection client = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(client)[^1];
         Vector3 initialPosition = FindPlayer(initial, client.PlayerId).Position;
@@ -324,7 +333,10 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void TwoClientsConsumeTheirQueuesIndependently()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
+        using InProcessServerSession session = InProcessServerSession.Create(
+            CreateOpenArenaMap(),
+            new MatchStartSettings(targetPlayers: 2),
+            spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -442,7 +454,10 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void PrePlayingInputMovesLooksAndAcknowledgesWithoutMutatingCombatState()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
+        using InProcessServerSession session = InProcessServerSession.Create(
+            CreateOpenArenaMap(),
+            new MatchStartSettings(targetPlayers: 2),
+            spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -522,6 +537,24 @@ public sealed class InProcessServerSessionTests
         Assert.False(session.TryRemoveBot(bot));
         Assert.Equal(1, session.ActivePlayerCount);
         Assert.Equal(0, session.BotPlayerCount);
+    }
+
+    [Fact]
+    public void AutomaticallyFilledBotsReceiveSessionInputState()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 1, targetPlayers: 3));
+        _ = session.ConnectClient();
+
+        session.Step();
+
+        ServerPlayerId[] bots = session.GetPlayerDebugStates()
+            .Where(player => player.Kind == ServerPlayerKind.Bot)
+            .Select(player => new ServerPlayerId(player.PlayerId))
+            .ToArray();
+        Assert.Equal(2, bots.Length);
+        Assert.All(bots, bot => Assert.True(session.TrySubmitBotInput(bot, BotIntent())));
     }
 
     [Fact]

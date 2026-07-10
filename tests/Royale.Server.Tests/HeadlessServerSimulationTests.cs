@@ -378,41 +378,43 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
-    public void CountdownTransitionsToPlayingAfterExactlyThreeHundredTicks()
+    public void PreparationTransitionsToPlayingAfterConfiguredDuration()
     {
-        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        var settings = new MatchStartSettings(preparationSeconds: 5);
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, settings);
         simulation.AddHumanPlayer();
         simulation.AddHumanPlayer();
 
         simulation.Step();
         Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
 
-        for (int tick = 1; tick < MatchStartSettings.CountdownTicks; tick++)
+        for (int tick = 1; tick < settings.PreparationTicks; tick++)
             simulation.Step();
 
-        Assert.Equal(300UL, simulation.CurrentTick);
+        Assert.Equal((ulong)settings.PreparationTicks, simulation.CurrentTick);
         Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
 
         simulation.Step();
 
         Assert.Equal(MatchPhase.Playing, simulation.MatchState.Phase);
-        Assert.Equal(300UL, simulation.MatchState.PhaseStartedTick);
+        Assert.Equal((ulong)settings.PreparationTicks, simulation.MatchState.PhaseStartedTick);
     }
 
     [Fact]
     public void DisconnectDuringCountdownDoesNotCancelOrPauseIt()
     {
-        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        var settings = new MatchStartSettings(preparationSeconds: 5);
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, settings);
         AuthoritativePlayerState first = simulation.AddHumanPlayer();
         simulation.AddHumanPlayer();
         simulation.Step();
 
         Assert.True(simulation.RemovePlayer(first.PlayerId));
-        for (int tick = 1; tick <= MatchStartSettings.CountdownTicks; tick++)
+        for (int tick = 1; tick <= settings.PreparationTicks; tick++)
             simulation.Step();
 
         Assert.Equal(MatchPhase.Playing, simulation.MatchState.Phase);
-        Assert.Equal(300UL, simulation.MatchState.PhaseStartedTick);
+        Assert.Equal((ulong)settings.PreparationTicks, simulation.MatchState.PhaseStartedTick);
     }
 
     [Fact]
@@ -425,6 +427,9 @@ public sealed class HeadlessServerSimulationTests
         simulation.AddHumanPlayer();
         Assert.Equal(ForceStartResult.Started, simulation.ForceStart());
         Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+        Assert.Equal(MatchStartSettings.DefaultTargetPlayers, simulation.ActivePlayerCount);
+        Assert.Equal(MatchStartSettings.DefaultTargetPlayers - 1, simulation.BotPlayerCount);
+        Assert.Equal(MatchStartReason.ForceStart, simulation.LastMatchStartReason);
         Assert.Equal(ForceStartResult.MatchNotWaiting, simulation.ForceStart());
     }
 
@@ -441,6 +446,41 @@ public sealed class HeadlessServerSimulationTests
         Assert.Equal(MatchPhase.WaitingForPlayers, simulation.MatchState.Phase);
         Assert.Equal(ForceStartResult.Started, simulation.ForceStart());
         Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+        Assert.Equal(MatchStartSettings.DefaultTargetPlayers, simulation.BotPlayerCount);
+    }
+
+    [Fact]
+    public void HumanMinimumFillsRemainingSlotsBeforePreparation()
+    {
+        var settings = new MatchStartSettings(minimumPlayers: 2, targetPlayers: 5);
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, settings);
+        simulation.AddHumanPlayer();
+        simulation.AddHumanPlayer();
+
+        simulation.Step();
+
+        Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+        Assert.Equal(2, simulation.HumanPlayerCount);
+        Assert.Equal(3, simulation.BotPlayerCount);
+        Assert.Equal(MatchStartReason.HumanMinimumReached, simulation.LastMatchStartReason);
+    }
+
+    [Fact]
+    public void WaitingExpiryFillsBotOnlyLobby()
+    {
+        var settings = new MatchStartSettings(
+            minimumPlayers: 2,
+            targetPlayers: 4,
+            waitingSeconds: 1,
+            preparationSeconds: 1);
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, settings);
+
+        for (int tick = 0; tick <= settings.WaitingTicks; tick++)
+            simulation.Step();
+
+        Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+        Assert.Equal(4, simulation.BotPlayerCount);
+        Assert.Equal(MatchStartReason.WaitingExpired, simulation.LastMatchStartReason);
     }
 
     [Fact]
@@ -580,7 +620,10 @@ public sealed class HeadlessServerSimulationTests
             7777,
             ContentCatalog.DefaultMapId,
             RunTicks: 5,
-            MatchStartSettings.DefaultMinimumPlayers);
+            MatchStartSettings.DefaultMinimumPlayers,
+            MatchStartSettings.DefaultTargetPlayers,
+            MatchStartSettings.DefaultWaitingSeconds,
+            MatchStartSettings.DefaultPreparationSeconds);
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
 
         ServerSimulationRunResult result = await ServerSimulationLoop.RunAsync(simulation, options);

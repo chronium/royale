@@ -137,6 +137,12 @@ The server project runs a headless fixed-timestep simulation, loads the selected
 dotnet run --project src/Royale.Server/Royale.Server.csproj -- --port 7777 --map graybox
 ```
 
+The default lobby starts preparation when two humans connect or the five-minute wait expires, fills the roster to eight with server-owned bots, and starts play after two minutes of preparation. Override those values for local validation or deployment automation:
+
+```sh
+dotnet run --project src/Royale.Server/Royale.Server.csproj -- --minimum-players 2 --target-players 8 --waiting-seconds 5 --preparation-seconds 5
+```
+
 For deterministic validation runs, provide a finite tick count:
 
 ```sh

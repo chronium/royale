@@ -56,6 +56,8 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public AuthoritativeMatchState MatchState { get; private set; }
 
+    public MatchStartReason? LastMatchStartReason { get; private set; }
+
     public MatchStartSettings MatchStartSettings => matchStartSettings;
 
     public AuthoritativeSafeZoneState SafeZoneState { get; private set; }
@@ -194,7 +196,7 @@ public sealed class HeadlessServerSimulation : IDisposable
         if (players.Count == 0)
             return ForceStartResult.NoPlayers;
 
-        TransitionMatchPhase(MatchPhase.Countdown);
+        StartPreparation(MatchStartReason.ForceStart);
         return ForceStartResult.Started;
     }
 
@@ -388,17 +390,28 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     private void ApplyMatchStartPolicy()
     {
-        if (MatchState.Phase == MatchPhase.WaitingForPlayers &&
-            HumanPlayerCount >= matchStartSettings.MinimumPlayers)
+        if (MatchState.Phase == MatchPhase.WaitingForPlayers)
         {
-            TransitionMatchPhase(MatchPhase.Countdown);
+            if (HumanPlayerCount >= matchStartSettings.MinimumPlayers)
+                StartPreparation(MatchStartReason.HumanMinimumReached);
+            else if (CurrentTick - MatchState.PhaseStartedTick >= (ulong)matchStartSettings.WaitingTicks)
+                StartPreparation(MatchStartReason.WaitingExpired);
         }
 
         if (MatchState.Phase == MatchPhase.Countdown &&
-            CurrentTick - MatchState.PhaseStartedTick >= (ulong)MatchStartSettings.CountdownTicks)
+            CurrentTick - MatchState.PhaseStartedTick >= (ulong)matchStartSettings.PreparationTicks)
         {
             TransitionMatchPhase(MatchPhase.Playing);
         }
+    }
+
+    private void StartPreparation(MatchStartReason reason)
+    {
+        while (ActivePlayerCount < matchStartSettings.TargetPlayers)
+            AddBotPlayer();
+
+        LastMatchStartReason = reason;
+        TransitionMatchPhase(MatchPhase.Countdown);
     }
 
     private void ValidateInputCommands(IReadOnlyDictionary<ServerPlayerId, PlayerInputCommand> inputCommands)

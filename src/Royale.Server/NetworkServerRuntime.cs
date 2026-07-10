@@ -85,9 +85,11 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         ThrowIfDisposed();
 
         long started = Stopwatch.GetTimestamp();
+        int previousBotCount = session.BotPlayerCount;
         int sentSnapshots = 0;
         transport.Poll(this);
         session.Step();
+        ReportAutomaticBotFill(previousBotCount);
         sentSnapshots = snapshotSender.SendDueSnapshots(session.CurrentTick);
         observability?.SnapshotsSent(sentSnapshots);
         UpdateObservabilityState();
@@ -99,7 +101,9 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
     public ForceStartResult ForceStart()
     {
         ThrowIfDisposed();
+        int previousBotCount = session.BotPlayerCount;
         ForceStartResult result = session.ForceStart();
+        ReportAutomaticBotFill(previousBotCount);
         UpdateObservabilityState();
         return result;
     }
@@ -240,7 +244,15 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
             session.ActivePlayerCount,
             session.LivingPlayerCount,
             session.MatchPhase,
-            session.QueuedInputCommandCount);
+            session.QueuedInputCommandCount,
+            session.BotPlayerCount);
+    }
+
+    private void ReportAutomaticBotFill(int previousBotCount)
+    {
+        int addedBots = session.BotPlayerCount - previousBotCount;
+        if (addedBots > 0 && session.LastMatchStartReason is MatchStartReason reason)
+            observability?.LobbyFilledWithBots(addedBots, session.BotPlayerCount, reason);
     }
 
     private Dictionary<ServerPlayerId, int> CreatePeerIdsByPlayerId() =>

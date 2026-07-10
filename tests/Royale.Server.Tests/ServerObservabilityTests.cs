@@ -14,6 +14,27 @@ namespace Royale.Server.Tests;
 public sealed class ServerObservabilityTests
 {
     [Fact]
+    public void BotGaugeAndLobbyFillLogExposeAutomaticRosterFill()
+    {
+        using MetricRecorder metrics = new("royale.server.players.bots");
+        CapturingLoggerProvider provider = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        using ServerObservability observability = new(loggerFactory);
+
+        observability.UpdateState(1, 8, 8, MatchPhase.Countdown, 0, botPlayers: 7);
+        observability.LobbyFilledWithBots(7, 7, MatchStartReason.HumanMinimumReached);
+        metrics.CollectObservable();
+
+        Assert.Equal(7, metrics.Latest("royale.server.players.bots"));
+        LogEntry entry = Assert.Single(
+            provider.Entries,
+            candidate => candidate.Message.StartsWith("Lobby filled with bots", StringComparison.Ordinal));
+        Assert.Equal(7, entry.Properties["AddedBots"]);
+        Assert.Equal(7, entry.Properties["TotalBots"]);
+        Assert.Equal("human_minimum_reached", entry.Properties["Reason"]);
+    }
+
+    [Fact]
     public void ConnectionAcceptAndDisconnectUpdateCountersAndGauges()
     {
         using MetricRecorder metrics = new(

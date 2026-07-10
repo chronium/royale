@@ -443,9 +443,9 @@ public sealed class WattleScenarioScriptHostTests
             scenario.assert.equal(second.playerId, secondSnapshot.localPlayerId);
             scenario.assert.isTrue(first.playerId != second.playerId);
             scenario.assert.equal(2, firstSnapshot.connectedPlayerCount);
-            scenario.assert.equal(2, firstSnapshot.participantCount);
-            scenario.assert.equal(0, firstSnapshot.botPlayerCount);
-            scenario.assert.equal(2, firstSnapshot.livingPlayerCount);
+            scenario.assert.equal(8, firstSnapshot.participantCount);
+            scenario.assert.equal(6, firstSnapshot.botPlayerCount);
+            scenario.assert.equal(8, firstSnapshot.livingPlayerCount);
             scenario.assert.equal("Human", firstSnapshot.player(first.playerId).kind);
             scenario.assert.equal(false, firstSnapshot.player(first.playerId).isBot);
 

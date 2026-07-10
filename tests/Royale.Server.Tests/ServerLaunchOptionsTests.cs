@@ -15,6 +15,9 @@ public sealed class ServerLaunchOptionsTests
         Assert.Equal(ContentCatalog.DefaultMapId, options.MapId);
         Assert.Null(options.RunTicks);
         Assert.Equal(MatchStartSettings.DefaultMinimumPlayers, options.MinimumPlayers);
+        Assert.Equal(MatchStartSettings.DefaultTargetPlayers, options.TargetPlayers);
+        Assert.Equal(MatchStartSettings.DefaultWaitingSeconds, options.WaitingSeconds);
+        Assert.Equal(MatchStartSettings.DefaultPreparationSeconds, options.PreparationSeconds);
     }
 
     [Fact]
@@ -38,9 +41,22 @@ public sealed class ServerLaunchOptionsTests
     [Fact]
     public void ParseAcceptsCustomMinimumPlayers()
     {
-        ServerLaunchOptions options = ServerLaunchOptions.Parse(["--minimum-players", "17"]);
+        ServerLaunchOptions options = ServerLaunchOptions.Parse(
+            ["--minimum-players", "17", "--target-players", "20"]);
 
         Assert.Equal(17, options.MinimumPlayers);
+        Assert.Equal(20, options.TargetPlayers);
+    }
+
+    [Fact]
+    public void ParseAcceptsLobbyTimingOptions()
+    {
+        ServerLaunchOptions options = ServerLaunchOptions.Parse(
+            ["--target-players", "10", "--waiting-seconds", "5", "--preparation-seconds", "7"]);
+
+        Assert.Equal(10, options.TargetPlayers);
+        Assert.Equal(5, options.WaitingSeconds);
+        Assert.Equal(7, options.PreparationSeconds);
     }
 
     [Theory]
@@ -52,6 +68,37 @@ public sealed class ServerLaunchOptionsTests
     {
         Assert.Throws<ArgumentException>(
             () => ServerLaunchOptions.Parse(["--minimum-players", value]));
+    }
+
+    [Fact]
+    public void ParseRejectsMinimumAboveTarget()
+    {
+        Assert.Throws<ArgumentException>(
+            () => ServerLaunchOptions.Parse(["--minimum-players", "9", "--target-players", "8"]));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("129")]
+    [InlineData("not-a-number")]
+    public void ParseRejectsInvalidTargetPlayers(string value)
+    {
+        Assert.Throws<ArgumentException>(
+            () => ServerLaunchOptions.Parse(["--target-players", value]));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("35791395")]
+    [InlineData("not-a-number")]
+    public void ParseRejectsInvalidOrOverflowingDurations(string value)
+    {
+        Assert.Throws<ArgumentException>(
+            () => ServerLaunchOptions.Parse(["--waiting-seconds", value]));
+        Assert.Throws<ArgumentException>(
+            () => ServerLaunchOptions.Parse(["--preparation-seconds", value]));
     }
 
     [Theory]
@@ -78,6 +125,9 @@ public sealed class ServerLaunchOptionsTests
     [InlineData("--map")]
     [InlineData("--run-ticks")]
     [InlineData("--minimum-players")]
+    [InlineData("--target-players")]
+    [InlineData("--waiting-seconds")]
+    [InlineData("--preparation-seconds")]
     public void ParseRejectsMissingValues(string option)
     {
         Assert.Throws<ArgumentException>(() => ServerLaunchOptions.Parse([option]));

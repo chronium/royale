@@ -34,6 +34,8 @@ public sealed class InProcessServerSession : IDisposable
 
     public MatchStartSettings MatchStartSettings => simulation.MatchStartSettings;
 
+    public MatchStartReason? LastMatchStartReason => simulation.LastMatchStartReason;
+
     public int QueuedInputCommandCount =>
         clients.Values.Sum(client => client.InputCommands.Count) +
         botInputs.Values.Count(input => input.PendingCommand.HasValue);
@@ -175,7 +177,9 @@ public sealed class InProcessServerSession : IDisposable
     public ForceStartResult ForceStart()
     {
         ThrowIfDisposed();
-        return simulation.ForceStart();
+        ForceStartResult result = simulation.ForceStart();
+        SynchronizeBotInputs();
+        return result;
     }
 
     public IReadOnlyList<ServerSnapshot> DrainSnapshots(InProcessClientConnection client)
@@ -212,6 +216,7 @@ public sealed class InProcessServerSession : IDisposable
         }
 
         simulation.Step(inputCommands);
+        SynchronizeBotInputs();
 
         foreach (InProcessClientState client in clients.Values)
             client.Snapshots.Enqueue(simulation.CreateSnapshot(client.PlayerId));
@@ -248,6 +253,15 @@ public sealed class InProcessServerSession : IDisposable
         }
 
         return state;
+    }
+
+    private void SynchronizeBotInputs()
+    {
+        foreach (AuthoritativePlayerState bot in simulation.Players.Values
+                     .Where(player => player.Kind == ServerPlayerKind.Bot))
+        {
+            botInputs.TryAdd(bot.PlayerId, new BotInputState());
+        }
     }
 
     private void ThrowIfDisposed()

@@ -26,7 +26,7 @@ var firstSnapshot = scenario.observe.latest(first);
 var secondSnapshot = scenario.observe.latest(second);
 
 scenario.assert.equal(2, scenario.players.count);
-scenario.assert.equal(2, firstSnapshot.livingPlayerCount);
-scenario.assert.equal(2, secondSnapshot.livingPlayerCount);
+scenario.assert.equal(8, firstSnapshot.livingPlayerCount);
+scenario.assert.equal(8, secondSnapshot.livingPlayerCount);
 
 return true;

@@ -25,6 +25,11 @@ public sealed class ServerObservability : IDisposable
             "royale.server.players.active",
             ObserveActivePlayers,
             description: "Authoritative active players.");
+    private static readonly ObservableGauge<int> BotPlayersGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.players.bots",
+            ObserveBotPlayers,
+            description: "Authoritative bot participants.");
     private static readonly ObservableGauge<int> LivingPlayersGauge =
         RoyaleTelemetry.ServerMeter.CreateObservableGauge(
             "royale.server.match.living_players",
@@ -74,6 +79,7 @@ public sealed class ServerObservability : IDisposable
     private readonly int playerDebugLogIntervalTicks;
     private int connectedPlayers;
     private int activePlayers;
+    private int botPlayers;
     private int livingPlayers;
     private int queuedInputCommands;
     private MatchPhase matchPhase;
@@ -103,10 +109,12 @@ public sealed class ServerObservability : IDisposable
         int activePlayers,
         int livingPlayers,
         MatchPhase matchPhase,
-        int queuedInputCommands)
+        int queuedInputCommands,
+        int botPlayers = 0)
     {
         this.connectedPlayers = connectedPlayers;
         this.activePlayers = activePlayers;
+        this.botPlayers = botPlayers;
         this.livingPlayers = livingPlayers;
         this.queuedInputCommands = queuedInputCommands;
 
@@ -120,6 +128,15 @@ public sealed class ServerObservability : IDisposable
 
         this.matchPhase = matchPhase;
         lastObservedMatchPhase = matchPhase;
+    }
+
+    public void LobbyFilledWithBots(int addedBots, int totalBots, MatchStartReason reason)
+    {
+        logger.LogInformation(
+            "Lobby filled with bots: added {AddedBots}, total bots {TotalBots}, reason {Reason}.",
+            addedBots,
+            totalBots,
+            FormatMatchStartReason(reason));
     }
 
     public void PeerConnected(NetworkPeerId peerId, NetworkEndpoint endpoint)
@@ -292,6 +309,12 @@ public sealed class ServerObservability : IDisposable
             return new Measurement<int>(Instances.Sum(instance => instance.activePlayers));
     }
 
+    private static Measurement<int> ObserveBotPlayers()
+    {
+        lock (InstancesLock)
+            return new Measurement<int>(Instances.Sum(instance => instance.botPlayers));
+    }
+
     private static Measurement<int> ObserveLivingPlayers()
     {
         lock (InstancesLock)
@@ -397,6 +420,15 @@ public sealed class ServerObservability : IDisposable
             MatchPhase.Playing => "playing",
             MatchPhase.Finished => "finished",
             MatchPhase.Resetting => "resetting",
+            _ => "unknown",
+        };
+
+    private static string FormatMatchStartReason(MatchStartReason reason) =>
+        reason switch
+        {
+            MatchStartReason.HumanMinimumReached => "human_minimum_reached",
+            MatchStartReason.WaitingExpired => "waiting_expired",
+            MatchStartReason.ForceStart => "force_start",
             _ => "unknown",
         };
 }

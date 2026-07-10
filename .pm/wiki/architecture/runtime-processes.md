@@ -1,7 +1,7 @@
 ---
 title: Runtime Processes
 createdAt: 2026-07-05T16:10:17.2894450Z
-modifiedAt: 2026-07-10T05:05:56.7871010Z
+modifiedAt: 2026-07-10T07:36:42.4879820Z
 ---
 
 ## Game Client
@@ -82,7 +82,7 @@ A server process may initially host one match. Support for multiple matches with
 
 ### Server Launch Arguments
 
-The server defaults to port `7777`, map `graybox` (`ContentCatalog.DefaultMapId`), and a two-player match-start minimum.
+The server defaults to port `7777`, map `graybox` (`ContentCatalog.DefaultMapId`), a two-human match-start minimum, an eight-participant target, a five-minute wait, and a two-minute preparation period.
 
 Supported server flags are:
 
@@ -91,14 +91,19 @@ Supported server flags are:
 --map <map-id>
 --run-ticks <positive-integer>
 --minimum-players <count>
+--target-players <count>
+--waiting-seconds <positive-integer>
+--preparation-seconds <positive-integer>
 ```
 
-`--minimum-players` configures the authoritative threshold that advances `WaitingForPlayers` to the fixed five-second countdown. Its inclusive range is `1..ProtocolConstants.MaxSnapshotPlayers` (currently `128`). The value is included in the startup log and the `server.minimum_players` run-activity telemetry tag.
+While `WaitingForPlayers` is active, reaching the human minimum or exhausting the waiting duration starts preparation. The authoritative server immediately fills remaining target slots with bot participants and uses the existing `Countdown` phase for the configured preparation duration. A successful remote `ForceStart` follows the same fill-and-prepare path. Human minimum and target counts are inclusive `1..ProtocolConstants.MaxSnapshotPlayers`, and the minimum cannot exceed the target. Durations must be positive whole seconds and must fit when converted to fixed simulation ticks.
+
+Bots never satisfy the automatic human minimum. The waiting timeout may start a bot-only roster. Disconnects during preparation do not cancel or pause it. Automatic fill reason and bot totals are emitted through structured logs, `royale.server.players.bots`, and startup activity tags.
 
 By default the server runs until Ctrl+C or process shutdown. `--run-ticks` is a deterministic validation option: when present, the server runs exactly that many fixed simulation ticks as fast as possible, then exits.
 
-At startup the server creates `NetworkServerRuntime`, starts `LiteNetLibNetworkTransport` on the selected UDP port, loads the selected map and `MatchStartSettings` into the authoritative in-process session, and logs the selected protocol version, port, map id, minimum players, simulation tick rate, headless status, finite or infinite run mode, and that UDP listen is enabled.
+At startup the server creates `NetworkServerRuntime`, starts `LiteNetLibNetworkTransport` on the selected UDP port, loads the selected map and `MatchStartSettings` into the authoritative in-process session, and logs the selected protocol version, port, map id, lobby counts and durations, simulation tick rate, headless status, finite or infinite run mode, and that UDP listen is enabled.
 
-Each fixed server tick polls the UDP transport, accepts handshakes, queues validated client input for accepted peers, steps the authoritative session once, and sends due recipient snapshots at the 20 Hz snapshot cadence. Disconnects remove the peer mapping and authoritative player.
+Each fixed server tick polls the UDP transport, accepts handshakes, queues validated human and bot input for accepted participants, steps the authoritative session once, and sends due recipient snapshots at the 20 Hz snapshot cadence. Disconnects remove the peer mapping and authoritative human player.
 
-Server argument parsing rejects unknown flags, missing or empty values, invalid ports outside `1..65535`, minimum-player values outside `1..128`, and `--run-ticks` values that are not positive integers. There is no CLI force-start flag; remote authenticated force-start belongs to `OBS-006`.
+Server argument parsing rejects unknown flags, missing or empty values, invalid ports outside `1..65535`, player counts outside `1..128`, a minimum above the target, duration overflow, and `--run-ticks` values that are not positive integers. There is no CLI force-start flag; remote authenticated force-start belongs to `OBS-006`.

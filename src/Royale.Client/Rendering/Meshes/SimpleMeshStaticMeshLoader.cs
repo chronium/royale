@@ -5,48 +5,68 @@ namespace Royale.Client.Rendering.Meshes;
 
 public static class SimpleMeshStaticMeshLoader
 {
-    public static StaticMeshGeometry LoadFromFile(string path)
+    public static StaticMeshAsset LoadAssetFromFile(string assetId, string path)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetId);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        using FileStream stream = File.OpenRead(path);
-        Model model = Model.FromStream(stream, TextureIgnoringResources.Instance).AutoselectRoot(out _).CalculateNormals();
-        var vertices = new List<StaticMeshVertex>();
-        var indices = new List<ushort>();
+        Model model = Model.FromFile(path).AutoselectRoot(out _).CalculateNormals();
+        var primitives = new List<StaticMeshPrimitive>();
+        var textures = new Dictionary<string, StaticMeshTextureData>(StringComparer.Ordinal);
 
         foreach (ModelNode root in model.Roots)
-            AppendNode(root, Matrix4x4.Identity, vertices, indices, path);
+            AppendNode(root, Matrix4x4.Identity, model, primitives, textures, path);
 
-        if (vertices.Count == 0 || indices.Count == 0)
+        if (primitives.Count == 0)
             throw new InvalidDataException($"SimpleMesh model '{path}' did not contain triangle geometry.");
 
-        if (indices.Count % 3 != 0)
-            throw new InvalidDataException($"SimpleMesh model '{path}' produced a non-triangle index count.");
+        return new StaticMeshAsset(assetId, primitives);
+    }
 
-        return new StaticMeshGeometry(vertices.ToArray(), indices.ToArray());
+    public static StaticMeshGeometry LoadFromFile(string path)
+    {
+        StaticMeshAsset asset = LoadAssetFromFile(Path.GetFileNameWithoutExtension(path), path);
+        if (asset.Primitives.Count == 1)
+            return asset.Primitives[0].Geometry;
+
+        var vertices = new List<StaticMeshVertex>();
+        var indices = new List<ushort>();
+        foreach (StaticMeshPrimitive primitive in asset.Primitives)
+        {
+            int baseVertex = vertices.Count;
+            if (baseVertex + primitive.Geometry.Vertices.Count > ushort.MaxValue)
+                throw new InvalidDataException($"SimpleMesh model '{path}' exceeds the 16-bit static mesh vertex limit.");
+
+            vertices.AddRange(primitive.Geometry.Vertices);
+            indices.AddRange(primitive.Geometry.Indices.Select(index => checked((ushort)(baseVertex + index))));
+        }
+
+        return new StaticMeshGeometry(vertices, indices);
     }
 
     private static void AppendNode(
         ModelNode node,
         Matrix4x4 parentTransform,
-        List<StaticMeshVertex> vertices,
-        List<ushort> indices,
+        Model model,
+        List<StaticMeshPrimitive> primitives,
+        Dictionary<string, StaticMeshTextureData> textures,
         string path)
     {
         Matrix4x4 worldTransform = node.Transform * parentTransform;
 
         if (node.Geometry is not null)
-            AppendGeometry(node.Geometry, worldTransform, vertices, indices, path, node.Name);
+            AppendGeometry(node.Geometry, worldTransform, model, primitives, textures, path, node.Name);
 
         foreach (ModelNode child in node.Children)
-            AppendNode(child, worldTransform, vertices, indices, path);
+            AppendNode(child, worldTransform, model, primitives, textures, path);
     }
 
     private static void AppendGeometry(
         Geometry geometry,
         Matrix4x4 worldTransform,
-        List<StaticMeshVertex> vertices,
-        List<ushort> indices,
+        Model model,
+        List<StaticMeshPrimitive> primitives,
+        Dictionary<string, StaticMeshTextureData> textures,
         string path,
         string nodeName)
     {
@@ -57,64 +77,117 @@ public static class SimpleMeshStaticMeshLoader
             throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' has a non-invertible transform.");
 
         Matrix4x4 normalTransform = Matrix4x4.Transpose(inverseWorldTransform);
-        int baseVertex = vertices.Count;
         int sourceVertexCount = geometry.Vertices.Count;
 
-        if (baseVertex + sourceVertexCount > ushort.MaxValue)
-            throw new InvalidDataException($"SimpleMesh model '{path}' exceeds the 16-bit static mesh vertex limit.");
+        if (sourceVertexCount > ushort.MaxValue)
+            throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' exceeds the 16-bit static mesh vertex limit.");
 
-        for (int vertexIndex = 0; vertexIndex < sourceVertexCount; vertexIndex++)
+        for (int groupIndex = 0; groupIndex < geometry.Groups.Length; groupIndex++)
         {
-            Vector3 position = Vector3.Transform(geometry.Vertices.Position[vertexIndex], worldTransform);
-            Vector3 normal = Vector3.TransformNormal(geometry.Vertices.Normal[vertexIndex], normalTransform);
+            TriangleGroup group = geometry.Groups[groupIndex];
+            ValidateGroup(group, geometry, sourceVertexCount, path, nodeName);
 
-            if (!IsFinite(position))
-                throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid vertex position.");
+            bool hasTextureCoordinates =
+                (geometry.Vertices.Descriptor.Attributes & VertexAttributes.Texture1) == VertexAttributes.Texture1;
+            if (group.Material.DiffuseTexture is not null && !hasTextureCoordinates)
+                throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' material '{group.Material.Name}' has a base-color texture but no texture coordinates.");
 
-            if (!IsFinite(normal) || normal.LengthSquared() <= 0.0f)
-                throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid vertex normal.");
-
-            normal = Vector3.Normalize(normal);
-
-            if (!IsFinite(normal))
-                throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid normalized vertex normal.");
-
-            vertices.Add(new StaticMeshVertex(position, normal));
-        }
-
-        foreach (TriangleGroup group in geometry.Groups)
-        {
-            if (group.IndexCount <= 0 || group.IndexCount % 3 != 0)
-                throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' contains a non-triangle group.");
-
-            for (int groupIndex = 0; groupIndex < group.IndexCount; groupIndex++)
+            var vertices = new StaticMeshVertex[sourceVertexCount];
+            for (int vertexIndex = 0; vertexIndex < sourceVertexCount; vertexIndex++)
             {
-                int indexOffset = group.StartIndex + groupIndex;
+                Vector3 position = Vector3.Transform(geometry.Vertices.Position[vertexIndex], worldTransform);
+                Vector3 normal = Vector3.TransformNormal(geometry.Vertices.Normal[vertexIndex], normalTransform);
+                Vector2 textureCoordinate = hasTextureCoordinates
+                    ? geometry.Vertices.Texture1[vertexIndex]
+                    : Vector2.Zero;
 
-                if (indexOffset < 0 || indexOffset >= geometry.Indices.Length)
-                    throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' contains an index outside the index buffer.");
+                if (!IsFinite(position))
+                    throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid vertex position.");
+                if (!IsFinite(normal) || normal.LengthSquared() <= 0.0f)
+                    throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid vertex normal.");
+                if (!IsFinite(textureCoordinate))
+                    throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid texture coordinate.");
 
-                uint sourceIndex = geometry.Indices[indexOffset] + (uint)group.BaseVertex;
+                normal = Vector3.Normalize(normal);
+                if (!IsFinite(normal))
+                    throw new InvalidDataException($"SimpleMesh model '{path}' contains an invalid normalized vertex normal.");
 
-                if (sourceIndex >= sourceVertexCount)
-                    throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' contains an index outside the vertex buffer.");
+                vertices[vertexIndex] = new StaticMeshVertex(position, normal, textureCoordinate);
+            }
 
-                indices.Add(checked((ushort)(baseVertex + (int)sourceIndex)));
+            var indices = new ushort[group.IndexCount];
+            for (int localIndex = 0; localIndex < group.IndexCount; localIndex++)
+            {
+                uint sourceIndex = geometry.Indices[group.StartIndex + localIndex] + (uint)group.BaseVertex;
+                indices[localIndex] = checked((ushort)sourceIndex);
+            }
+
+            string materialName = string.IsNullOrWhiteSpace(group.Material.Name)
+                ? $"material-{groupIndex}"
+                : group.Material.Name;
+            primitives.Add(new StaticMeshPrimitive(
+                $"{nodeName}/{materialName}",
+                new StaticMeshGeometry(vertices, indices),
+                CreateMaterial(group.Material, model, textures, path)));
+        }
+    }
+
+    private static void ValidateGroup(
+        TriangleGroup group,
+        Geometry geometry,
+        int sourceVertexCount,
+        string path,
+        string nodeName)
+    {
+        if (group.IndexCount <= 0 || group.IndexCount % 3 != 0)
+            throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' contains a non-triangle group.");
+        if (group.StartIndex < 0 || group.StartIndex + group.IndexCount > geometry.Indices.Length)
+            throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' contains an index range outside the index buffer.");
+
+        for (int index = 0; index < group.IndexCount; index++)
+        {
+            uint sourceIndex = geometry.Indices[group.StartIndex + index] + (uint)group.BaseVertex;
+            if (sourceIndex >= sourceVertexCount)
+                throw new InvalidDataException($"SimpleMesh model '{path}' node '{nodeName}' contains an index outside the vertex buffer.");
+        }
+    }
+
+    private static StaticMeshMaterial CreateMaterial(
+        Material material,
+        Model model,
+        Dictionary<string, StaticMeshTextureData> textures,
+        string path)
+    {
+        Vector4 baseColor = new(
+            material.DiffuseColor.R,
+            material.DiffuseColor.G,
+            material.DiffuseColor.B,
+            material.DiffuseColor.A);
+        if (!IsFinite(baseColor))
+            throw new InvalidDataException($"SimpleMesh model '{path}' material '{material.Name}' has an invalid base color.");
+
+        StaticMeshTextureData? texture = null;
+        if (material.DiffuseTexture is TextureInfo textureInfo)
+        {
+            if (!model.Images.TryGetValue(textureInfo.Name, out ImageData? image))
+                throw new InvalidDataException($"SimpleMesh model '{path}' material '{material.Name}' references missing image '{textureInfo.Name}'.");
+
+            if (!textures.TryGetValue(textureInfo.Name, out texture))
+            {
+                texture = new StaticMeshTextureData(image.Name, image.MimeType, image.Data.ToArray());
+                textures.Add(textureInfo.Name, texture);
             }
         }
+
+        return new StaticMeshMaterial(baseColor, texture);
     }
+
+    private static bool IsFinite(Vector2 vector) =>
+        float.IsFinite(vector.X) && float.IsFinite(vector.Y);
 
     private static bool IsFinite(Vector3 vector) =>
-        float.IsFinite(vector.X) &&
-        float.IsFinite(vector.Y) &&
-        float.IsFinite(vector.Z);
+        float.IsFinite(vector.X) && float.IsFinite(vector.Y) && float.IsFinite(vector.Z);
 
-    private sealed class TextureIgnoringResources : IExternalResources
-    {
-        public static TextureIgnoringResources Instance { get; } = new();
-
-        public bool CanLoadResources => true;
-
-        public Stream OpenStream(string filename) => new MemoryStream();
-    }
+    private static bool IsFinite(Vector4 vector) =>
+        float.IsFinite(vector.X) && float.IsFinite(vector.Y) && float.IsFinite(vector.Z) && float.IsFinite(vector.W);
 }

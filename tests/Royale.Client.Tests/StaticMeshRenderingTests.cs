@@ -92,6 +92,38 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
+    public void SimpleMeshAssetLoaderPreservesCrateMaterialTextureAndUvs()
+    {
+        StaticMeshAsset asset = SimpleMeshStaticMeshLoader.LoadAssetFromFile(
+            StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId,
+            GetKenneyCrateAssetPath());
+
+        StaticMeshPrimitive primitive = Assert.Single(asset.Primitives);
+        Assert.Equal(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId, asset.Id);
+        Assert.Equal(Vector4.One, primitive.Material.BaseColor);
+        StaticMeshTextureData texture = Assert.IsType<StaticMeshTextureData>(primitive.Material.BaseColorTexture);
+        Assert.Equal("colormap", texture.DebugName);
+        Assert.Equal("image/png", texture.MimeType);
+        Assert.NotEmpty(texture.Data);
+        Assert.Contains(primitive.Geometry.Vertices, vertex => vertex.TextureCoordinate != Vector2.Zero);
+        Assert.All(primitive.Geometry.Vertices, vertex => AssertFinite(vertex.TextureCoordinate));
+    }
+
+    [Fact]
+    public void ManifestAssetCacheLoadsByStableIdAndReusesAsset()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        StaticMeshAssetCache cache = StaticMeshAssetCache.Load(repositoryRoot);
+
+        StaticMeshAsset first = cache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
+        StaticMeshAsset second = cache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
+
+        Assert.Same(first, second);
+        Assert.Equal(1, cache.LoadedAssetCount);
+        Assert.Throws<KeyNotFoundException>(() => cache.GetRequired("missing-model"));
+    }
+
+    [Fact]
     public void UnitBoxMeshFacesHaveStableOutwardNormals()
     {
         StaticMeshGeometry mesh = UnitBoxMesh.Create();
@@ -113,11 +145,12 @@ public sealed class StaticMeshRenderingTests
     }
 
     [Fact]
-    public void StaticMeshVertexLayoutMatchesPositionAndNormal()
+    public void StaticMeshVertexLayoutMatchesPositionNormalAndTextureCoordinate()
     {
-        Assert.Equal(Marshal.SizeOf<Vector3>() * 2, StaticMeshVertex.Stride);
+        Assert.Equal(Marshal.SizeOf<Vector3>() * 2 + Marshal.SizeOf<Vector2>(), StaticMeshVertex.Stride);
         Assert.Equal(0, StaticMeshVertex.PositionOffset);
         Assert.Equal(Marshal.SizeOf<Vector3>(), StaticMeshVertex.NormalOffset);
+        Assert.Equal(Marshal.SizeOf<Vector3>() * 2, StaticMeshVertex.TextureCoordinateOffset);
         Assert.Equal(StaticMeshVertex.Stride, Marshal.SizeOf<StaticMeshVertex>());
     }
 
@@ -155,10 +188,10 @@ public sealed class StaticMeshRenderingTests
     public void MapStaticMeshSceneKeepsMapStaticBoxesOnUnitBoxPath()
     {
         GameMap map = MapCatalog.LoadDefault();
-        StaticMeshScene scene = MapStaticMeshScene.CreateScene(map, UnitBoxMesh.Create());
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(map, CreateSinglePrimitiveAsset(UnitBoxMesh.Create()));
 
         Assert.Equal(map.StaticBoxes.Count, scene.UnitBoxInstances.Count);
-        Assert.Single(scene.SmokeMeshBatches);
+        Assert.Single(scene.ModelAssetBatches);
 
         IReadOnlyList<StaticMeshRenderBatch> renderBatches = scene.CreateRenderBatches();
         Assert.Equal(2, renderBatches.Count);
@@ -169,13 +202,16 @@ public sealed class StaticMeshRenderingTests
     [Fact]
     public void MapStaticMeshSceneIncludesCrateSmokeMeshSeparateFromMapStaticBoxes()
     {
-        StaticMeshGeometry crateGeometry = SimpleMeshStaticMeshLoader.LoadFromFile(GetKenneyCrateAssetPath());
-        StaticMeshScene scene = MapStaticMeshScene.CreateScene(MapCatalog.LoadDefault(), crateGeometry);
+        StaticMeshAsset crateAsset = SimpleMeshStaticMeshLoader.LoadAssetFromFile(
+            StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId,
+            GetKenneyCrateAssetPath());
+        StaticMeshScene scene = MapStaticMeshScene.CreateScene(MapCatalog.LoadDefault(), crateAsset);
 
-        StaticMeshRenderBatch smokeBatch = Assert.Single(scene.SmokeMeshBatches);
+        StaticMeshRenderBatch smokeBatch = Assert.Single(scene.ModelAssetBatches);
         StaticMeshInstance smokeInstance = Assert.Single(smokeBatch.Instances);
 
-        Assert.Same(crateGeometry, smokeBatch.Geometry);
+        Assert.Same(crateAsset.Primitives[0].Geometry, smokeBatch.Geometry);
+        Assert.Same(crateAsset.Primitives[0].Material, smokeBatch.Material);
         Assert.Equal("crate-smoke", smokeInstance.DebugName);
         Assert.DoesNotContain(scene.UnitBoxInstances, instance => instance.DebugName == smokeInstance.DebugName);
     }
@@ -243,6 +279,11 @@ public sealed class StaticMeshRenderingTests
     private static string GetKenneyCrateAssetPath() =>
         Path.Combine(FindRepositoryRoot(), StaticMeshAssetPaths.KenneyPrototypeKitCrateRelativePath);
 
+    private static StaticMeshAsset CreateSinglePrimitiveAsset(StaticMeshGeometry geometry) =>
+        new(
+            "test-asset",
+            [new StaticMeshPrimitive("test-primitive", geometry, StaticMeshMaterial.GrayBox)]);
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
@@ -276,6 +317,12 @@ public sealed class StaticMeshRenderingTests
         Assert.True(float.IsFinite(matrix.M42));
         Assert.True(float.IsFinite(matrix.M43));
         Assert.True(float.IsFinite(matrix.M44));
+    }
+
+    private static void AssertFinite(Vector2 vector)
+    {
+        Assert.True(float.IsFinite(vector.X));
+        Assert.True(float.IsFinite(vector.Y));
     }
 
     private static void AssertFinite(Vector3 vector)

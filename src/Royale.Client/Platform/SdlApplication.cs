@@ -227,9 +227,9 @@ public sealed unsafe class SdlApplication : IDisposable
         else
             networkClient = NetworkClientRuntime.Connect(options.ConnectHost!, options.Port);
 
-        StaticMeshGeometry crateSmokeGeometry = SimpleMeshStaticMeshLoader.LoadFromFile(
-            StaticMeshAssetPaths.GetKenneyPrototypeKitCratePath(AppContext.BaseDirectory));
-        StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, crateSmokeGeometry);
+        StaticMeshAssetCache assetCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+        StaticMeshAsset crateAsset = assetCache.GetRequired(StaticMeshAssetPaths.KenneyPrototypeKitCrateAssetId);
+        StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, crateAsset);
         logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes.");
 
         logger.ZLogInformation($"Creating SDL window.");

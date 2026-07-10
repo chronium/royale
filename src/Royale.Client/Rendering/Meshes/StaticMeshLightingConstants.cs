@@ -32,4 +32,7 @@ public readonly struct StaticMeshLightingConstants
 
     public static StaticMeshLightingConstants CreateDefault() =>
         new(DefaultAlbedo, DefaultLightDirection, DefaultAmbientIntensity, DefaultDiffuseIntensity);
+
+    public static StaticMeshLightingConstants CreateForAlbedo(Vector3 albedo) =>
+        new(albedo, DefaultLightDirection, DefaultAmbientIntensity, DefaultDiffuseIntensity);
 }

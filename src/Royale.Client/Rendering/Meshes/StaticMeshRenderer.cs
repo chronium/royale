@@ -14,8 +14,10 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
     private readonly SDL_GPUShader* vertexShader;
     private readonly SDL_GPUShader* fragmentShader;
     private readonly SDL_GPUGraphicsPipeline* pipeline;
+    private readonly SDL_GPUSampler* sampler;
+    private readonly UploadedStaticMeshTexture whiteTexture;
+    private readonly Dictionary<StaticMeshTextureData, UploadedStaticMeshTexture> materialTextures = [];
     private readonly UploadedStaticMesh[] uploadedMeshes;
-    private readonly StaticMeshLightingConstants lightingConstants = StaticMeshLightingConstants.CreateDefault();
     private SDL_GPUTexture* depthTexture;
     private uint depthTextureWidth;
     private uint depthTextureHeight;
@@ -37,9 +39,11 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
     {
         this.device = device;
 
-        vertexShader = LoadShader("basic.vert", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_VERTEX, uniformBufferCount: 1);
-        fragmentShader = LoadShader("basic.frag", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_FRAGMENT, uniformBufferCount: 1);
+        vertexShader = LoadShader("basic.vert", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_VERTEX, uniformBufferCount: 1, samplerCount: 0);
+        fragmentShader = LoadShader("basic.frag", shaderFormat, SDL_GPUShaderStage.SDL_GPU_SHADERSTAGE_FRAGMENT, uniformBufferCount: 1, samplerCount: 1);
         pipeline = CreatePipeline(swapchainFormat);
+        sampler = CreateSampler();
+        whiteTexture = StaticMeshTextureUploader.UploadWhite(device);
         uploadedMeshes = renderBatches.Select(CreateUploadedMesh).ToArray();
 
         foreach (UploadedStaticMesh mesh in uploadedMeshes)
@@ -54,11 +58,19 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         RenderCamera camera)
     {
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
-        fixed (StaticMeshLightingConstants* lightingPointer = &lightingConstants)
-            SDL_PushGPUFragmentUniformData(commandBuffer, 0, (IntPtr)lightingPointer, (uint)sizeof(StaticMeshLightingConstants));
 
         foreach (UploadedStaticMesh mesh in uploadedMeshes)
         {
+            StaticMeshLightingConstants lightingConstants = StaticMeshLightingConstants.CreateForAlbedo(mesh.Albedo);
+            SDL_PushGPUFragmentUniformData(commandBuffer, 0, (IntPtr)(&lightingConstants), (uint)sizeof(StaticMeshLightingConstants));
+
+            var textureBinding = new SDL_GPUTextureSamplerBinding
+            {
+                texture = mesh.Texture.Texture,
+                sampler = sampler,
+            };
+            SDL_BindGPUFragmentSamplers(renderPass, 0, &textureBinding, 1);
+
             var vertexBinding = new SDL_GPUBufferBinding
             {
                 buffer = mesh.VertexBuffer,
@@ -108,6 +120,13 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         foreach (UploadedStaticMesh mesh in uploadedMeshes)
             mesh.Dispose(device);
 
+        foreach (UploadedStaticMeshTexture texture in materialTextures.Values)
+            texture.Dispose();
+        whiteTexture.Dispose();
+
+        if (sampler is not null)
+            SDL_ReleaseGPUSampler(device, sampler);
+
         if (fragmentShader is not null)
             SDL_ReleaseGPUShader(device, fragmentShader);
 
@@ -115,7 +134,12 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
             SDL_ReleaseGPUShader(device, vertexShader);
     }
 
-    private SDL_GPUShader* LoadShader(string shaderName, SDL_GPUShaderFormat shaderFormat, SDL_GPUShaderStage shaderStage, uint uniformBufferCount)
+    private SDL_GPUShader* LoadShader(
+        string shaderName,
+        SDL_GPUShaderFormat shaderFormat,
+        SDL_GPUShaderStage shaderStage,
+        uint uniformBufferCount,
+        uint samplerCount)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "shaders", ShaderAssetSelector.GetShaderFileName(shaderName, shaderFormat));
 
@@ -137,6 +161,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
                 format = shaderFormat,
                 stage = shaderStage,
                 num_uniform_buffers = uniformBufferCount,
+                num_samplers = samplerCount,
             };
 
             SDL_GPUShader* shader = SDL_CreateGPUShader(device, &createInfo);
@@ -157,7 +182,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
             input_rate = SDL_GPUVertexInputRate.SDL_GPU_VERTEXINPUTRATE_VERTEX,
         };
 
-        SDL_GPUVertexAttribute* vertexAttributes = stackalloc SDL_GPUVertexAttribute[2];
+        SDL_GPUVertexAttribute* vertexAttributes = stackalloc SDL_GPUVertexAttribute[3];
         vertexAttributes[0] = new SDL_GPUVertexAttribute
         {
             location = 0,
@@ -171,6 +196,13 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
             buffer_slot = 0,
             format = SDL_GPUVertexElementFormat.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
             offset = (uint)StaticMeshVertex.NormalOffset,
+        };
+        vertexAttributes[2] = new SDL_GPUVertexAttribute
+        {
+            location = 2,
+            buffer_slot = 0,
+            format = SDL_GPUVertexElementFormat.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+            offset = (uint)StaticMeshVertex.TextureCoordinateOffset,
         };
 
         var colorTargetDescription = new SDL_GPUColorTargetDescription
@@ -187,7 +219,7 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
                 vertex_buffer_descriptions = &vertexBufferDescription,
                 num_vertex_buffers = 1,
                 vertex_attributes = vertexAttributes,
-                num_vertex_attributes = 2,
+                num_vertex_attributes = 3,
             },
             primitive_type = SDL_GPUPrimitiveType.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
             rasterizer_state = new SDL_GPURasterizerState
@@ -239,6 +271,24 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         return buffer;
     }
 
+    private SDL_GPUSampler* CreateSampler()
+    {
+        var createInfo = new SDL_GPUSamplerCreateInfo
+        {
+            min_filter = SDL_GPUFilter.SDL_GPU_FILTER_NEAREST,
+            mag_filter = SDL_GPUFilter.SDL_GPU_FILTER_NEAREST,
+            mipmap_mode = SDL_GPUSamplerMipmapMode.SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+            address_mode_u = SDL_GPUSamplerAddressMode.SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+            address_mode_v = SDL_GPUSamplerAddressMode.SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+            address_mode_w = SDL_GPUSamplerAddressMode.SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+        };
+
+        SDL_GPUSampler* created = SDL_CreateGPUSampler(device, &createInfo);
+        if (created is null)
+            throw new InvalidOperationException($"SDL GPU static mesh sampler creation failed: {SDL_GetError()}");
+        return created;
+    }
+
     private UploadedStaticMesh CreateUploadedMesh(StaticMeshRenderBatch batch)
     {
         if (batch.Geometry.Vertices.Count == 0)
@@ -247,12 +297,28 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         if (batch.Geometry.Indices.Count == 0)
             throw new InvalidOperationException($"Static mesh batch '{batch.DebugName}' has no indices.");
 
+        UploadedStaticMeshTexture texture = batch.Material.BaseColorTexture is StaticMeshTextureData textureData
+            ? GetOrCreateTexture(textureData)
+            : whiteTexture;
+
         return new UploadedStaticMesh(
             batch.DebugName,
             batch.Geometry,
             batch.Instances,
+            new Vector3(batch.Material.BaseColor.X, batch.Material.BaseColor.Y, batch.Material.BaseColor.Z),
+            texture,
             CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_VERTEX, (uint)(batch.Geometry.Vertices.Count * StaticMeshVertex.Stride)),
             CreateBuffer(SDL_GPUBufferUsageFlags.SDL_GPU_BUFFERUSAGE_INDEX, (uint)(batch.Geometry.Indices.Count * sizeof(ushort))));
+    }
+
+    private UploadedStaticMeshTexture GetOrCreateTexture(StaticMeshTextureData source)
+    {
+        if (materialTextures.TryGetValue(source, out UploadedStaticMeshTexture? texture))
+            return texture;
+
+        texture = StaticMeshTextureUploader.Upload(device, source);
+        materialTextures.Add(source, texture);
+        return texture;
     }
 
     private void UploadGeometry(UploadedStaticMesh mesh)
@@ -373,12 +439,16 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
             string debugName,
             StaticMeshGeometry geometry,
             IReadOnlyList<StaticMeshInstance> instances,
+            Vector3 albedo,
+            UploadedStaticMeshTexture texture,
             SDL_GPUBuffer* vertexBuffer,
             SDL_GPUBuffer* indexBuffer)
         {
             DebugName = debugName;
             Geometry = geometry;
             Instances = instances;
+            Albedo = albedo;
+            Texture = texture;
             VertexBuffer = vertexBuffer;
             IndexBuffer = indexBuffer;
             IndexCount = (uint)geometry.Indices.Count;
@@ -389,6 +459,10 @@ internal sealed unsafe class StaticMeshRenderer : IDisposable
         public StaticMeshGeometry Geometry { get; }
 
         public IReadOnlyList<StaticMeshInstance> Instances { get; }
+
+        public Vector3 Albedo { get; }
+
+        public UploadedStaticMeshTexture Texture { get; }
 
         public SDL_GPUBuffer* VertexBuffer { get; private set; }
 

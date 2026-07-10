@@ -6,26 +6,26 @@ public sealed class StaticMeshScene
 
     public StaticMeshScene(
         IReadOnlyList<StaticMeshInstance> unitBoxInstances,
-        IReadOnlyList<StaticMeshRenderBatch> smokeMeshBatches)
+        IReadOnlyList<StaticMeshRenderBatch> modelAssetBatches)
     {
         ArgumentNullException.ThrowIfNull(unitBoxInstances);
-        ArgumentNullException.ThrowIfNull(smokeMeshBatches);
+        ArgumentNullException.ThrowIfNull(modelAssetBatches);
 
         UnitBoxInstances = unitBoxInstances;
-        SmokeMeshBatches = smokeMeshBatches;
+        ModelAssetBatches = modelAssetBatches;
     }
 
     public IReadOnlyList<StaticMeshInstance> UnitBoxInstances { get; }
 
-    public IReadOnlyList<StaticMeshRenderBatch> SmokeMeshBatches { get; }
+    public IReadOnlyList<StaticMeshRenderBatch> ModelAssetBatches { get; }
 
     public IReadOnlyList<StaticMeshRenderBatch> CreateRenderBatches()
     {
-        StaticMeshRenderBatch[] batches = new StaticMeshRenderBatch[SmokeMeshBatches.Count + 1];
+        StaticMeshRenderBatch[] batches = new StaticMeshRenderBatch[ModelAssetBatches.Count + 1];
         batches[0] = new StaticMeshRenderBatch(UnitBoxBatchDebugName, UnitBoxMesh.Create(), UnitBoxInstances);
 
-        for (int index = 0; index < SmokeMeshBatches.Count; index++)
-            batches[index + 1] = SmokeMeshBatches[index];
+        for (int index = 0; index < ModelAssetBatches.Count; index++)
+            batches[index + 1] = ModelAssetBatches[index];
 
         return batches;
     }

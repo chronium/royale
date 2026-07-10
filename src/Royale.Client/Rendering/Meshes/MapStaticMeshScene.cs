@@ -5,7 +5,6 @@ namespace Royale.Client.Rendering.Meshes;
 
 public static class MapStaticMeshScene
 {
-    private const string CrateSmokeBatchDebugName = "kenney-prototype-kit/crate";
     private const string CrateSmokeInstanceDebugName = "crate-smoke";
 
     public static IReadOnlyList<StaticMeshInstance> CreateInstances(GameMap map) =>
@@ -13,19 +12,23 @@ public static class MapStaticMeshScene
             .Select(staticBox => new StaticMeshInstance(CreateTransform(staticBox), staticBox.Id))
             .ToArray();
 
-    public static StaticMeshScene CreateScene(GameMap map, StaticMeshGeometry crateSmokeGeometry)
+    public static StaticMeshScene CreateScene(GameMap map, StaticMeshAsset crateAsset)
     {
         ArgumentNullException.ThrowIfNull(map);
-        ArgumentNullException.ThrowIfNull(crateSmokeGeometry);
+        ArgumentNullException.ThrowIfNull(crateAsset);
+
+        StaticMeshInstance previewInstance = CreateCrateSmokeInstance();
+        StaticMeshRenderBatch[] modelBatches = crateAsset.Primitives
+            .Select(primitive => new StaticMeshRenderBatch(
+                $"{crateAsset.Id}/{primitive.DebugName}",
+                primitive.Geometry,
+                [previewInstance],
+                primitive.Material))
+            .ToArray();
 
         return new StaticMeshScene(
             CreateInstances(map),
-            [
-                new StaticMeshRenderBatch(
-                    CrateSmokeBatchDebugName,
-                    crateSmokeGeometry,
-                    [CreateCrateSmokeInstance()]),
-            ]);
+            modelBatches);
     }
 
     public static Matrix4x4 CreateTransform(StaticBoxDefinition staticBox) =>
@@ -35,6 +38,6 @@ public static class MapStaticMeshScene
         new(
             Matrix4x4.CreateScale(1.25f) *
             Matrix4x4.CreateFromYawPitchRoll(MathF.PI / 7.0f, 0.0f, 0.0f) *
-            Matrix4x4.CreateTranslation(1.75f, 0.0f, -1.35f),
+            Matrix4x4.CreateTranslation(6.0f, 0.0f, 5.0f),
             CrateSmokeInstanceDebugName);
 }

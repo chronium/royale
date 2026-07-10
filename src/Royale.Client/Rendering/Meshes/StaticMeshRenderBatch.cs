@@ -2,7 +2,11 @@ namespace Royale.Client.Rendering.Meshes;
 
 public sealed class StaticMeshRenderBatch
 {
-    public StaticMeshRenderBatch(string debugName, StaticMeshGeometry geometry, IReadOnlyList<StaticMeshInstance> instances)
+    public StaticMeshRenderBatch(
+        string debugName,
+        StaticMeshGeometry geometry,
+        IReadOnlyList<StaticMeshInstance> instances,
+        StaticMeshMaterial? material = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(debugName);
         ArgumentNullException.ThrowIfNull(geometry);
@@ -11,6 +15,7 @@ public sealed class StaticMeshRenderBatch
         DebugName = debugName;
         Geometry = geometry;
         Instances = instances;
+        Material = material ?? StaticMeshMaterial.GrayBox;
     }
 
     public string DebugName { get; }
@@ -18,4 +23,6 @@ public sealed class StaticMeshRenderBatch
     public StaticMeshGeometry Geometry { get; }
 
     public IReadOnlyList<StaticMeshInstance> Instances { get; }
+
+    public StaticMeshMaterial Material { get; }
 }

@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T08:36:11.0381480Z
+modifiedAt: 2026-07-10T09:01:06.9134600Z
 ---
 
 ## Content and Map Data
@@ -143,6 +143,14 @@ World text remains client/rendering presentation state. It is projected on the C
 `RENDER-010` adds a render-only SimpleMesh GLB smoke asset. The client project references the pinned vendored SimpleMesh `net8.0` project and copies committed mesh assets from `assets/meshes/**` into runtime output under the same relative path. `SimpleMeshStaticMeshLoader` converts supported triangle geometry from `assets/meshes/kenney-prototype-kit/crate.glb` into `StaticMeshGeometry` by applying node transforms to positions and normals and rejecting empty, non-triangle, invalid, or non-16-bit-compatible geometry.
 
 The crate is drawn by the same basic static mesh shader, depth target, and flat lighting used for gray-box solids. Map `staticBoxes` still render through the built-in centered unit-box mesh path; the crate is a separate client/rendering smoke mesh batch. This does not add map schema fields, collision generation, SimpleMesh convex hull use, textures, materials, animation, skinning, mesh library management, protocol behavior, or server dependencies.
+
+### Manifest-Addressed Model Rendering
+
+`RENDER-011` replaces direct crate-path loading with `StaticMeshAssetCache`, which reads the generated client `assets/model-assets.json` catalog and caches loaded assets by stable ID. `SimpleMeshStaticMeshLoader` uses `Model.FromFile` so relative and embedded GLB image resources populate `Model.Images`; node transforms are applied to positions and inverse-transpose normals, while UVs, triangle-group material boundaries, linear base-color factors, and referenced image bytes are preserved as small project-owned render primitives.
+
+The static mesh vertex layout now carries position, normal, and one UV set. The existing SDL GPU mesh pipeline binds one base-color texture and sampler per material batch, multiplies the sampled color by the material factor and existing directional lighting, and uses a shared white fallback for untextured gray-box geometry. PNG/JPEG bytes are decoded through SDL3 `SDL_LoadSurface_IO`, converted to RGBA32, uploaded as sRGB SDL GPU textures, cached for shared material image data, and disposed with the renderer. The Kenney nearest-filtered atlas uses repeat addressing. This is intentionally limited to opaque base-color materials; it does not add a material graph, PBR pipeline, animation, skinning, or server dependency.
+
+The temporary crate preview remains a client-only instance until `GAME-011` replaces it with map-authored model instances. Its unobstructed validation placement is `(6, 0, 5)`. The deterministic validation capture uses freecam position `(8, 2.2, 8)` looking at `(6, 0.5, 5)` and exits after five frames.
 
 ## Shader Build Pipeline
 

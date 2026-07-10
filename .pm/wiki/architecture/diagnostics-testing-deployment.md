@@ -1,7 +1,7 @@
 ---
 title: Diagnostics, Testing, and Deployment
 createdAt: 2026-07-05T16:11:12.4857450Z
-modifiedAt: 2026-07-05T16:11:12.4857450Z
+modifiedAt: 2026-07-10T02:12:51.9617070Z
 ---
 
 ## Threading Model
@@ -61,21 +61,13 @@ The architecture should expose important runtime information through structured 
 
 ## Client Diagnostics
 
-* FPS
-* Render time
-* Fixed ticks per frame
-* Local client tick
-* Latest server tick
-* Ping
-* Jitter
-* Packet loss
-* Snapshot buffer size
-* Prediction correction distance
-* Unacknowledged input count
-* Player position and velocity
-* Grounded state
-* Weapon state
-* One-shot screenshot capture for render validation
+The implemented SDL client telemetry surface is a resizable ImGui `Telemetry` window with collapsible Frame, Simulation, Player, Physics, Server, Network, and Connection sections. It is initially visible and `F3` toggles the complete diagnostic surface, including the separate Training Dummy window, without disabling ImGui frame/render integration.
+
+The surface exposes frame time/FPS, fixed/client/server ticks, prediction queues and corrections, authoritative or offline player state, collision-world state, authoritative match/safe-zone state, transport latency/RTT/jitter/counters/loss/MTU, snapshot/input/error counters, remote interpolation diagnostics, and handshake/session/error state.
+
+Offline mode has no Server or Network section. In connect mode, unavailable connection, acceptance, snapshot, latency, and transport-statistics sources are rendered as explicit waiting/unavailable states. Server gameplay values are read only from the latest accepted authoritative snapshot; client UI never reaches into server simulation state. LiteNetLib types remain confined to `Royale.Network`, and the client consumes only game-owned diagnostics records.
+
+Training Dummy damage history/reset remains a separate specialized ImGui window. Offline kill/respawn and weapon-feedback controls are folded into the Player section. Historical charts, Grafana queries, runtime impairment controls, renderer timing, camera state, content counts, and screenshot diagnostics are deferred to their dedicated tasks and observability tooling.
 
 ## Server Diagnostics
 

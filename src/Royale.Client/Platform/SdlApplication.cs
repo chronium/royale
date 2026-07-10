@@ -46,6 +46,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private readonly RenderViewModeController renderViewMode = new();
     private readonly LocalPredictionSmoother networkPredictionSmoother = new();
     private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
+    private readonly TelemetryVisibilityController telemetryVisibility = new();
     private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
     private bool initialized;
@@ -92,6 +93,8 @@ public sealed unsafe class SdlApplication : IDisposable
 
     public LocalPlayerController? LocalPlayer => localPlayer;
 
+    public bool TelemetryVisible => telemetryVisibility.Visible;
+
     public void Run()
     {
         Initialize();
@@ -127,15 +130,14 @@ public sealed unsafe class SdlApplication : IDisposable
             for (int tick = 0; tick < lastFixedTicksThisFrame; tick++)
                 FixedUpdate(new FixedTickTime(FixedDeltaSeconds, firstFixedTick + (ulong)tick));
 
-            imguiBackend?.BuildDebugOverlay(new ImGuiDebugOverlayState(
-                frameTime.DeltaSeconds,
-                lastFixedTicksThisFrame,
-                fixedTime.TotalFixedTicks,
-                Window?.RelativeMouseMode.Enabled == true,
-                renderViewMode.Mode),
-                localPlayer,
-                DebugKillLocalPlayer,
-                DebugRespawnLocalPlayer);
+            if (imguiBackend is not null && telemetryVisibility.Visible)
+            {
+                imguiBackend.BuildDebugOverlay(
+                    CreateTelemetryState(frameTime),
+                    localPlayer,
+                    DebugKillLocalPlayer,
+                    DebugRespawnLocalPlayer);
+            }
             Render(frameTime);
             UpdateWindowTitle(frameTime);
 
@@ -343,6 +345,10 @@ public sealed unsafe class SdlApplication : IDisposable
                 cameraMode.Toggle();
                 break;
 
+            case SDL_Keycode.SDLK_F3:
+                telemetryVisibility.Toggle();
+                break;
+
             case SDL_Keycode.SDLK_F5:
             case SDL_Keycode.SDLK_F6:
             case SDL_Keycode.SDLK_F7:
@@ -363,11 +369,47 @@ public sealed unsafe class SdlApplication : IDisposable
     public static bool IsGlobalControl(SDL_Keycode key) =>
         key is SDL_Keycode.SDLK_F1
             or SDL_Keycode.SDLK_F2
+            or SDL_Keycode.SDLK_F3
             or SDL_Keycode.SDLK_F5
             or SDL_Keycode.SDLK_F6
             or SDL_Keycode.SDLK_F7
             or SDL_Keycode.SDLK_F8
             or SDL_Keycode.SDLK_ESCAPE;
+
+    private ImGuiDebugOverlayState CreateTelemetryState(FrameTime frameTime)
+    {
+        bool mouseCaptured = Window?.RelativeMouseMode.Enabled == true;
+
+        if (networkClient is not null)
+        {
+            return ImGuiDebugOverlayState.CreateNetworked(
+                frameTime.DeltaSeconds,
+                lastFixedTicksThisFrame,
+                fixedTime.TotalFixedTicks,
+                mouseCaptured,
+                renderViewMode.Mode,
+                networkClient);
+        }
+
+        if (localPlayer is not null)
+        {
+            return ImGuiDebugOverlayState.CreateOffline(
+                frameTime.DeltaSeconds,
+                lastFixedTicksThisFrame,
+                fixedTime.TotalFixedTicks,
+                mouseCaptured,
+                renderViewMode.Mode,
+                localPlayer,
+                loadedMap?.StaticBoxes.Count ?? 0);
+        }
+
+        return new ImGuiDebugOverlayState(
+            frameTime.DeltaSeconds,
+            lastFixedTicksThisFrame,
+            fixedTime.TotalFixedTicks,
+            mouseCaptured,
+            renderViewMode.Mode);
+    }
 
     private void UpdateCamera(FrameTime frameTime)
     {

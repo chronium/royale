@@ -59,6 +59,16 @@ public sealed class LiteNetLibNetworkTransportLoopbackTests
         Assert.Equal(1, receivedFromServer.Channel);
         Assert.Equal(serverPacket, receivedFromServer.Payload);
 
+        Assert.True(client.TryGetPeerStatistics(clientPeer, out NetworkPeerStatistics clientStatistics));
+        Assert.True(server.TryGetPeerStatistics(serverPeer, out NetworkPeerStatistics serverStatistics));
+        Assert.True(clientStatistics.MaximumTransmissionUnitBytes > 0);
+        Assert.True(clientStatistics.PacketsSent > 0);
+        Assert.True(clientStatistics.PacketsReceived > 0);
+        Assert.True(clientStatistics.BytesSent > 0);
+        Assert.True(clientStatistics.BytesReceived > 0);
+        Assert.True(serverStatistics.PacketsSent > 0);
+        Assert.True(serverStatistics.PacketsReceived > 0);
+
         client.Disconnect(clientPeer);
         await PumpUntilAsync(
             server,
@@ -68,6 +78,12 @@ public sealed class LiteNetLibNetworkTransportLoopbackTests
             () => serverEvents.DisconnectedPeers.Count == 1 || clientEvents.DisconnectedPeers.Count == 1);
 
         Assert.True(serverEvents.DisconnectedPeers.Count == 1 || clientEvents.DisconnectedPeers.Count == 1);
+
+        if (serverEvents.DisconnectedPeers.Contains(serverPeer))
+            Assert.False(server.TryGetPeerStatistics(serverPeer, out _));
+
+        if (clientEvents.DisconnectedPeers.Contains(clientPeer))
+            Assert.False(client.TryGetPeerStatistics(clientPeer, out _));
     }
 
     private static int ReserveUdpPort()

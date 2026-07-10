@@ -51,6 +51,34 @@ public sealed class ImGuiDebugOverlayStateTests
     }
 
     [Fact]
+    public void OfflineOverlayUsesLivePlayerAndHidesNetworkSections()
+    {
+        using LocalPlayerController player = LocalPlayerController.Create(CreateFloorMap());
+
+        ImGuiDebugOverlayState state = ImGuiDebugOverlayState.CreateOffline(
+            deltaSeconds: 1.0 / 60.0,
+            fixedTicksThisFrame: 1,
+            totalFixedTicks: 12,
+            mouseCaptured: false,
+            renderViewMode: RenderViewMode.WorldAndDebug,
+            player,
+            staticColliderCount: 1);
+
+        Assert.Null(state.Server);
+        Assert.Null(state.Network);
+        Assert.Equal("offline", state.Connection!.Mode);
+        Assert.True(state.Player!.Available);
+        Assert.Equal("offline simulation", state.Player.Values!.Source);
+        Assert.Equal(player.FeetPosition, state.Player.Values.Position);
+        Assert.Equal("Weapon: rifle", state.Player.Values.WeaponText);
+        Assert.Equal("Ammunition: not tracked offline (magazine capacity 30)", state.Player.Values.AmmunitionText);
+        Assert.True(state.Physics!.CollisionWorldAvailable);
+        Assert.Equal(1, state.Physics.StaticColliderCount);
+        Assert.Null(state.Simulation.ServerTick);
+        Assert.Null(state.Simulation.PendingInputCount);
+    }
+
+    [Fact]
     public void FormatsTrainingDummyDiagnosticsText()
     {
         var dummy = new TrainingDummy(new Vector3(0.0f, 0.0f, -10.0f));

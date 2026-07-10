@@ -2,7 +2,7 @@ using System.Net.Sockets;
 
 namespace Royale.Network;
 
-public sealed class SimulatedNetworkTransport : INetworkTransport
+public sealed class SimulatedNetworkTransport : INetworkTransport, INetworkTransportDiagnostics
 {
     private readonly INetworkTransport _inner;
     private readonly TimeProvider _timeProvider;
@@ -85,6 +85,17 @@ public sealed class SimulatedNetworkTransport : INetworkTransport
         _inner.Poll(new InterceptingEventHandler(this, handler));
         FlushDueSends();
         FlushDueReceives(handler);
+    }
+
+    public bool TryGetPeerStatistics(NetworkPeerId peerId, out NetworkPeerStatistics statistics)
+    {
+        ThrowIfDisposed();
+
+        if (_inner is INetworkTransportDiagnostics diagnostics)
+            return diagnostics.TryGetPeerStatistics(peerId, out statistics);
+
+        statistics = default;
+        return false;
     }
 
     public void Dispose()

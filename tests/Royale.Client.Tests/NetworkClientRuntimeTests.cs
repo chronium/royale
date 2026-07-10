@@ -1,8 +1,11 @@
 using System.Numerics;
+using System.Net.Sockets;
 using Royale.Client.Networking;
 using Royale.Client.Presentation;
 using Royale.Client.Rendering.Cameras;
 using Royale.Client.Rendering.Debug;
+using Royale.Client.Rendering;
+using Royale.Client.UI;
 using Royale.Content;
 using Royale.Network;
 using Royale.Protocol;
@@ -68,6 +71,7 @@ public sealed class NetworkClientRuntimeTests
         Assert.True(command.Buttons.HasFlag(InputButtons.Fire));
         Assert.Equal(0.025f, command.YawRadians, precision: 4);
         Assert.Equal(0.05f, command.PitchRadians, precision: 4);
+        Assert.Equal(1UL, runtime.Diagnostics.SuccessfulInputSendCount);
     }
 
     [Fact]
@@ -92,6 +96,149 @@ public sealed class NetworkClientRuntimeTests
         Assert.Equal(accept.PlayerId, localPlayer.PlayerId);
         Assert.Equal(1, runtime.RemoteSnapshotBufferCount);
         Assert.Equal(RemoteSnapshotInterpolator.DefaultInterpolationDelayTicks, runtime.RemoteInterpolationDelayTicks);
+        Assert.Equal(2UL, runtime.Diagnostics.ReceivedPacketCount);
+        Assert.Equal(1UL, runtime.Diagnostics.ReceivedSnapshotPacketCount);
+        Assert.Equal(1UL, runtime.Diagnostics.ValidSnapshotPacketCount);
+        Assert.Equal(0UL, runtime.Diagnostics.InvalidSnapshotPacketCount);
+    }
+
+    [Fact]
+    public void InvalidSnapshotPacketsAreCountedWithoutReplacingLatestState()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
+        ServerAccept accept = Accept();
+        AcceptHandshake(runtime, transport, accept);
+
+        runtime.PacketReceived(
+            runtime.ServerPeerId,
+            new byte[] { 1, 2, 3 },
+            NetworkDelivery.Sequenced,
+            ServerSnapshotSender.SnapshotChannel);
+
+        Assert.Null(runtime.State.LatestSnapshot);
+        Assert.Equal(1UL, runtime.Diagnostics.ReceivedSnapshotPacketCount);
+        Assert.Equal(0UL, runtime.Diagnostics.ValidSnapshotPacketCount);
+        Assert.Equal(1UL, runtime.Diagnostics.InvalidSnapshotPacketCount);
+    }
+
+    [Fact]
+    public void LatencySamplesUseSmoothedAbsoluteDifferenceJitter()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
+
+        runtime.LatencyUpdated(runtime.ServerPeerId, 100);
+        Assert.Equal(100, runtime.Diagnostics.OneWayLatencyMilliseconds);
+        Assert.Null(runtime.Diagnostics.LatencyJitterMilliseconds);
+
+        runtime.LatencyUpdated(runtime.ServerPeerId, 132);
+        Assert.Equal(2.0, runtime.Diagnostics.LatencyJitterMilliseconds);
+
+        runtime.LatencyUpdated(runtime.ServerPeerId, 100);
+        Assert.Equal(3.875, runtime.Diagnostics.LatencyJitterMilliseconds);
+        Assert.Equal(3UL, runtime.Diagnostics.LatencySampleCount);
+
+        runtime.LatencyUpdated(new NetworkPeerId(999), 500);
+        Assert.Equal(3UL, runtime.Diagnostics.LatencySampleCount);
+    }
+
+    [Fact]
+    public void DisconnectAndSocketErrorsRetainLastObservedState()
+    {
+        FakeNetworkTransport transport = new();
+        NetworkEndpoint endpoint = new("127.0.0.1", 7777);
+        using var runtime = new NetworkClientRuntime(transport, endpoint);
+
+        runtime.NetworkError(endpoint, SocketError.ConnectionReset);
+        runtime.Disconnected(runtime.ServerPeerId, NetworkDisconnectReason.Timeout);
+
+        Assert.Equal(1UL, runtime.Diagnostics.NetworkErrorCount);
+        Assert.Equal(SocketError.ConnectionReset, runtime.Diagnostics.LastNetworkError?.SocketError);
+        Assert.Equal(endpoint, runtime.Diagnostics.LastNetworkError?.Endpoint);
+        Assert.Equal(NetworkDisconnectReason.Timeout, runtime.Diagnostics.LastDisconnectReason);
+    }
+
+    [Fact]
+    public void OptionalTransportStatisticsAreCachedAcrossDisconnect()
+    {
+        NetworkPeerStatistics expected = new(
+            10, 20, 1200, 5, 6, 7, 80, 90, 1, 16);
+        FakeNetworkTransport transport = new() { PeerStatistics = expected };
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
+
+        runtime.Poll();
+        Assert.Equal(expected, runtime.LastTransportStatistics);
+
+        transport.PeerStatistics = null;
+        transport.QueueDisconnected(runtime.ServerPeerId, NetworkDisconnectReason.Timeout);
+        runtime.Poll();
+
+        Assert.Equal(expected, runtime.LastTransportStatistics);
+        Assert.Equal(NetworkDisconnectReason.Timeout, runtime.Diagnostics.LastDisconnectReason);
+    }
+
+    [Fact]
+    public void RuntimeWorksWithoutOptionalTransportDiagnosticsProvider()
+    {
+        using var runtime = new NetworkClientRuntime(
+            new BasicNetworkTransport(),
+            new NetworkEndpoint("127.0.0.1", 7777));
+
+        runtime.Poll();
+
+        Assert.Null(runtime.LastTransportStatistics);
+    }
+
+    [Fact]
+    public void NetworkOverlayReportsWaitingStateBeforeAcceptanceOrSnapshot()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("example.test", 7777));
+
+        ImGuiDebugOverlayState state = ImGuiDebugOverlayState.CreateNetworked(
+            1.0 / 60.0,
+            fixedTicksThisFrame: 1,
+            totalFixedTicks: 42,
+            mouseCaptured: false,
+            RenderViewMode.WorldAndDebug,
+            runtime);
+
+        Assert.NotNull(state.Server);
+        Assert.False(state.Server!.Available);
+        Assert.Contains("Waiting", state.Server.Status);
+        Assert.NotNull(state.Network);
+        Assert.False(state.Player!.Available);
+        Assert.Contains("Waiting", state.Player.Status);
+        Assert.Equal("Transport connecting", state.Connection!.Status);
+        Assert.Null(state.Simulation.ServerTick);
+    }
+
+    [Fact]
+    public void NetworkOverlayUsesAuthoritativeSnapshotAndAcceptedIdentifiers()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
+        ServerAccept accept = Accept();
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(localPlayerId: accept.PlayerId));
+
+        ImGuiDebugOverlayState state = ImGuiDebugOverlayState.CreateNetworked(
+            1.0 / 60.0,
+            fixedTicksThisFrame: 1,
+            totalFixedTicks: 100,
+            mouseCaptured: true,
+            RenderViewMode.WorldAndDebug,
+            runtime);
+
+        Assert.True(state.Server!.Available);
+        Assert.Equal(123UL, state.Simulation.ServerTick);
+        Assert.Equal(23L, state.Simulation.ServerTickDifference);
+        Assert.Equal("authoritative snapshot", state.Player!.Values!.Source);
+        Assert.Equal("Ammunition: 30 / 90 reserve", state.Player.Values.AmmunitionText);
+        Assert.Equal(accept.SessionId, state.Connection!.AcceptedSession!.SessionId);
+        Assert.Equal(accept.ConnectionId, state.Connection.AcceptedSession.ConnectionId);
+        Assert.Equal(accept.PlayerId, state.Connection.AcceptedSession.PlayerId);
     }
 
     [Fact]
@@ -631,13 +778,15 @@ public sealed class NetworkClientRuntimeTests
         Assert.True(float.IsFinite(vector.Z));
     }
 
-    private sealed class FakeNetworkTransport : INetworkTransport
+    private sealed class FakeNetworkTransport : INetworkTransport, INetworkTransportDiagnostics
     {
         private readonly Queue<Action<INetworkEventHandler>> events = [];
 
         public List<SentPacket> SentPackets { get; } = [];
 
         public bool Disposed { get; private set; }
+
+        public NetworkPeerStatistics? PeerStatistics { get; set; }
 
         public void Start(int port)
         {
@@ -665,9 +814,51 @@ public sealed class NetworkClientRuntimeTests
             Disposed = true;
         }
 
+        public bool TryGetPeerStatistics(NetworkPeerId peerId, out NetworkPeerStatistics statistics)
+        {
+            if (PeerStatistics is NetworkPeerStatistics available)
+            {
+                statistics = available;
+                return true;
+            }
+
+            statistics = default;
+            return false;
+        }
+
         public void QueueConnected(NetworkPeerId peerId)
         {
             events.Enqueue(handler => handler.Connected(peerId, new NetworkEndpoint("127.0.0.1", 7777)));
+        }
+
+        public void QueueDisconnected(NetworkPeerId peerId, NetworkDisconnectReason reason)
+        {
+            events.Enqueue(handler => handler.Disconnected(peerId, reason));
+        }
+    }
+
+    private sealed class BasicNetworkTransport : INetworkTransport
+    {
+        public void Start(int port)
+        {
+        }
+
+        public NetworkPeerId Connect(NetworkEndpoint endpoint) => new(8);
+
+        public void Send(NetworkPeerId peerId, ReadOnlySpan<byte> packet, NetworkDelivery delivery, byte channel = 0)
+        {
+        }
+
+        public void Disconnect(NetworkPeerId peerId)
+        {
+        }
+
+        public void Poll(INetworkEventHandler handler)
+        {
+        }
+
+        public void Dispose()
+        {
         }
     }
 

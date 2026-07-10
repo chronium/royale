@@ -3,7 +3,7 @@ using LiteNetLib;
 
 namespace Royale.Network;
 
-public sealed class LiteNetLibNetworkTransport : INetworkTransport
+public sealed class LiteNetLibNetworkTransport : INetworkTransport, INetworkTransportDiagnostics
 {
     private readonly EventBasedNetListener _listener;
     private readonly NetManager _manager;
@@ -26,8 +26,11 @@ public sealed class LiteNetLibNetworkTransport : INetworkTransport
         {
             AutoRecycle = true,
             ChannelsCount = 64,
+            EnableStatistics = true,
         };
     }
+
+    internal bool StatisticsEnabled => _manager.EnableStatistics;
 
     public void Start(int port)
     {
@@ -110,6 +113,32 @@ public sealed class LiteNetLibNetworkTransport : INetworkTransport
         {
             _pollHandler = null;
         }
+    }
+
+    public bool TryGetPeerStatistics(NetworkPeerId peerId, out NetworkPeerStatistics statistics)
+    {
+        ThrowIfDisposed();
+        EnsureStarted();
+
+        if (!_peers.TryGetValue(peerId, out NetPeer? peer) || peer.ConnectionState != ConnectionState.Connected)
+        {
+            statistics = default;
+            return false;
+        }
+
+        NetStatistics peerStatistics = peer.Statistics;
+        statistics = new NetworkPeerStatistics(
+            peer.Ping,
+            peer.RoundTripTime,
+            peer.Mtu,
+            peer.TimeSinceLastPacket,
+            peerStatistics.PacketsSent,
+            peerStatistics.PacketsReceived,
+            peerStatistics.BytesSent,
+            peerStatistics.BytesReceived,
+            peerStatistics.PacketLoss,
+            peerStatistics.PacketLossPercent);
+        return true;
     }
 
     public void Dispose()

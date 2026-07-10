@@ -31,6 +31,10 @@ internal sealed class ClientMovementPrediction : IDisposable
 
     public bool Active => MapAvailable && seeded;
 
+    public bool? IsGrounded => Active ? characterState.IsGrounded : null;
+
+    public int? StaticColliderCount { get; private set; }
+
     public int PendingInputCount => pendingInputs.Count;
 
     public float LastCorrectionDistance { get; private set; }
@@ -52,11 +56,13 @@ internal sealed class ClientMovementPrediction : IDisposable
         {
             GameMap map = loadMap(mapId);
             collisionWorld = MapStaticCollisionWorld.Create(map);
+            StaticColliderCount = map.StaticBoxes.Count;
         }
         catch
         {
             collisionWorld?.Dispose();
             collisionWorld = null;
+            StaticColliderCount = null;
         }
     }
 
@@ -133,6 +139,7 @@ internal sealed class ClientMovementPrediction : IDisposable
         collisionWorld?.Dispose();
         collisionWorld = null;
         mapLoadAttempted = false;
+        StaticColliderCount = null;
         seeded = false;
         characterState = default;
         predictedPlayer = default;

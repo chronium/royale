@@ -305,6 +305,31 @@ public sealed class SimulatedNetworkTransportTests
     }
 
     [Fact]
+    public void PeerStatisticsForwardToInnerDiagnosticsProvider()
+    {
+        NetworkPeerId peerId = new(17);
+        NetworkPeerStatistics expected = new(
+            OneWayLatencyMilliseconds: 12,
+            RoundTripTimeMilliseconds: 24,
+            MaximumTransmissionUnitBytes: 1200,
+            TimeSinceLastPacketMilliseconds: 8,
+            PacketsSent: 10,
+            PacketsReceived: 11,
+            BytesSent: 100,
+            BytesReceived: 110,
+            PacketsLost: 1,
+            PacketLossPercent: 10);
+        FakeNetworkTransport inner = new() { PeerStatistics = expected };
+        using SimulatedNetworkTransport transport = new(inner);
+
+        Assert.True(transport.TryGetPeerStatistics(peerId, out NetworkPeerStatistics actual));
+        Assert.Equal(expected, actual);
+
+        inner.PeerStatistics = null;
+        Assert.False(transport.TryGetPeerStatistics(peerId, out _));
+    }
+
+    [Fact]
     public void ReapplyingConditionsWithSeedResetsRandomSequence()
     {
         FakeNetworkTransport inner = new();
@@ -482,7 +507,7 @@ public sealed class SimulatedNetworkTransportTests
         }
     }
 
-    private sealed class FakeNetworkTransport : INetworkTransport
+    private sealed class FakeNetworkTransport : INetworkTransport, INetworkTransportDiagnostics
     {
         private readonly Queue<Action<INetworkEventHandler>> _events = [];
 
@@ -491,6 +516,8 @@ public sealed class SimulatedNetworkTransportTests
         public List<NetworkPeerId> DisconnectedPeers { get; } = [];
 
         public bool Disposed { get; private set; }
+
+        public NetworkPeerStatistics? PeerStatistics { get; set; }
 
         public void Start(int port)
         {
@@ -528,6 +555,19 @@ public sealed class SimulatedNetworkTransportTests
         {
             Disposed = true;
             _events.Clear();
+        }
+
+        public bool TryGetPeerStatistics(NetworkPeerId peerId, out NetworkPeerStatistics statistics)
+        {
+            ThrowIfDisposed();
+            if (PeerStatistics is NetworkPeerStatistics available)
+            {
+                statistics = available;
+                return true;
+            }
+
+            statistics = default;
+            return false;
         }
 
         public void EnqueueConnected(NetworkPeerId peerId, NetworkEndpoint endpoint)

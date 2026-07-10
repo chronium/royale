@@ -5,6 +5,14 @@ namespace Royale.Network.Tests;
 public sealed class LiteNetLibNetworkTransportLifecycleTests
 {
     [Fact]
+    public void ConstructorEnablesPeerStatistics()
+    {
+        using LiteNetLibNetworkTransport transport = new();
+
+        Assert.True(transport.StatisticsEnabled);
+    }
+
+    [Fact]
     public void StartRejectsInvalidPort()
     {
         using LiteNetLibNetworkTransport transport = new();
@@ -34,6 +42,7 @@ public sealed class LiteNetLibNetworkTransportLifecycleTests
         Assert.Throws<ObjectDisposedException>(() => transport.Send(new NetworkPeerId(0), [1], NetworkDelivery.Unreliable));
         Assert.Throws<ObjectDisposedException>(() => transport.Disconnect(new NetworkPeerId(0)));
         Assert.Throws<ObjectDisposedException>(() => transport.Poll(new RecordingNetworkEventHandler()));
+        Assert.Throws<ObjectDisposedException>(() => transport.TryGetPeerStatistics(new NetworkPeerId(0), out _));
     }
 
     [Fact]
@@ -45,6 +54,7 @@ public sealed class LiteNetLibNetworkTransportLifecycleTests
         Assert.Throws<InvalidOperationException>(() => transport.Send(new NetworkPeerId(0), [1], NetworkDelivery.Unreliable));
         Assert.Throws<InvalidOperationException>(() => transport.Disconnect(new NetworkPeerId(0)));
         Assert.Throws<InvalidOperationException>(() => transport.Poll(new RecordingNetworkEventHandler()));
+        Assert.Throws<InvalidOperationException>(() => transport.TryGetPeerStatistics(new NetworkPeerId(0), out _));
     }
 
     [Fact]
@@ -57,5 +67,14 @@ public sealed class LiteNetLibNetworkTransportLifecycleTests
             () => transport.Send(new NetworkPeerId(0), [1], NetworkDelivery.Unreliable, channel: 64));
 
         Assert.Equal("channel", exception.ParamName);
+    }
+
+    [Fact]
+    public void UnknownPeerHasNoStatistics()
+    {
+        using LiteNetLibNetworkTransport transport = new();
+        transport.Start(0);
+
+        Assert.False(transport.TryGetPeerStatistics(new NetworkPeerId(999), out _));
     }
 }

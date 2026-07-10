@@ -11,6 +11,7 @@ namespace Royale.Client.Networking;
 public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 {
     private readonly INetworkTransport transport;
+    private readonly NetworkEndpoint serverEndpoint;
     private readonly NetworkPeerId serverPeerId;
     private readonly PlayerLookSettings lookSettings;
     private readonly ClientMovementPrediction prediction;
@@ -27,6 +28,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         Func<string, GameMap>? loadPredictionMap = null)
     {
         this.transport = transport;
+        this.serverEndpoint = serverEndpoint;
         this.lookSettings = lookSettings ?? PlayerLookSettings.Default;
         prediction = new ClientMovementPrediction(loadPredictionMap ?? MapCatalog.LoadById);
         serverPeerId = transport.Connect(serverEndpoint);
@@ -34,7 +36,11 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
     public ClientNetworkState State { get; } = new();
 
+    public ClientNetworkDiagnostics Diagnostics { get; } = new();
+
     public NetworkPeerId ServerPeerId => serverPeerId;
+
+    public NetworkEndpoint ServerEndpoint => serverEndpoint;
 
     public PlayerLookState LookState { get; private set; }
 
@@ -44,11 +50,19 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
     public NetworkHandshakeClientState? HandshakeState => handshake?.State;
 
+    public ServerAccept? AcceptedSession => handshake?.AcceptedSession;
+
+    public ServerReject? HandshakeRejection => handshake?.Rejection;
+
     public bool PredictionMapAvailable => prediction.MapAvailable;
 
     public bool PredictionSeeded => prediction.Seeded;
 
     public bool PredictionActive => prediction.Active;
+
+    public bool? PredictionIsGrounded => prediction.IsGrounded;
+
+    public int? PredictionStaticColliderCount => prediction.StaticColliderCount;
 
     public int PendingInputCount => prediction.PendingInputCount;
 
@@ -67,6 +81,8 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public double LastRemoteInterpolationTargetTick => remoteSnapshotInterpolator.LastInterpolationTargetTick;
 
     public bool LastRemoteRenderUsedInterpolation => remoteSnapshotInterpolator.LastRenderUsedInterpolation;
+
+    public NetworkPeerStatistics? LastTransportStatistics { get; private set; }
 
     public static NetworkClientRuntime Connect(string host, int port)
     {
@@ -87,7 +103,9 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public void Poll()
     {
         ThrowIfDisposed();
+        CacheTransportStatistics();
         transport.Poll(this);
+        CacheTransportStatistics();
     }
 
     public void ApplyLook(PlayerInputSample input)
@@ -114,6 +132,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         if (!inputSender.TrySend(command))
             return false;
 
+        Diagnostics.RecordSuccessfulInputSend();
         prediction.StoreSentInput(command);
         prediction.Step(command);
         return true;
@@ -134,7 +153,10 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)
     {
         if (peerId == serverPeerId && handshake is null)
+        {
             handshake = new NetworkHandshakeClient(transport, serverPeerId);
+            CacheTransportStatistics();
+        }
     }
 
     public void Disconnected(NetworkPeerId peerId, NetworkDisconnectReason reason)
@@ -142,6 +164,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         handshake?.Disconnected(peerId, reason);
         if (peerId == serverPeerId)
         {
+            Diagnostics.RecordDisconnect(reason);
             inputSender = null;
             prediction.Reset();
             remoteSnapshotInterpolator.Reset();
@@ -153,6 +176,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         if (peerId != serverPeerId)
             return;
 
+        Diagnostics.RecordPacketReceived();
         handshake?.PacketReceived(peerId, packet, delivery, channel);
         EnsureInputSender();
         TryApplySnapshot(packet, channel);
@@ -160,10 +184,13 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
     public void NetworkError(NetworkEndpoint? endpoint, SocketError socketError)
     {
+        Diagnostics.RecordNetworkError(endpoint, socketError);
     }
 
     public void LatencyUpdated(NetworkPeerId peerId, int latencyMilliseconds)
     {
+        if (peerId == serverPeerId)
+            Diagnostics.RecordLatency(latencyMilliseconds);
     }
 
     public void Dispose()
@@ -191,29 +218,49 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
     private void TryApplySnapshot(ReadOnlyMemory<byte> packet, byte channel)
     {
-        if (inputSender is null ||
-            channel != ServerSnapshotSender.SnapshotChannel ||
-            handshake?.AcceptedSession is not ServerAccept acceptedSession)
+        if (channel != ServerSnapshotSender.SnapshotChannel)
         {
             return;
         }
 
-        if (!ProtocolPacketFramer.TryReadPacket(
+        ServerSnapshot? snapshot = null;
+        bool valid = false;
+
+        if (inputSender is not null &&
+            handshake?.AcceptedSession is ServerAccept acceptedSession &&
+            ProtocolPacketFramer.TryReadPacket(
             packet.Span,
             out ProtocolPacketHeader header,
             out ReadOnlySpan<byte> payload,
-            out _) ||
-            header.MessageType != ProtocolMessageType.ServerSnapshot ||
-            header.SessionId != acceptedSession.SessionId ||
-            !ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out ServerSnapshot? snapshot) ||
-            snapshot is null)
+            out _) &&
+            header.MessageType == ProtocolMessageType.ServerSnapshot &&
+            header.SessionId == acceptedSession.SessionId &&
+            ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out snapshot) &&
+            snapshot is not null)
+        {
+            valid = true;
+        }
+
+        Diagnostics.RecordSnapshotPacket(valid);
+
+        if (!valid)
         {
             return;
         }
 
-        State.ApplySnapshot(snapshot);
-        remoteSnapshotInterpolator.AddSnapshot(snapshot);
-        prediction.ApplySnapshot(snapshot);
+        ServerSnapshot validSnapshot = snapshot!;
+        State.ApplySnapshot(validSnapshot);
+        remoteSnapshotInterpolator.AddSnapshot(validSnapshot);
+        prediction.ApplySnapshot(validSnapshot);
+    }
+
+    private void CacheTransportStatistics()
+    {
+        if (transport is INetworkTransportDiagnostics diagnostics &&
+            diagnostics.TryGetPeerStatistics(serverPeerId, out NetworkPeerStatistics statistics))
+        {
+            LastTransportStatistics = statistics;
+        }
     }
 
     private static Vector2 NormalizeMove(Vector2 move)

@@ -8,6 +8,7 @@ using Royale.Client.Rendering.Debug;
 using Royale.Client.Rendering.Meshes;
 using Royale.Client.Rendering.Screenshots;
 using Royale.Client.Rendering.Text;
+using Royale.Client.UI;
 using SDL;
 
 namespace Royale.Client.Tests;
@@ -70,6 +71,29 @@ public sealed class SdlApplicationTests
     public void RenderViewModeHotkeysAreGlobalControls(SDL_Keycode key)
     {
         Assert.True(SdlApplication.IsGlobalControl(key));
+    }
+
+    [Fact]
+    public void TelemetryHotkeyIsAGlobalControl()
+    {
+        Assert.True(SdlApplication.IsGlobalControl(SDL_Keycode.SDLK_F3));
+    }
+
+    [Fact]
+    public void TelemetryVisibilityStartsVisibleAndTogglesRepeatedly()
+    {
+        TelemetryVisibilityController visibility = new();
+
+        Assert.True(visibility.Visible);
+
+        visibility.Toggle();
+        Assert.False(visibility.Visible);
+
+        visibility.Toggle();
+        Assert.True(visibility.Visible);
+
+        visibility.Toggle();
+        Assert.False(visibility.Visible);
     }
 
     [Fact]

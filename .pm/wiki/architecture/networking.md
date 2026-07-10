@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T01:51:25.8592740Z
+modifiedAt: 2026-07-10T02:12:51.9826640Z
 ---
 
 ## Networking Layers
@@ -43,6 +43,14 @@ The default simulated condition is `SimulatedNetworkConditions.None`, which appl
 `SimulatedNetworkTransport.CurrentConditions` exposes the active immutable condition object, and `SetConditions` replaces it live. Replacement resets the random sequence when a seed is supplied. Drop, duplication, reordering, jitter, and due-time decisions are captured when a packet is queued, so already queued packets keep their original decision and due time after a replacement.
 
 The WattleScript UDP scenario runtime wraps every scripted client transport and leaves the server transport unwrapped. Client-to-server packets are impaired on the client's send path, and server-to-client packets are impaired on the client's receive path, so each direction is impaired exactly once. All scripted UDP client wrappers share a manual clock advanced by one fixed simulation step per scenario tick. `scenario.network.set`, `current`, and `clear` provide deterministic per-player controls while the player remains connected. CLI flags, production runtime controls, debug UI toggles, and broader observability actions remain deferred.
+
+### Optional Transport Diagnostics
+
+Transports may additionally implement the game-owned `INetworkTransportDiagnostics` interface. `TryGetPeerStatistics(NetworkPeerId, out NetworkPeerStatistics)` returns an immutable projection containing one-way latency, RTT, MTU, time since the last packet, sent/received packet and byte totals, and packet-loss count/percentage. Unknown or disconnected peers return no statistics. Higher layers remain valid when the optional interface is absent.
+
+`LiteNetLibNetworkTransport` enables LiteNetLib peer statistics and maps them into `NetworkPeerStatistics`; no LiteNetLib type crosses the `Royale.Network` boundary. `SimulatedNetworkTransport` forwards the optional query when its inner transport supports it. `NetworkClientRuntime` samples and caches the latest successful projection so UI can retain last-known transport totals after disconnect.
+
+The client runtime separately owns application-level counters for successful input sends, all packets received from the server peer, received/valid/invalid snapshot packets, network errors, disconnect reason, and latency samples. Latency jitter is the exponentially smoothed absolute difference between consecutive one-way latency samples using a `1/16` update factor. These counters diagnose protocol/application handling and are intentionally distinct from transport-level UDP totals.
 
 ## Connection
 

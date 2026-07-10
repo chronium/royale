@@ -23,7 +23,9 @@ public static class ServerSnapshotPayloadSerializer
         sizeof(int) +
         sizeof(int) +
         sizeof(byte) +
-        MaxWeaponSnapshotStatePayloadSize;
+        MaxWeaponSnapshotStatePayloadSize +
+        NullableUInt32WireSize +
+        NullableUInt32WireSize;
 
     public const int MaxWeaponSnapshotStatePayloadSize =
         sizeof(byte) + ProtocolConstants.MaxSnapshotWeaponIdLength +
@@ -153,7 +155,9 @@ public static class ServerSnapshotPayloadSerializer
             TryWriteInt32(player.CurrentHealth, destination, ref offset) &&
             TryWriteInt32(player.MaxHealth, destination, ref offset) &&
             TryWriteBoolean(player.Alive, destination, ref offset) &&
-            TryWriteWeapon(player.Weapon, destination, ref offset);
+            TryWriteWeapon(player.Weapon, destination, ref offset) &&
+            TryWriteNullableUInt32(player.LastProcessedInputSequence, destination, ref offset) &&
+            TryWriteNullableUInt32(player.LastProcessedInputClientTick, destination, ref offset);
     }
 
     private static bool TryReadPlayer(
@@ -173,7 +177,9 @@ public static class ServerSnapshotPayloadSerializer
             !TryReadInt32(source, ref offset, out int currentHealth) ||
             !TryReadInt32(source, ref offset, out int maxHealth) ||
             !TryReadBoolean(source, ref offset, out bool alive) ||
-            !TryReadWeapon(source, ref offset, out WeaponSnapshotState weapon))
+            !TryReadWeapon(source, ref offset, out WeaponSnapshotState weapon) ||
+            !TryReadNullableUInt32(source, ref offset, out uint? lastProcessedInputSequence) ||
+            !TryReadNullableUInt32(source, ref offset, out uint? lastProcessedInputClientTick))
         {
             return false;
         }
@@ -188,7 +194,9 @@ public static class ServerSnapshotPayloadSerializer
             currentHealth,
             maxHealth,
             alive,
-            weapon);
+            weapon,
+            lastProcessedInputSequence,
+            lastProcessedInputClientTick);
         return true;
     }
 

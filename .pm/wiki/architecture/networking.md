@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T05:41:45.0749720Z
+modifiedAt: 2026-07-10T05:59:59.3562400Z
 ---
 
 ## Networking Layers
@@ -176,6 +176,12 @@ Fallback behavior is intentionally conservative. With fewer than two usable snap
 
 Production bad-network controls, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
 
+### Processed Input Metadata Replication
+
+Each serialized `PlayerSnapshotState` now ends with nullable `LastProcessedInputSequence` and `LastProcessedInputClientTick` values. Both use the existing one-byte presence marker followed by a little-endian `uint` when present. This carries processing metadata only; bot input commands are never sent over UDP.
+
+The v1 protocol version remains unchanged, so this snapshot layout change requires lockstep client/server deployment. Older builds cannot parse the additional per-player fields.
+
 ### Participant Kind Replication
 
 Every serialized player snapshot carries a one-byte `ServerSnapshotPlayerKind` immediately after `PlayerId`: `Human = 0`, `Bot = 1`. Serialization rejects undefined enum values; deserialization rejects unknown wire values and truncated payloads. The maximum snapshot payload budget includes one additional byte per possible player.
@@ -238,3 +244,9 @@ Each `InProcessServerSession.Step` consumes at most one queued valid command per
 The snapshot cadence is unchanged: `ServerSnapshotSender` still emits snapshots only when `serverTick % 3 == 0`, giving a 20 Hz snapshot cadence from a 60 Hz simulation. Server-side input hold/grace is intentionally deferred; queued commands are preserved in order rather than artificially extended.
 
 The in-process session remains authoritative for local/synthetic clients: queued command intent drives server-owned movement, look, rifle firing, ammunition, hitscan player damage, death state, and living-player count. `ServerSnapshotSender` can bridge accepted handshake peers to these queued snapshots in tests. The SDL client still does not reference `Royale.Server`. Winner selection, combat events, respawn, reload, and match reset remain deferred.
+
+### Internal Bot Commands
+
+`BOT-002` extends the authoritative in-process boundary without adding a transport path. `InProcessServerSession.TrySubmitBotInput` and `NetworkServerRuntime.TrySubmitBotInput` accept server-internal `BotInputIntent`; they do not serialize inputs, create fake peers, or bypass gameplay. The session validates intent, assigns sequence and authoritative decision-tick metadata, and holds at most one command per bot for the upcoming step.
+
+During `Step`, pending bots are consumed in ascending player-ID order and joined with the human commands dequeued for that tick. The resulting single player-ID command map enters `HeadlessServerSimulation.Step`. Immediate next-step consumption is temporary; `BOT-014` will introduce scheduled latency delay without changing the simulation input contract.

@@ -7,6 +7,7 @@ public sealed class InProcessServerSession : IDisposable
 {
     private readonly HeadlessServerSimulation simulation;
     private readonly Dictionary<ServerConnectionId, InProcessClientState> clients = [];
+    private readonly Dictionary<ServerPlayerId, BotInputState> botInputs = [];
     private uint nextConnectionId = 1;
     private bool disposed;
 
@@ -33,7 +34,9 @@ public sealed class InProcessServerSession : IDisposable
 
     public MatchStartSettings MatchStartSettings => simulation.MatchStartSettings;
 
-    public int QueuedInputCommandCount => clients.Values.Sum(client => client.InputCommands.Count);
+    public int QueuedInputCommandCount =>
+        clients.Values.Sum(client => client.InputCommands.Count) +
+        botInputs.Values.Count(input => input.PendingCommand.HasValue);
 
     public bool IsDisposed => disposed;
 
@@ -63,7 +66,10 @@ public sealed class InProcessServerSession : IDisposable
                     player.ConnectionId ?? default,
                     out InProcessClientState? client)
                     ? client.InputCommands.Count
-                    : 0))
+                    : botInputs.TryGetValue(player.PlayerId, out BotInputState? botInput) &&
+                        botInput.PendingCommand.HasValue
+                        ? 1
+                        : 0))
             .ToArray();
     }
 
@@ -85,7 +91,9 @@ public sealed class InProcessServerSession : IDisposable
     public ServerPlayerId AddBot()
     {
         ThrowIfDisposed();
-        return simulation.AddBotPlayer().PlayerId;
+        ServerPlayerId playerId = simulation.AddBotPlayer().PlayerId;
+        botInputs.Add(playerId, new BotInputState());
+        return playerId;
     }
 
     public bool TryRemoveBot(ServerPlayerId playerId)
@@ -99,7 +107,44 @@ public sealed class InProcessServerSession : IDisposable
             return false;
         }
 
-        return simulation.RemovePlayer(playerId);
+        bool removed = simulation.RemovePlayer(playerId);
+        if (removed)
+            botInputs.Remove(playerId);
+
+        return removed;
+    }
+
+    public bool TrySubmitBotInput(ServerPlayerId playerId, BotInputIntent intent)
+    {
+        ThrowIfDisposed();
+
+        if (!simulation.TryGetPlayer(playerId, out AuthoritativePlayerState? player) ||
+            player is null ||
+            player.Kind != ServerPlayerKind.Bot ||
+            !botInputs.TryGetValue(playerId, out BotInputState? inputState) ||
+            inputState.PendingCommand.HasValue)
+        {
+            return false;
+        }
+
+        var validationCommand = new PlayerInputCommand(
+            Sequence: 0,
+            ClientTick: 0,
+            intent.Move,
+            intent.YawRadians,
+            intent.PitchRadians,
+            intent.Buttons);
+
+        if (!PlayerInputCommandValidation.IsValid(validationCommand))
+            return false;
+
+        inputState.PendingCommand = validationCommand with
+        {
+            Sequence = inputState.NextSequence,
+            ClientTick = CurrentTick >= uint.MaxValue ? uint.MaxValue : (uint)CurrentTick,
+        };
+        inputState.NextSequence = unchecked(inputState.NextSequence + 1);
+        return true;
     }
 
     public bool TryEnqueueInputCommand(InProcessClientConnection client, PlayerInputCommand command)
@@ -154,6 +199,16 @@ public sealed class InProcessServerSession : IDisposable
                 inputCommands[client.PlayerId] = command;
         }
 
+        foreach ((ServerPlayerId playerId, BotInputState inputState) in
+            botInputs.OrderBy(pair => pair.Key.Value))
+        {
+            if (inputState.PendingCommand is PlayerInputCommand command)
+            {
+                inputCommands[playerId] = command;
+                inputState.PendingCommand = null;
+            }
+        }
+
         simulation.Step(inputCommands);
 
         foreach (InProcessClientState client in clients.Values)
@@ -174,6 +229,7 @@ public sealed class InProcessServerSession : IDisposable
             return;
 
         clients.Clear();
+        botInputs.Clear();
         simulation.Dispose();
         disposed = true;
     }
@@ -238,6 +294,13 @@ public sealed class InProcessServerSession : IDisposable
         public Queue<PlayerInputCommand> InputCommands { get; } = [];
 
         public Queue<ServerSnapshot> Snapshots { get; } = [];
+    }
+
+    private sealed class BotInputState
+    {
+        public uint NextSequence { get; set; } = 1;
+
+        public PlayerInputCommand? PendingCommand { get; set; }
     }
 }
 

@@ -1,16 +1,20 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-10T05:41:45.0477770Z
+modifiedAt: 2026-07-10T05:59:59.3206280Z
 ---
 
 ## Status
 
 `BOT-001` implements explicit server-owned bot participant identity. Human and bot participants share the authoritative player ID allocator, spawn selection and reservations, movement/combat state, health, weapons, match lifecycle storage, snapshots, and living-player accounting.
 
-Bots have `ServerPlayerKind.Bot`, no connection ID, no network peer, no client connection, no input queue, and no per-client snapshot queue. Humans use `ServerPlayerKind.Human`; the protocol mirrors these identities as `ServerSnapshotPlayerKind.Human = 0` and `Bot = 1`.
+`BOT-002` implements the deterministic server-owned bot input boundary. A future controller submits `BotInputIntent` movement, yaw, pitch, and button intent through `InProcessServerSession.TrySubmitBotInput` or `NetworkServerRuntime.TrySubmitBotInput`. The session validates intent with `PlayerInputCommandValidation`, assigns a per-bot sequence beginning at `1`, stamps the current authoritative decision tick saturated to `uint.MaxValue`, and retains at most one pending command for the next step.
 
-The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. Session APIs may add and remove bot participants for C# integration, but WattleScript does not expose bot creation. Bot controllers, lobby filling, navigation, combat decisions, input delay, rendering differences, names, UI, and admin commands remain later BOT-track work.
+Each authoritative step consumes bot pending commands in ascending player-ID order and combines them with at most one queued human command per client before calling `HeadlessServerSimulation.Step`. Bots therefore use the same movement, look, jump, combat, health, ammunition, and match-phase gates as humans. Missing bot input produces no command, which means neutral movement and released buttons while the existing look orientation remains unchanged.
+
+Bots still have no connection ID, network peer, client connection, human input queue, or per-client snapshot queue. Removing a bot clears its pending command and sequencing state. Total and per-player queued-input diagnostics include pending bot commands. Player snapshots expose nullable last-processed input sequence and client/decision tick metadata for every participant, allowing a human recipient to inspect bot processing alongside authoritative transform and combat state.
+
+The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. WattleScript does not expose bot creation or bot input controls. Lobby filling, autonomous decisions, navigation, combat policy, delayed input scheduling, rendering differences, names, UI, and admin commands remain later BOT-track work.
 
 ## Purpose
 
@@ -45,11 +49,9 @@ A bot-only match is valid when no humans connect before the waiting timeout.
 
 Bots should not receive a zero-latency reaction advantage merely because their controllers run inside the authoritative server.
 
-For each newly generated bot input command, the server computes the arithmetic mean of the latest one-way latency samples for currently connected human peers. That duration is rounded up to whole 60 Hz simulation ticks, and the command is queued until its scheduled authoritative processing tick.
+`BOT-002` intentionally processes one validated pending bot command on the next authoritative step without added delay. It establishes the sequence and decision-tick metadata that delayed scheduling will build on; it does not sample latency or create fake network peers.
 
-Bots and disconnected peers are excluded from the average. A bot-only match uses zero added input delay. Changes to the connected population or latency samples affect newly generated commands only; commands already queued retain their scheduled processing tick.
-
-The sampled human average and effective bot delay must be observable and covered by deterministic tests.
+`BOT-014` will replace this immediate pending slot with scheduled delayed processing. For each newly generated bot input command, the planned scheduler computes the arithmetic mean of the latest one-way latency samples for currently connected human peers, rounds that duration up to whole 60 Hz simulation ticks, and retains the command until its scheduled authoritative processing tick. Bots and disconnected peers are excluded, and a bot-only match uses zero added delay. Changes in population or samples affect newly generated commands only.
 
 ## Bot Gameplay Scope
 

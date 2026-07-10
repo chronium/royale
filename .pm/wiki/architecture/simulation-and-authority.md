@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T05:44:26.4713480Z
+modifiedAt: 2026-07-10T05:59:59.3356310Z
 ---
 
 ## Simulation Model
@@ -208,6 +208,14 @@ public readonly record struct PlayerInputSample(
 
 `PlayerMovementIntent.ToWorldMovement()` is the shared helper for converting local movement through gameplay yaw before passing world X/Z intent to `KinematicCharacterController`. The local offline player and the headless server both use this helper. Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`.
 
+### Server-Owned Bot Input Boundary
+
+Bot controllers submit `BotInputIntent` rather than mutating authoritative state. The in-process server session rejects unknown and human IDs, invalid intent, and a second submission while that bot already has a pending command. After validation, the server assigns the bot's next sequence and stamps the current authoritative tick as `ClientTick`, saturating values beyond `uint.MaxValue`.
+
+At the start of each `InProcessServerSession.Step`, the session takes at most one human command from each client queue and at most one pending bot command. Bots are consumed in ascending player-ID order. The combined `ServerPlayerId` to `PlayerInputCommand` map is passed once to `HeadlessServerSimulation.Step`, where the existing deterministic player-ID ordering applies movement, look, jump, Playing-phase fire, damage, health, and ammunition rules.
+
+A bot with no pending command contributes no map entry. Existing simulation behavior therefore supplies zero movement, no pressed buttons, and no look replacement for that step. The last processed sequence and decision tick remain in authoritative player state until a later command is processed.
+
 ## Server Snapshots
 
 SERVER-005 defines the first protocol-owned server snapshot DTOs in `Royale.Protocol` and a server-owned mapper in `HeadlessServerSimulation.CreateSnapshot`. The DTOs are transfer shapes shared by client and server; they do not move gameplay authority out of `Royale.Server`.
@@ -228,6 +236,8 @@ Player snapshot entries are sorted by player id for deterministic tests and futu
 Snapshots now reflect server-authoritative movement, look, rifle ammo/cadence, health, alive state, and living-player count after input application. Killed players remain in snapshots with `Alive == false` and health `0`. Snapshot DTOs still exclude server connection ids, spawn reservations, collision internals, client presentation state, rendering data, and UI data.
 
 Serialization, UDP transport, snapshot send cadence, client-side prediction, reconciliation, and remote-player interpolation are implemented for the current full-snapshot path. Winner selection, combat events, reload replication, and match reset remain future work.
+
+`BOT-002` adds nullable `LastProcessedInputSequence` and `LastProcessedInputClientTick` fields to each `PlayerSnapshotState`. These per-player fields expose processed human and bot command metadata to every snapshot recipient for inspection. The existing top-level `AcknowledgedInputSequence` remains recipient-specific and continues to drive local client reconciliation.
 
 ## Client-Side Prediction
 

@@ -20,7 +20,9 @@ public readonly record struct PlayerSnapshotState(
     int CurrentHealth,
     int MaxHealth,
     bool Alive,
-    WeaponSnapshotState Weapon);
+    WeaponSnapshotState Weapon,
+    uint? LastProcessedInputSequence = null,
+    uint? LastProcessedInputClientTick = null);
 
 public enum ServerSnapshotPlayerKind
 {

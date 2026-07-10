@@ -289,7 +289,9 @@ public sealed class HeadlessServerSimulation : IDisposable
             player.Health.CurrentHealth,
             player.Health.MaxHealth,
             player.Health.Alive,
-            CreateWeaponSnapshot(player.Weapon));
+            CreateWeaponSnapshot(player.Weapon),
+            player.LastProcessedInputSequence,
+            player.LastProcessedInputClientTick);
 
     private static ServerSnapshotPlayerKind MapPlayerKind(ServerPlayerKind kind) =>
         kind switch

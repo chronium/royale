@@ -120,6 +120,14 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         return removed;
     }
 
+    public bool TrySubmitBotInput(ServerPlayerId playerId, BotInputIntent intent)
+    {
+        ThrowIfDisposed();
+        bool submitted = session.TrySubmitBotInput(playerId, intent);
+        UpdateObservabilityState();
+        return submitted;
+    }
+
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)
     {
         observability?.PeerConnected(peerId, endpoint);

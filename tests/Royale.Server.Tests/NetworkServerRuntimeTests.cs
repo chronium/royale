@@ -134,6 +134,36 @@ public sealed class NetworkServerRuntimeTests
             player.PlayerId == bot.Value && player.Kind == ServerSnapshotPlayerKind.Bot);
     }
 
+    [Fact]
+    public void RuntimeSubmitsBotInputThroughAuthoritativeSession()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(CreateOpenArenaMap()));
+        ServerPlayerId bot = runtime.AddBot();
+        ServerAccept accept = ConnectClient(runtime, transport, new NetworkPeerId(1));
+        transport.SentPackets.Clear();
+
+        Assert.True(runtime.TrySubmitBotInput(
+            bot,
+            new BotInputIntent(
+                new Vector2(0.0f, 1.0f),
+                MathF.PI / 2.0f,
+                0.2f,
+                InputButtons.None)));
+
+        runtime.Step();
+        runtime.Step();
+
+        ServerSnapshot snapshot = ReadSnapshot(Assert.Single(transport.SentPackets).Payload);
+        PlayerSnapshotState botState = Assert.Single(snapshot.Players, player => player.PlayerId == bot.Value);
+        Assert.Equal(accept.PlayerId, snapshot.LocalPlayerId);
+        Assert.True(botState.Position.X > 0.01f);
+        Assert.Equal(1U, botState.LastProcessedInputSequence);
+        Assert.Equal(1U, botState.LastProcessedInputClientTick);
+    }
+
     private static ServerAccept ConnectClient(
         NetworkServerRuntime runtime,
         FakeNetworkTransport transport,
@@ -242,6 +272,11 @@ public sealed class NetworkServerRuntimeTests
             {
                 Id = "spawn-a",
                 Position = new MapVector3(0.0f, 0.0f, 0.0f),
+            },
+            new MapSpawnPoint
+            {
+                Id = "spawn-b",
+                Position = new MapVector3(0.0f, 0.0f, -10.0f),
             },
         ],
         StaticBoxes =

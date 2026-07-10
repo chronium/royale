@@ -525,6 +525,163 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void ValidBotIntentUsesAuthoritativeSequenceDecisionTickAndSimulationPath()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        ServerPlayerId bot = session.AddBot();
+        InProcessClientConnection human = session.ConnectClient();
+        ServerSnapshot initial = session.DrainSnapshots(human)[^1];
+        PlayerSnapshotState initialBot = FindPlayer(initial, bot);
+
+        Assert.True(session.TrySubmitBotInput(
+            bot,
+            BotIntent() with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                YawRadians = MathF.PI / 2.0f,
+                PitchRadians = 0.25f,
+                Buttons = InputButtons.Jump,
+            }));
+
+        session.Step();
+
+        ServerSnapshot snapshot = DequeueSnapshot(session, human);
+        PlayerSnapshotState steppedBot = FindPlayer(snapshot, bot);
+        Assert.True(steppedBot.Position.X > initialBot.Position.X + 0.01f);
+        Assert.True(steppedBot.Position.Y > initialBot.Position.Y);
+        Assert.Equal(MathF.PI / 2.0f, steppedBot.YawRadians);
+        Assert.Equal(0.25f, steppedBot.PitchRadians);
+        Assert.Equal(1U, steppedBot.LastProcessedInputSequence);
+        Assert.Equal(0U, steppedBot.LastProcessedInputClientTick);
+    }
+
+    [Fact]
+    public void BotFireUsesPlayingPhaseCombatAndIsGatedBeforePlaying()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        ServerPlayerId bot = session.AddBot();
+        InProcessClientConnection human = session.ConnectClient();
+        ServerSnapshot initial = session.DrainSnapshots(human)[^1];
+        PlayerSnapshotState initialBot = FindPlayer(initial, bot);
+        PlayerSnapshotState initialHuman = FindPlayer(initial, human.PlayerId);
+
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent() with { Buttons = InputButtons.Fire }));
+        session.Step();
+
+        ServerSnapshot gatedSnapshot = DequeueSnapshot(session, human);
+        Assert.Equal(initialBot.Weapon.AmmoInMagazine, FindPlayer(gatedSnapshot, bot).Weapon.AmmoInMagazine);
+        Assert.Equal(initialHuman.CurrentHealth, FindPlayer(gatedSnapshot, human.PlayerId).CurrentHealth);
+
+        EnterPlaying(session);
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent() with { Buttons = InputButtons.Fire }));
+        session.Step();
+
+        ServerSnapshot playingSnapshot = DequeueSnapshot(session, human);
+        PlayerSnapshotState firingBot = FindPlayer(playingSnapshot, bot);
+        Assert.Equal(initialBot.Weapon.AmmoInMagazine - 1, firingBot.Weapon.AmmoInMagazine);
+        Assert.Equal(75, FindPlayer(playingSnapshot, human.PlayerId).CurrentHealth);
+        Assert.Equal(2U, firingBot.LastProcessedInputSequence);
+        Assert.Equal(1U, firingBot.LastProcessedInputClientTick);
+    }
+
+    [Fact]
+    public void BotInputRejectsInvalidUnknownHumanAndDuplicateWithoutConsumingSequence()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        InProcessClientConnection human = session.ConnectClient();
+        ServerPlayerId bot = session.AddBot();
+        BotInputIntent valid = BotIntent();
+
+        Assert.False(session.TrySubmitBotInput(new ServerPlayerId(999), valid));
+        Assert.False(session.TrySubmitBotInput(human.PlayerId, valid));
+        Assert.False(session.TrySubmitBotInput(bot, valid with { Move = new Vector2(2.0f, 0.0f) }));
+        Assert.False(session.TrySubmitBotInput(bot, valid with { YawRadians = float.NaN }));
+        Assert.False(session.TrySubmitBotInput(
+            bot,
+            valid with { PitchRadians = PlayerInputCommandValidation.MaxPitchRadians + 0.01f }));
+        Assert.False(session.TrySubmitBotInput(bot, valid with { Buttons = (InputButtons)0x8000 }));
+
+        Assert.True(session.TrySubmitBotInput(bot, valid));
+        Assert.False(session.TrySubmitBotInput(bot, valid with { YawRadians = 0.5f }));
+        session.Step();
+
+        ServerPlayerDebugState processed = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(1U, processed.LastProcessedInputSequence);
+        Assert.Equal(0U, processed.LastProcessedInputClientTick);
+
+        Assert.True(session.TrySubmitBotInput(bot, valid with { YawRadians = 0.5f }));
+        session.Step();
+
+        processed = Assert.Single(session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(2U, processed.LastProcessedInputSequence);
+        Assert.Equal(1U, processed.LastProcessedInputClientTick);
+    }
+
+    [Fact]
+    public void MissingBotInputNeutralizesMovementAndButtonsWithoutResettingLook()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        InProcessClientConnection human = session.ConnectClient();
+        ServerPlayerId bot = session.AddBot();
+        _ = session.DrainSnapshots(human);
+
+        Assert.True(session.TrySubmitBotInput(
+            bot,
+            BotIntent() with
+            {
+                Move = new Vector2(0.0f, 1.0f),
+                YawRadians = MathF.PI / 2.0f,
+                PitchRadians = -0.2f,
+            }));
+        session.Step();
+        PlayerSnapshotState moving = FindPlayer(DequeueSnapshot(session, human), bot);
+
+        session.Step();
+        PlayerSnapshotState neutral = FindPlayer(DequeueSnapshot(session, human), bot);
+
+        Assert.InRange(MathF.Abs(neutral.Position.X - moving.Position.X), 0.0f, 0.001f);
+        Assert.InRange(MathF.Abs(neutral.Position.Z - moving.Position.Z), 0.0f, 0.001f);
+        Assert.Equal(0.0f, neutral.Velocity.X);
+        Assert.Equal(0.0f, neutral.Velocity.Z);
+        Assert.Equal(moving.YawRadians, neutral.YawRadians);
+        Assert.Equal(moving.PitchRadians, neutral.PitchRadians);
+        Assert.Equal(1U, neutral.LastProcessedInputSequence);
+        Assert.Equal(0U, neutral.LastProcessedInputClientTick);
+    }
+
+    [Fact]
+    public void BotPendingInputParticipatesInDiagnosticsAndRemovalClearsItsState()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        InProcessClientConnection human = session.ConnectClient();
+        ServerPlayerId bot = session.AddBot();
+
+        Assert.True(session.TryEnqueueInputCommand(human, ValidCommand(sequence: 1)));
+        Assert.True(session.TryEnqueueInputCommand(human, ValidCommand(sequence: 2)));
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent()));
+
+        Assert.Equal(3, session.QueuedInputCommandCount);
+        Assert.Equal(2, Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == human.PlayerId.Value).QueuedInputCount);
+        Assert.Equal(1, Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value).QueuedInputCount);
+
+        Assert.True(session.TryRemoveBot(bot));
+        Assert.Equal(2, session.QueuedInputCommandCount);
+
+        ServerPlayerId replacement = session.AddBot();
+        Assert.True(session.TrySubmitBotInput(replacement, BotIntent()));
+        session.Step();
+
+        ServerPlayerDebugState replacementState = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == replacement.Value);
+        Assert.Equal(1U, replacementState.LastProcessedInputSequence);
+        Assert.Equal(0U, replacementState.LastProcessedInputClientTick);
+        Assert.Equal(1, session.QueuedInputCommandCount);
+    }
+
+    [Fact]
     public void DisposeDisposesWrappedSimulationAndRejectsOperations()
     {
         InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
@@ -537,6 +694,8 @@ public sealed class InProcessServerSessionTests
         Assert.Throws<ObjectDisposedException>(() => session.ConnectClient());
         Assert.Throws<ObjectDisposedException>(() => session.AddBot());
         Assert.Throws<ObjectDisposedException>(() => session.TryRemoveBot(new ServerPlayerId(1)));
+        Assert.Throws<ObjectDisposedException>(
+            () => session.TrySubmitBotInput(new ServerPlayerId(1), BotIntent()));
         Assert.Throws<ObjectDisposedException>(
             () => session.TryEnqueueInputCommand(client, ValidCommand(sequence: 1)));
         Assert.Throws<ObjectDisposedException>(() => session.Step());
@@ -566,6 +725,12 @@ public sealed class InProcessServerSessionTests
             YawRadians = yawRadians,
             Buttons = InputButtons.Fire,
         };
+
+    private static BotInputIntent BotIntent() => new(
+        Move: Vector2.Zero,
+        YawRadians: 0.0f,
+        PitchRadians: 0.0f,
+        Buttons: InputButtons.None);
 
     private static void FireOnCurrentTick(
         InProcessServerSession session,

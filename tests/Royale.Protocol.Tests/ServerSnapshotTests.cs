@@ -26,7 +26,9 @@ public sealed class ServerSnapshotTests
             CurrentHealth: 80,
             MaxHealth: 100,
             Alive: true,
-            Weapon: weapon);
+            Weapon: weapon,
+            LastProcessedInputSequence: 19,
+            LastProcessedInputClientTick: 119);
         var match = new MatchSnapshotState(
             ServerSnapshotMatchPhase.Playing,
             PhaseStartedTick: 60,
@@ -49,6 +51,8 @@ public sealed class ServerSnapshotTests
         Assert.Equal(123UL, snapshot.ServerTick);
         Assert.Equal(7U, snapshot.LocalPlayerId);
         Assert.Equal(42U, snapshot.AcknowledgedInputSequence);
+        Assert.Equal(19U, Assert.Single(snapshot.Players).LastProcessedInputSequence);
+        Assert.Equal(119U, Assert.Single(snapshot.Players).LastProcessedInputClientTick);
         Assert.Equal(player, Assert.Single(snapshot.Players));
         Assert.Equal(match, snapshot.Match);
         Assert.Equal(safeZone, snapshot.SafeZone);
@@ -76,7 +80,9 @@ public sealed class ServerSnapshotTests
             CurrentHealth: 25,
             MaxHealth: 100,
             Alive: false,
-            Weapon: weapon);
+            Weapon: weapon,
+            LastProcessedInputSequence: 9,
+            LastProcessedInputClientTick: 109);
 
         Assert.Equal(2U, player.PlayerId);
         Assert.Equal(ServerSnapshotPlayerKind.Bot, player.Kind);
@@ -88,6 +94,8 @@ public sealed class ServerSnapshotTests
         Assert.Equal(100, player.MaxHealth);
         Assert.False(player.Alive);
         Assert.Equal(weapon, player.Weapon);
+        Assert.Equal(9U, player.LastProcessedInputSequence);
+        Assert.Equal(109U, player.LastProcessedInputClientTick);
     }
 
     [Fact]
@@ -98,7 +106,11 @@ public sealed class ServerSnapshotTests
             acknowledgedInputSequence: 42,
             players:
             [
-                CreatePlayer(7, "rifle", alive: true, lastFiredTick: 120, reloadCompleteTick: null),
+                CreatePlayer(7, "rifle", alive: true, lastFiredTick: 120, reloadCompleteTick: null) with
+                {
+                    LastProcessedInputSequence = 42,
+                    LastProcessedInputClientTick = 142,
+                },
                 CreatePlayer(8, "shotgun-\u2603", alive: false, lastFiredTick: null, reloadCompleteTick: 160),
             ],
             match: new MatchSnapshotState(
@@ -372,8 +384,8 @@ public sealed class ServerSnapshotTests
     {
         Assert.Equal(128, ProtocolConstants.MaxSnapshotPlayers);
         Assert.Equal(64, ProtocolConstants.MaxSnapshotWeaponIdLength);
-        Assert.Equal(146, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
-        Assert.Equal(18754, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
+        Assert.Equal(156, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
+        Assert.Equal(20034, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
         Assert.True(ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize > ProtocolConstants.PacketHeaderSize);
 
         string maximumWeaponId = new('w', ProtocolConstants.MaxSnapshotWeaponIdLength);
@@ -383,7 +395,11 @@ public sealed class ServerSnapshotTests
                 maximumWeaponId,
                 alive: true,
                 lastFiredTick: 1,
-                reloadCompleteTick: 2))
+                reloadCompleteTick: 2) with
+                {
+                    LastProcessedInputSequence = 3,
+                    LastProcessedInputClientTick = 4,
+                })
             .ToArray();
         ServerSnapshot maximumSnapshot = CreateSnapshot(
             localPlayerId: 1,
@@ -499,6 +515,8 @@ public sealed class ServerSnapshotTests
             offset += payload[offset++] == 1 ? sizeof(ulong) : 0;
             offset += sizeof(byte);
             offset += payload[offset++] == 1 ? sizeof(ulong) : 0;
+            offset += payload[offset++] == 1 ? sizeof(uint) : 0;
+            offset += payload[offset++] == 1 ? sizeof(uint) : 0;
         }
 
         return offset;

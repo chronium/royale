@@ -69,6 +69,25 @@ public sealed class MapContentTests
     }
 
     [Fact]
+    public void GrayboxSpawnRotationsFaceSafeZoneCenter()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+
+        Assert.All(map.SpawnPoints, spawnPoint =>
+        {
+            float yawRadians = spawnPoint.RotationEuler.Y * MathF.PI / 180.0f;
+            float forwardX = MathF.Sin(yawRadians);
+            float forwardZ = -MathF.Cos(yawRadians);
+            float centerX = map.SafeZone.Center.X - spawnPoint.Position.X;
+            float centerZ = map.SafeZone.Center.Z - spawnPoint.Position.Z;
+            float inverseLength = 1.0f / MathF.Sqrt((centerX * centerX) + (centerZ * centerZ));
+            float alignment = (forwardX * centerX * inverseLength) + (forwardZ * centerZ * inverseLength);
+
+            Assert.True(alignment > 0.999f, $"Spawn '{spawnPoint.Id}' does not face the safe-zone center.");
+        });
+    }
+
+    [Fact]
     public void GrayboxMapContainsRequiredEnvironmentCategories()
     {
         GameMap map = MapCatalog.LoadDefault();

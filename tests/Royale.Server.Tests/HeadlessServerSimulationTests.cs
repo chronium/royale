@@ -2,6 +2,7 @@ using Royale.Content;
 using Royale.Protocol;
 using Royale.Server;
 using Royale.Simulation.Combat;
+using Royale.Simulation.World;
 
 namespace Royale.Server.Tests;
 
@@ -130,6 +131,139 @@ public sealed class HeadlessServerSimulationTests
         Assert.Equal(2, simulation.HumanPlayerCount);
         Assert.Equal(1, simulation.BotPlayerCount);
         Assert.Equal(3, simulation.MatchState.LivingPlayerCount);
+    }
+
+    [Fact]
+    public void SameSeedAndAdmissionSequenceProduceSameSpawnSequence()
+    {
+        using HeadlessServerSimulation first = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, spawnSeed: 12345);
+        using HeadlessServerSimulation second = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, spawnSeed: 12345);
+
+        var firstPositions = new[]
+        {
+            first.AddHumanPlayer().Character.Position,
+            first.AddBotPlayer().Character.Position,
+            first.AddHumanPlayer().Character.Position,
+            first.AddBotPlayer().Character.Position,
+        };
+        var secondPositions = new[]
+        {
+            second.AddHumanPlayer().Character.Position,
+            second.AddBotPlayer().Character.Position,
+            second.AddHumanPlayer().Character.Position,
+            second.AddBotPlayer().Character.Position,
+        };
+
+        Assert.Equal(firstPositions, secondPositions);
+    }
+
+    [Fact]
+    public void EightGrayboxParticipantsReceiveUniqueNonOverlappingInZoneSpawns()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(map, spawnSeed: 42);
+        var participants = new List<AuthoritativePlayerState>();
+
+        for (int index = 0; index < 8; index++)
+            participants.Add(index % 2 == 0 ? simulation.AddHumanPlayer() : simulation.AddBotPlayer());
+
+        Assert.Equal(8, participants.Select(player => player.Character.Position).Distinct().Count());
+        foreach (AuthoritativePlayerState participant in participants)
+        {
+            float deltaX = participant.Character.Position.X - map.SafeZone.Center.X;
+            float deltaZ = participant.Character.Position.Z - map.SafeZone.Center.Z;
+            Assert.True(MathF.Sqrt((deltaX * deltaX) + (deltaZ * deltaZ)) +
+                SpawnSelectionSettings.Default.PlayerRadius <= map.SafeZone.Radius);
+            Assert.DoesNotContain(
+                participants,
+                other => other.PlayerId != participant.PlayerId &&
+                    other.SpawnReservation.Overlaps(participant.SpawnReservation));
+        }
+    }
+
+    [Fact]
+    public void HumanAndBotAdmissionsUseSameSeededRandomSelectionPath()
+    {
+        using HeadlessServerSimulation humansFirst = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, spawnSeed: 9876);
+        using HeadlessServerSimulation botsFirst = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, spawnSeed: 9876);
+
+        var mixedPositions = new[]
+        {
+            humansFirst.AddHumanPlayer().Character.Position,
+            humansFirst.AddBotPlayer().Character.Position,
+            humansFirst.AddHumanPlayer().Character.Position,
+        };
+        var inversePositions = new[]
+        {
+            botsFirst.AddBotPlayer().Character.Position,
+            botsFirst.AddHumanPlayer().Character.Position,
+            botsFirst.AddBotPlayer().Character.Position,
+        };
+
+        Assert.Equal(mixedPositions, inversePositions);
+    }
+
+    [Fact]
+    public void AdmissionSkipsOutOfZoneBlockedAndBoundaryCrossingCandidates()
+    {
+        GameMap map = CreateSpawnTestMap(
+            safeZoneRadius: 2.0f,
+            [
+                Spawn("feet-outside", 2.1f),
+                Spawn("radius-crosses-boundary", 1.8f),
+                Spawn("blocked", 0.0f),
+                Spawn("valid", -1.0f),
+            ],
+            [
+                Ground(),
+                Box("blocker", new MapVector3(0.0f, 0.9f, 0.0f), new MapVector3(0.5f, 1.0f, 0.5f)),
+            ]);
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(map, spawnSeed: 1);
+
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
+
+        Assert.Equal(MapStaticBoxTransforms.ToVector3(map.SpawnPoints.Single(spawn => spawn.Id == "valid").Position), player.Character.Position);
+    }
+
+    [Fact]
+    public void FailedAdmissionDoesNotAddPartialPlayerOrReservation()
+    {
+        MapSpawnPoint onlySpawn = Spawn("only", 0.0f);
+        GameMap map = CreateSpawnTestMap(5.0f, [onlySpawn], [Ground()]);
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(map, spawnSeed: 1);
+        AuthoritativePlayerState first = simulation.AddHumanPlayer();
+
+        Assert.Throws<InvalidOperationException>(() => simulation.AddBotPlayer());
+        Assert.Single(simulation.Players);
+        Assert.Equal(new ServerPlayerId(1), first.PlayerId);
+
+        Assert.True(simulation.RemovePlayer(first.PlayerId));
+        AuthoritativePlayerState replacement = simulation.AddBotPlayer();
+        Assert.Equal(new ServerPlayerId(2), replacement.PlayerId);
+        Assert.Equal(first.SpawnReservation, replacement.SpawnReservation);
+    }
+
+    [Fact]
+    public void MatchPhaseTransitionsDoNotReassignExistingParticipants()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId, spawnSeed: 7);
+        AuthoritativePlayerState human = simulation.AddHumanPlayer();
+        AuthoritativePlayerState bot = simulation.AddBotPlayer();
+        var original = simulation.Players.ToDictionary(
+            entry => entry.Key,
+            entry => (entry.Value.Character.Position, entry.Value.Look, entry.Value.SpawnReservation));
+
+        simulation.TransitionMatchPhase(MatchPhase.Countdown);
+        simulation.TransitionMatchPhase(MatchPhase.Playing);
+
+        Assert.Equal(original[human.PlayerId], (
+            simulation.Players[human.PlayerId].Character.Position,
+            simulation.Players[human.PlayerId].Look,
+            simulation.Players[human.PlayerId].SpawnReservation));
+        Assert.Equal(original[bot.PlayerId], (
+            simulation.Players[bot.PlayerId].Character.Position,
+            simulation.Players[bot.PlayerId].Look,
+            simulation.Players[bot.PlayerId].SpawnReservation));
     }
 
     [Fact]
@@ -466,4 +600,41 @@ public sealed class HeadlessServerSimulationTests
         Assert.True(float.IsFinite(player.Look.YawRadians));
         Assert.True(float.IsFinite(player.Look.PitchRadians));
     }
+
+    private static GameMap CreateSpawnTestMap(
+        float safeZoneRadius,
+        IReadOnlyList<MapSpawnPoint> spawnPoints,
+        IReadOnlyList<StaticBoxDefinition> staticBoxes) => new()
+    {
+        Id = "spawn-test-map",
+        Name = "Spawn Test Map",
+        WorldBounds = new MapBounds
+        {
+            Min = new MapVector3(-10.0f, -1.0f, -10.0f),
+            Max = new MapVector3(10.0f, 5.0f, 10.0f),
+        },
+        SafeZone = new SafeZoneDefinition
+        {
+            Center = new MapVector3(0.0f, 0.0f, 0.0f),
+            Radius = safeZoneRadius,
+        },
+        SpawnPoints = spawnPoints.ToList(),
+        StaticBoxes = staticBoxes.ToList(),
+    };
+
+    private static MapSpawnPoint Spawn(string id, float x) => new()
+    {
+        Id = id,
+        Position = new MapVector3(x, 0.0f, 0.0f),
+    };
+
+    private static StaticBoxDefinition Ground() =>
+        Box("ground", new MapVector3(0.0f, -0.1f, 0.0f), new MapVector3(20.0f, 0.2f, 20.0f));
+
+    private static StaticBoxDefinition Box(string id, MapVector3 position, MapVector3 size) => new()
+    {
+        Id = id,
+        Position = position,
+        Size = size,
+    };
 }

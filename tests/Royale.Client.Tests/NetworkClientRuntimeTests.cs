@@ -41,6 +41,7 @@ public sealed class NetworkClientRuntimeTests
         ServerAccept accept = Accept();
 
         AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, Snapshot(localPlayerId: accept.PlayerId));
         transport.SentPackets.Clear();
 
         runtime.ApplyLook(new PlayerInputSample(
@@ -69,8 +70,8 @@ public sealed class NetworkClientRuntimeTests
         Assert.InRange(command.Move.Length(), 0.999f, 1.001f);
         Assert.True(command.Buttons.HasFlag(InputButtons.Jump));
         Assert.True(command.Buttons.HasFlag(InputButtons.Fire));
-        Assert.Equal(0.025f, command.YawRadians, precision: 4);
-        Assert.Equal(0.05f, command.PitchRadians, precision: 4);
+        Assert.Equal(0.275f, command.YawRadians, precision: 4);
+        Assert.Equal(-0.45f, command.PitchRadians, precision: 4);
         Assert.Equal(1UL, runtime.Diagnostics.SuccessfulInputSendCount);
     }
 
@@ -100,6 +101,54 @@ public sealed class NetworkClientRuntimeTests
         Assert.Equal(1UL, runtime.Diagnostics.ReceivedSnapshotPacketCount);
         Assert.Equal(1UL, runtime.Diagnostics.ValidSnapshotPacketCount);
         Assert.Equal(0UL, runtime.Diagnostics.InvalidSnapshotPacketCount);
+    }
+
+    [Fact]
+    public void InitialSnapshotSeedsLookAndFirstCommandPreservesSpawnOrientation()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
+        ServerAccept accept = Accept();
+        ServerSnapshot snapshot = Snapshot(localPlayerId: accept.PlayerId);
+        PlayerSnapshotState localPlayer = snapshot.Players.Single(player => player.PlayerId == accept.PlayerId);
+        AcceptHandshake(runtime, transport, accept);
+
+        Assert.False(runtime.FixedUpdate(default, clientTick: 1));
+
+        ReceiveSnapshot(runtime, accept, snapshot);
+
+        Assert.Equal(new PlayerLookState(localPlayer.YawRadians, localPlayer.PitchRadians), runtime.LookState);
+        transport.SentPackets.Clear();
+        Assert.True(runtime.FixedUpdate(default, clientTick: 2));
+
+        SentPacket inputPacket = Assert.Single(transport.SentPackets);
+        Assert.True(ClientInputPayloadSerializer.TryReadCommands(
+            ReadPayload(inputPacket.Payload),
+            out PlayerInputCommand[] commands));
+        PlayerInputCommand command = Assert.Single(commands);
+        Assert.Equal(localPlayer.YawRadians, command.YawRadians);
+        Assert.Equal(localPlayer.PitchRadians, command.PitchRadians);
+    }
+
+    [Fact]
+    public void LaterSnapshotsDoNotOverwriteLocallyAccumulatedLook()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
+        ServerAccept accept = Accept();
+        ServerSnapshot snapshot = Snapshot(localPlayerId: accept.PlayerId);
+        AcceptHandshake(runtime, transport, accept);
+        ReceiveSnapshot(runtime, accept, snapshot);
+        runtime.ApplyLook(new PlayerInputSample(
+            Move: Vector2.Zero,
+            Jump: false,
+            Fire: false,
+            LookDelta: new Vector2(10.0f, -20.0f)));
+        PlayerLookState locallyUpdatedLook = runtime.LookState;
+
+        ReceiveSnapshot(runtime, accept, snapshot);
+
+        Assert.Equal(locallyUpdatedLook, runtime.LookState);
     }
 
     [Fact]
@@ -267,11 +316,11 @@ public sealed class NetworkClientRuntimeTests
         Assert.False(runtime.PredictionSeeded);
         Assert.False(runtime.PredictionActive);
 
-        Assert.True(runtime.FixedUpdate(
+        Assert.False(runtime.FixedUpdate(
             new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
             clientTick: 2));
 
-        Assert.Equal(1, runtime.PendingInputCount);
+        Assert.Equal(0, runtime.PendingInputCount);
         Assert.False(runtime.PredictionSeeded);
         Assert.False(runtime.PredictionActive);
         Assert.False(runtime.TryGetPredictedLocalPlayer(out _));

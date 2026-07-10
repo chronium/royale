@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T06:35:45.9845160Z
+modifiedAt: 2026-07-10T07:15:22.4631060Z
 ---
 
 ## Content and Map Data
@@ -32,7 +32,7 @@ The current minimal schema is:
     {
       "id": "outer-north",
       "position": { "x": 0.0, "y": 0.0, "z": -17.0 },
-      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
     }
   ],
   "lootPoints": [
@@ -56,7 +56,7 @@ Static boxes define shared map data used by both client-rendered gray-box geomet
 
 Client rendering treats each static box as a centered unit-box mesh scaled by `size`, rotated by yaw/pitch/roll Euler angles, and translated by `position`. `GAME-002` uses the same data in `Royale.Simulation` to create one Box3D static body per static box and one box hull shape per body, with hull half-extents of `size / 2`. Shape ids are associated back to source static-box ids for tests and debugging.
 
-Spawn points are gameplay content, not placeholders. `MapCatalog` requires at least one spawn point, each spawn id must be non-empty and unique, and every spawn position must be inside `worldBounds`. `MapSpawnPoint.Position` is the player feet anchor. `GAME-007` uses spawn points in `Royale.Simulation` for deterministic first-valid selection with static-collision clearance checks and caller-provided occupancy reservations; it does not yet integrate spawning into client/server match flow.
+Spawn points are gameplay content, not placeholders. `MapCatalog` requires at least one spawn point, each spawn id must be non-empty and unique, and every spawn position must be inside `worldBounds`. `MapSpawnPoint.Position` is the player feet anchor. `GAME-007` uses spawn points in `Royale.Simulation` for deterministic first-valid selection with static-collision clearance checks and caller-provided occupancy reservations. `BR-003` integrates them into authoritative admission: the server randomizes eligible candidates, preserves each selected spawn's authored yaw, and reserves its player footprint. Graybox spawn yaw values use the gameplay convention where yaw `0` faces world `-Z`; all twelve are authored to face the initial safe-zone center.
 
 Loot points and safe-zone fields are still placeholders at this stage and do not yet drive gameplay behavior. Static map collision and spawn selection exist, but the map content does not yet implement loot collision, safe-zone simulation, mesh collision, height fields, dynamic bodies, or protocol compatibility behavior.
 

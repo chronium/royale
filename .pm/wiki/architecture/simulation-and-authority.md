@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T05:59:59.3356310Z
+modifiedAt: 2026-07-10T07:15:28.2316780Z
 ---
 
 ## Simulation Model
@@ -143,6 +143,8 @@ Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player I
 
 Phase changes are explicit orchestration operations. The fixed simulation `Step()` does not automatically change phase, and this foundation does not yet gate movement or combat by phase. Every subsequently produced authoritative snapshot maps the current server phase and its stamped start tick into the protocol transfer shape.
 
+`BR-003` makes spawn assignment server-owned and randomized at admission time for both humans and bots. `HeadlessServerSimulation` owns one random-number stream shared by both participant kinds. Each admission filters map candidates against static clearance, active spawn reservations, and the initial safe-zone circle, including the default player radius in the boundary check; it then Fisher-Yates shuffles the candidates and selects the first valid result. An optional simulation/session `spawnSeed` makes the sequence repeatable for tests, while live servers use a fresh sequence. Removing a participant releases its reservation. Late joins use the same admission path, and match transitions do not reassign or teleport existing participants.
+
 ### Authoritative Participant Identity
 
 `BOT-001` distinguishes authoritative participants with `ServerPlayerKind.Human = 0` and `Bot = 1`. Both kinds live in the same match-scoped authoritative player dictionary and receive IDs from the same monotonic allocator. They share spawn reservations, transform/look state, health, weapon state, combat, snapshots, elimination/living counts, and force-start eligibility.
@@ -251,6 +253,8 @@ For each fixed tick, the client:
 4. Sends it to the server.
 
 The same movement rules should be used by both client and server wherever practical. This does not require every part of the simulation to be perfectly deterministic. The main requirement is that the movement implementation is sufficiently consistent for corrections to remain small under normal conditions.
+
+For a newly accepted network session, the client waits for the first authoritative local-player snapshot before sending input commands. That snapshot seeds the local predicted transform and seeds camera yaw/pitch once from the server-selected spawn orientation. Later snapshots reconcile predicted gameplay state but do not overwrite locally accumulated mouse look; outgoing commands therefore begin from the spawn-authored orientation without repeatedly snapping the camera back to snapshot look.
 
 ## Server Reconciliation
 

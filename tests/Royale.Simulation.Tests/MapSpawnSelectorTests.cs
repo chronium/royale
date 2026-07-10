@@ -24,6 +24,49 @@ public sealed class MapSpawnSelectorTests
     }
 
     [Fact]
+    public void OrderedCandidatesAreEvaluatedInSuppliedOrder()
+    {
+        MapSpawnPoint spawnA = Spawn("spawn-a", 0.0f);
+        MapSpawnPoint spawnB = Spawn("spawn-b", 3.0f);
+        GameMap map = CreateMap([spawnA, spawnB]);
+
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+
+        Assert.True(MapSpawnSelector.TrySelectSpawn(
+            map,
+            [spawnB, spawnA],
+            collisionWorld,
+            [],
+            out MapSpawnPoint? selected));
+        Assert.Equal("spawn-b", selected!.Id);
+    }
+
+    [Fact]
+    public void OrderedCandidatesStillRejectStaticCollisionAndReservations()
+    {
+        MapSpawnPoint blocked = Spawn("blocked", 0.0f);
+        MapSpawnPoint reserved = Spawn("reserved", 3.0f);
+        MapSpawnPoint available = Spawn("available", 6.0f);
+        GameMap map = CreateMap(
+            [blocked, reserved, available],
+            [
+                Ground(),
+                Box("blocker", new MapVector3(0.0f, 0.9f, 0.0f), new MapVector3(0.5f, 1.0f, 0.5f)),
+            ]);
+
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        SpawnReservation reservation = MapSpawnSelector.CreateReservation(reserved);
+
+        Assert.True(MapSpawnSelector.TrySelectSpawn(
+            map,
+            [blocked, reserved, available],
+            collisionWorld,
+            [reservation],
+            out MapSpawnPoint? selected));
+        Assert.Equal("available", selected!.Id);
+    }
+
+    [Fact]
     public void StaticCollisionOverlapRejectsSpawn()
     {
         GameMap map = CreateMap(

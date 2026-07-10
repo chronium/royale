@@ -8,8 +8,11 @@ public static class MapSpawnSelector
         GameMap map,
         MapStaticCollisionWorld collisionWorld,
         IEnumerable<SpawnReservation> reservations,
-        out MapSpawnPoint? spawnPoint) =>
-        TrySelectSpawn(map, collisionWorld, reservations, SpawnSelectionSettings.Default, out spawnPoint);
+        out MapSpawnPoint? spawnPoint)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        return TrySelectSpawn(map, map.SpawnPoints, collisionWorld, reservations, SpawnSelectionSettings.Default, out spawnPoint);
+    }
 
     public static bool TrySelectSpawn(
         GameMap map,
@@ -19,6 +22,27 @@ public static class MapSpawnSelector
         out MapSpawnPoint? spawnPoint)
     {
         ArgumentNullException.ThrowIfNull(map);
+        return TrySelectSpawn(map, map.SpawnPoints, collisionWorld, reservations, settings, out spawnPoint);
+    }
+
+    public static bool TrySelectSpawn(
+        GameMap map,
+        IEnumerable<MapSpawnPoint> orderedCandidates,
+        MapStaticCollisionWorld collisionWorld,
+        IEnumerable<SpawnReservation> reservations,
+        out MapSpawnPoint? spawnPoint) =>
+        TrySelectSpawn(map, orderedCandidates, collisionWorld, reservations, SpawnSelectionSettings.Default, out spawnPoint);
+
+    public static bool TrySelectSpawn(
+        GameMap map,
+        IEnumerable<MapSpawnPoint> orderedCandidates,
+        MapStaticCollisionWorld collisionWorld,
+        IEnumerable<SpawnReservation> reservations,
+        SpawnSelectionSettings settings,
+        out MapSpawnPoint? spawnPoint)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(orderedCandidates);
         ArgumentNullException.ThrowIfNull(collisionWorld);
         ArgumentNullException.ThrowIfNull(reservations);
         ArgumentNullException.ThrowIfNull(settings);
@@ -26,7 +50,7 @@ public static class MapSpawnSelector
 
         SpawnReservation[] reservationArray = reservations as SpawnReservation[] ?? reservations.ToArray();
 
-        foreach (MapSpawnPoint candidate in map.SpawnPoints)
+        foreach (MapSpawnPoint candidate in orderedCandidates)
         {
             SpawnReservation candidateReservation = CreateReservation(candidate, settings);
 

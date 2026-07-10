@@ -13,6 +13,7 @@ public sealed class HeadlessServerSimulation : IDisposable
     private readonly MapStaticCollisionWorld collisionWorld;
     private readonly KinematicCharacterController characterController = new();
     private readonly MatchStartSettings matchStartSettings;
+    private readonly Random spawnRandom;
     private readonly Dictionary<ServerPlayerId, AuthoritativePlayerState> players = [];
     private readonly Dictionary<ServerPlayerId, SpawnReservation> spawnReservations = [];
     private uint nextPlayerId = 1;
@@ -21,12 +22,14 @@ public sealed class HeadlessServerSimulation : IDisposable
     private HeadlessServerSimulation(
         GameMap map,
         MapStaticCollisionWorld collisionWorld,
-        MatchStartSettings matchStartSettings)
+        MatchStartSettings matchStartSettings,
+        int? spawnSeed)
     {
         this.map = map;
         MapId = map.Id;
         this.collisionWorld = collisionWorld;
         this.matchStartSettings = matchStartSettings;
+        spawnRandom = spawnSeed.HasValue ? new Random(spawnSeed.Value) : new Random();
         SafeZoneState = CreateSafeZoneState(map);
         MatchState = new AuthoritativeMatchState(
             MatchPhase.WaitingForPlayers,
@@ -61,15 +64,17 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public static HeadlessServerSimulation Create(
         string mapId,
-        MatchStartSettings? matchStartSettings = null)
+        MatchStartSettings? matchStartSettings = null,
+        int? spawnSeed = null)
     {
         GameMap map = MapCatalog.LoadById(mapId);
-        return Create(map, matchStartSettings);
+        return Create(map, matchStartSettings, spawnSeed);
     }
 
     public static HeadlessServerSimulation Create(
         GameMap map,
-        MatchStartSettings? matchStartSettings = null)
+        MatchStartSettings? matchStartSettings = null,
+        int? spawnSeed = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         matchStartSettings ??= MatchStartSettings.Default;
@@ -78,7 +83,7 @@ public sealed class HeadlessServerSimulation : IDisposable
 
         try
         {
-            return new HeadlessServerSimulation(map, collisionWorld, matchStartSettings);
+            return new HeadlessServerSimulation(map, collisionWorld, matchStartSettings, spawnSeed);
         }
         catch
         {
@@ -105,7 +110,13 @@ public sealed class HeadlessServerSimulation : IDisposable
         if (kind == ServerPlayerKind.Bot && connectionId.HasValue)
             throw new ArgumentException("Bot participants cannot have connection IDs.", nameof(connectionId));
 
-        if (!MapSpawnSelector.TrySelectSpawn(map, collisionWorld, spawnReservations.Values, out MapSpawnPoint? spawnPoint))
+        List<MapSpawnPoint> candidates = map.SpawnPoints
+            .Where(IsInsideInitialSafeZone)
+            .Where(IsAvailableSpawn)
+            .ToList();
+        Shuffle(candidates);
+
+        if (!MapSpawnSelector.TrySelectSpawn(map, candidates, collisionWorld, spawnReservations.Values, out MapSpawnPoint? spawnPoint))
             throw new InvalidOperationException($"Map '{MapId}' has no available unoccupied spawn point.");
 
         MapSpawnPoint selectedSpawn = spawnPoint
@@ -119,6 +130,32 @@ public sealed class HeadlessServerSimulation : IDisposable
         RefreshLivingPlayerCount();
 
         return player;
+    }
+
+    private bool IsInsideInitialSafeZone(MapSpawnPoint spawnPoint)
+    {
+        float deltaX = spawnPoint.Position.X - map.SafeZone.Center.X;
+        float deltaZ = spawnPoint.Position.Z - map.SafeZone.Center.Z;
+        float maximumFeetDistance = map.SafeZone.Radius - SpawnSelectionSettings.Default.PlayerRadius;
+        return maximumFeetDistance >= 0.0f &&
+            (deltaX * deltaX) + (deltaZ * deltaZ) <= maximumFeetDistance * maximumFeetDistance;
+    }
+
+    private bool IsAvailableSpawn(MapSpawnPoint spawnPoint) =>
+        MapSpawnSelector.TrySelectSpawn(
+            map,
+            [spawnPoint],
+            collisionWorld,
+            spawnReservations.Values,
+            out _);
+
+    private void Shuffle(List<MapSpawnPoint> candidates)
+    {
+        for (int index = candidates.Count - 1; index > 0; index--)
+        {
+            int swapIndex = spawnRandom.Next(index + 1);
+            (candidates[index], candidates[swapIndex]) = (candidates[swapIndex], candidates[index]);
+        }
     }
 
     public bool RemovePlayer(ServerPlayerId playerId)

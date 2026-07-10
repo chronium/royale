@@ -60,7 +60,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void PlayerDebugStateReportsQueuedInputAndProcessedAuthoritativeState()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection client = session.ConnectClient();
         ServerPlayerDebugState initial = Assert.Single(session.GetPlayerDebugStates());
 
@@ -188,7 +188,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void StepAppliesMovementAndLookToAuthoritativeSnapshots()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(first)[^1];
@@ -221,7 +221,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void QueuedCommandsAreConsumedOldestFirstAcrossServerTicks()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection client = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(client)[^1];
         Vector3 initialPosition = FindPlayer(initial, client.PlayerId).Position;
@@ -265,7 +265,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void ShortPressReleaseBurstMovesForOneServerTickThenStops()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection client = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(client)[^1];
         Vector3 initialPosition = FindPlayer(initial, client.PlayerId).Position;
@@ -324,7 +324,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void TwoClientsConsumeTheirQueuesIndependently()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -355,7 +355,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void RifleFireDamagesTargetInBothClientsSnapshots()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -378,7 +378,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void FourDefaultRifleHitsKillTargetAndReduceLivingPlayerCount()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -405,7 +405,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void DeadPlayersDoNotMoveLookFireOrAdvanceWeaponCadence()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -442,7 +442,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void PrePlayingInputMovesLooksAndAcknowledgesWithoutMutatingCombatState()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection first = session.ConnectClient();
         InProcessClientConnection second = session.ConnectClient();
         _ = session.DrainSnapshots(first);
@@ -527,7 +527,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void ValidBotIntentUsesAuthoritativeSequenceDecisionTickAndSimulationPath()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         ServerPlayerId bot = session.AddBot();
         InProcessClientConnection human = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(human)[^1];
@@ -558,7 +558,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void BotFireUsesPlayingPhaseCombatAndIsGatedBeforePlaying()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         ServerPlayerId bot = session.AddBot();
         InProcessClientConnection human = session.ConnectClient();
         ServerSnapshot initial = session.DrainSnapshots(human)[^1];
@@ -621,7 +621,7 @@ public sealed class InProcessServerSessionTests
     [Fact]
     public void MissingBotInputNeutralizesMovementAndButtonsWithoutResettingLook()
     {
-        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap());
+        using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
         InProcessClientConnection human = session.ConnectClient();
         ServerPlayerId bot = session.AddBot();
         _ = session.DrainSnapshots(human);

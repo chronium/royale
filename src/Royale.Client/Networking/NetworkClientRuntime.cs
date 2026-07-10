@@ -20,6 +20,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     private NetworkHandshakeClient? handshake;
     private ClientInputSender? inputSender;
     private uint nextCommandSequence = 1;
+    private bool lookSeededFromSnapshot;
     private bool disposed;
 
     public NetworkClientRuntime(
@@ -121,7 +122,7 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     {
         ThrowIfDisposed();
 
-        if (inputSender is null)
+        if (inputSender is null || !lookSeededFromSnapshot)
             return false;
 
         PlayerInputCommand command = new(
@@ -169,6 +170,8 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         {
             Diagnostics.RecordDisconnect(reason);
             inputSender = null;
+            LookState = default;
+            lookSeededFromSnapshot = false;
             prediction.Reset();
             remoteSnapshotInterpolator.Reset();
         }
@@ -253,8 +256,18 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
         ServerSnapshot validSnapshot = snapshot!;
         State.ApplySnapshot(validSnapshot);
+        SeedLookFromInitialSnapshot();
         remoteSnapshotInterpolator.AddSnapshot(validSnapshot);
         prediction.ApplySnapshot(validSnapshot);
+    }
+
+    private void SeedLookFromInitialSnapshot()
+    {
+        if (lookSeededFromSnapshot || !State.TryGetLocalPlayer(out PlayerSnapshotState localPlayer))
+            return;
+
+        LookState = new PlayerLookState(localPlayer.YawRadians, localPlayer.PitchRadians);
+        lookSeededFromSnapshot = true;
     }
 
     private void CacheTransportStatistics()

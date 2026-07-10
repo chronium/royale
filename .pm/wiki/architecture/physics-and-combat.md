@@ -1,7 +1,7 @@
 ---
 title: Physics and Combat
 createdAt: 2026-07-05T16:11:12.3492260Z
-modifiedAt: 2026-07-10T05:06:20.5967250Z
+modifiedAt: 2026-07-10T07:03:11.5143490Z
 ---
 
 ## Physics Architecture
@@ -123,11 +123,13 @@ Static box collision uses the same shared `position`, `size`, and yaw/pitch/roll
 
 This type exists to build and query gray-box map collision for gameplay systems. Internally it owns its Box3D world, static bodies, and static shapes through the PHYS-009 wrappers while preserving its public raw ID and query behavior. Cast and overlap calls still use the low-level query bindings with `world.Id` and hit shape IDs because managed query wrappers are not part of PHYS-009.
 
-`GAME-007` adds reusable spawn selection on top of static overlap queries. `MapSpawnPoint.Position` is the player feet anchor, and `MapSpawnSelector.CreateReservation()` builds a standing clearance AABB above that point using the default player radius `0.35`, height `1.8`, and ground clearance `0.05`. `TrySelectSpawn()` scans spawn points in map order and returns the first candidate whose clearance AABB does not overlap static map collision or caller-provided `SpawnReservation` AABBs. AABB touching without positive overlap is allowed. The selector is deterministic and does not randomize; battle-royale spawn randomization belongs to later match-flow work.
+`GAME-007` adds reusable spawn selection on top of static overlap queries. `MapSpawnPoint.Position` is the player feet anchor, and `MapSpawnSelector.CreateReservation()` builds a standing clearance AABB above that point using the default player radius `0.35`, height `1.8`, and ground clearance `0.05`. The map-based `TrySelectSpawn()` overloads deterministically scan spawn points in map order, while the ordered-candidate overload added by `BR-003` deterministically follows the caller-supplied order. Every overload returns the first candidate whose clearance AABB does not overlap static map collision or caller-provided `SpawnReservation` AABBs. AABB touching without positive overlap is allowed. Randomization is owned by the authoritative server admission path rather than by the selector.
 
 `GAME-004` adds focused capsule query helpers to `MapStaticCollisionWorld` for simulation movement. `CastCapsuleMover()` wraps `b3World_CastMover` for a feet-anchored vertical capsule, and `CollectCapsuleCollisionPlanes()` wraps `b3World_CollideMover` to return contact planes with optional source collider metadata. These helpers are intentionally game-specific wrappers over the low-level Box3D query API, not a general managed query abstraction.
 
 `MapStaticCollisionWorld` now configures Box3D `createDebugShape` and `destroyDebugShape` callbacks when the world is created. The callbacks capture geometry-only local wire segments for Box3D hull, capsule, and sphere debug shapes as managed handles stored behind Box3D's opaque `userShape` pointer. This keeps collision-world debug geometry backed by Box3D while avoiding any SDL, renderer, or client UI dependency in simulation code.
+
+`BR-003` extends `MapSpawnSelector.TrySelectSpawn()` with an explicitly ordered candidate overload. The existing overloads remain deterministic and scan `GameMap.SpawnPoints` in map order; callers that supply candidates control the evaluation order while static collision and reservation rejection remain unchanged. Authoritative server admission no longer uses raw map order: it filters to valid, unreserved candidates whose complete player radius fits inside the initial safe-zone circle, shuffles those candidates, and asks the selector to accept the first valid result.
 
 ## Player Controller
 

@@ -13,12 +13,12 @@
     {
       "id": "outer-north",
       "position": { "x": 0.0, "y": 0.0, "z": -17.0 },
-      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
     },
     {
       "id": "outer-north-east",
       "position": { "x": 12.0, "y": 0.0, "z": -12.0 },
-      "rotationEuler": { "x": 0.0, "y": -45.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
     },
     {
       "id": "outer-east",
@@ -28,17 +28,17 @@
     {
       "id": "outer-south-east",
       "position": { "x": 12.0, "y": 0.0, "z": 12.0 },
-      "rotationEuler": { "x": 0.0, "y": -135.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": -45.0, "z": 0.0 }
     },
     {
       "id": "outer-south",
       "position": { "x": 0.0, "y": 0.0, "z": 17.0 },
-      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "outer-south-west",
       "position": { "x": -12.0, "y": 0.0, "z": 12.0 },
-      "rotationEuler": { "x": 0.0, "y": 135.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
     },
     {
       "id": "outer-west",
@@ -48,12 +48,12 @@
     {
       "id": "outer-north-west",
       "position": { "x": -12.0, "y": 0.0, "z": -12.0 },
-      "rotationEuler": { "x": 0.0, "y": 45.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 135.0, "z": 0.0 }
     },
     {
       "id": "inner-north",
       "position": { "x": 0.0, "y": 0.0, "z": -7.0 },
-      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
     },
     {
       "id": "inner-east",
@@ -63,7 +63,7 @@
     {
       "id": "inner-south",
       "position": { "x": 0.0, "y": 0.0, "z": 7.0 },
-      "rotationEuler": { "x": 0.0, "y": 180.0, "z": 0.0 }
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 }
     },
     {
       "id": "inner-west",

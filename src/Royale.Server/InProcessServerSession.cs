@@ -44,13 +44,15 @@ public sealed class InProcessServerSession : IDisposable
 
     public static InProcessServerSession Create(
         string mapId,
-        MatchStartSettings? matchStartSettings = null) =>
-        new(HeadlessServerSimulation.Create(mapId, matchStartSettings));
+        MatchStartSettings? matchStartSettings = null,
+        int? spawnSeed = null) =>
+        new(HeadlessServerSimulation.Create(mapId, matchStartSettings, spawnSeed));
 
     public static InProcessServerSession Create(
         GameMap map,
-        MatchStartSettings? matchStartSettings = null) =>
-        new(HeadlessServerSimulation.Create(map, matchStartSettings));
+        MatchStartSettings? matchStartSettings = null,
+        int? spawnSeed = null) =>
+        new(HeadlessServerSimulation.Create(map, matchStartSettings, spawnSeed));
 
     public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates(
         IReadOnlyDictionary<ServerPlayerId, int>? peerIdsByPlayerId = null)

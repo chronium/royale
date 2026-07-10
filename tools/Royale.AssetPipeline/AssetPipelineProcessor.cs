@@ -72,14 +72,21 @@ public static class AssetPipelineProcessor
                 continue;
             }
 
-            if (asset.Collision.Mode != ModelCollisionMode.Convex)
-                throw new InvalidDataException($"Asset '{asset.Id}' collision mode '{asset.Collision.Mode}' is not supported by this asset pipeline version.");
-            if (asset.Render is null)
-                throw new InvalidDataException($"Asset '{asset.Id}' convex collision requires a render GLB source.");
-
-            string sourcePath = ModelAssetManifestLoader.ResolveSourcePath(sourceRoot, asset.Render.Source);
+            string relativeSource = asset.Collision.Mode switch
+            {
+                ModelCollisionMode.Convex or ModelCollisionMode.TriangleMesh =>
+                    asset.Render?.Source
+                    ?? throw new InvalidDataException($"Asset '{asset.Id}' {asset.Collision.Mode} collision requires a render GLB source."),
+                ModelCollisionMode.SeparateMesh =>
+                    asset.Collision.Source
+                    ?? throw new InvalidDataException($"Asset '{asset.Id}' separateMesh collision requires a collision GLB source."),
+                _ => throw new InvalidDataException($"Asset '{asset.Id}' collision mode '{asset.Collision.Mode}' is not supported by this asset pipeline version."),
+            };
+            string sourcePath = ModelAssetManifestLoader.ResolveSourcePath(sourceRoot, relativeSource);
             CollisionTriangleGeometry geometry = SimpleMeshCollisionGeometryExtractor.LoadFromFile(sourcePath);
-            ModelCollisionArtifact artifact = ConvexCollisionArtifactGenerator.Generate(geometry, asset.Id);
+            ModelCollisionArtifact artifact = asset.Collision.Mode == ModelCollisionMode.Convex
+                ? ConvexCollisionArtifactGenerator.Generate(geometry, asset.Id)
+                : TriangleMeshCollisionArtifactGenerator.Generate(geometry, asset.Id);
             string relativeArtifactPath = $"collision/{asset.Id}.json";
             WriteCollisionArtifact(Path.Combine(outputRoot, relativeArtifactPath), artifact);
             assets.Add(asset with
@@ -101,6 +108,7 @@ public static class AssetPipelineProcessor
             .OrderBy(asset => asset.Id, StringComparer.Ordinal)
             .Select(asset => asset with
             {
+                Collision = asset.Collision with { Source = null },
                 Render = includeRender && asset.Render is not null
                     ? asset.Render with
                     {

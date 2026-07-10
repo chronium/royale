@@ -99,8 +99,6 @@ public static class SimpleMeshCollisionGeometryExtractor
 
 public static class ConvexCollisionArtifactGenerator
 {
-    private const float PositionPrecision = 0.000001f;
-
     public static ModelCollisionArtifact Generate(CollisionTriangleGeometry geometry, string context)
     {
         ArgumentNullException.ThrowIfNull(geometry);
@@ -108,7 +106,7 @@ public static class ConvexCollisionArtifactGenerator
         ValidateTriangles(geometry, context);
 
         Vector3[] points = geometry.Indices
-            .Select(index => CanonicalizePoint(geometry.Vertices[index]))
+            .Select(index => CollisionGeometryCanonicalizer.CanonicalizePoint(geometry.Vertices[index]))
             .Distinct()
             .OrderBy(vertex => vertex.X)
             .ThenBy(vertex => vertex.Y)
@@ -127,7 +125,7 @@ public static class ConvexCollisionArtifactGenerator
         Hull generatedHull = hull!;
         Vector3[] sortedVertices = generatedHull.Vertices
             .ToArray()
-            .Select(CanonicalizePoint)
+            .Select(CollisionGeometryCanonicalizer.CanonicalizePoint)
             .OrderBy(vertex => vertex.X)
             .ThenBy(vertex => vertex.Y)
             .ThenBy(vertex => vertex.Z)
@@ -181,7 +179,7 @@ public static class ConvexCollisionArtifactGenerator
         Vector3 planePoint = points.MaxBy(point => Vector3.Cross(line, point - origin).LengthSquared());
         Vector3 normal = Vector3.Cross(line, planePoint - origin);
         float volumeMeasure = points.Max(point => MathF.Abs(Vector3.Dot(normal, point - origin)));
-        float scale = MathF.Max(PositionPrecision, points.Max(point => Vector3.Distance(origin, point)));
+        float scale = MathF.Max(CollisionGeometryCanonicalizer.PositionPrecision, points.Max(point => Vector3.Distance(origin, point)));
         if (!float.IsFinite(volumeMeasure) || volumeMeasure <= 1e-6f * scale * scale * scale)
             throw new InvalidDataException($"Collision source '{context}' is coplanar or too small to form a three-dimensional hull.");
     }
@@ -214,13 +212,90 @@ public static class ConvexCollisionArtifactGenerator
         return vertex;
     }
 
+}
+
+public static class TriangleMeshCollisionArtifactGenerator
+{
+    public static ModelCollisionArtifact Generate(CollisionTriangleGeometry geometry, string context)
+    {
+        ArgumentNullException.ThrowIfNull(geometry);
+        ArgumentException.ThrowIfNullOrWhiteSpace(context);
+        if (geometry.Indices.Count == 0 || geometry.Indices.Count % 3 != 0)
+            throw new InvalidDataException($"Collision source '{context}' must contain complete triangles.");
+
+        var sourceTriangles = new List<(Vector3 A, Vector3 B, Vector3 C)>(geometry.Indices.Count / 3);
+        for (int offset = 0; offset < geometry.Indices.Count; offset += 3)
+        {
+            Vector3 a = ReadVertex(geometry, offset, context);
+            Vector3 b = ReadVertex(geometry, offset + 1, context);
+            Vector3 c = ReadVertex(geometry, offset + 2, context);
+            if (Vector3.Cross(b - a, c - a).LengthSquared() <= 1e-12f)
+                throw new InvalidDataException($"Collision source '{context}' contains a degenerate triangle after canonicalization.");
+            sourceTriangles.Add((a, b, c));
+        }
+
+        Vector3[] sortedVertices = sourceTriangles
+            .SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C })
+            .Distinct()
+            .OrderBy(vertex => vertex.X)
+            .ThenBy(vertex => vertex.Y)
+            .ThenBy(vertex => vertex.Z)
+            .ToArray();
+        var vertexIndices = sortedVertices
+            .Select((vertex, index) => (vertex, index))
+            .ToDictionary(item => item.vertex, item => item.index);
+
+        var triangles = sourceTriangles
+            .Select(triangle => RotateToSmallest(
+                vertexIndices[triangle.A],
+                vertexIndices[triangle.B],
+                vertexIndices[triangle.C]))
+            .OrderBy(triangle => triangle.A)
+            .ThenBy(triangle => triangle.B)
+            .ThenBy(triangle => triangle.C)
+            .ToArray();
+
+        var artifact = new ModelCollisionArtifact
+        {
+            Version = ModelCollisionArtifact.CurrentVersion,
+            Kind = ModelCollisionArtifactKind.TriangleMesh,
+            Vertices = sortedVertices.Select(vertex => new ModelCollisionVertex(vertex.X, vertex.Y, vertex.Z)).ToList(),
+            Indices = triangles.SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C }).ToList(),
+        };
+        ModelCollisionArtifactLoader.Validate(artifact, context);
+        return artifact;
+    }
+
+    private static Vector3 ReadVertex(CollisionTriangleGeometry geometry, int indexOffset, string context)
+    {
+        int index = geometry.Indices[indexOffset];
+        if ((uint)index >= geometry.Vertices.Count)
+            throw new InvalidDataException($"Collision source '{context}' has index {index} outside its vertex array.");
+
+        Vector3 vertex = geometry.Vertices[index];
+        if (!float.IsFinite(vertex.X) || !float.IsFinite(vertex.Y) || !float.IsFinite(vertex.Z))
+            throw new InvalidDataException($"Collision source '{context}' has a non-finite vertex.");
+        return CollisionGeometryCanonicalizer.CanonicalizePoint(vertex);
+    }
+
+    private static (int A, int B, int C) RotateToSmallest(int a, int b, int c)
+    {
+        if (a <= b && a <= c) return (a, b, c);
+        return b <= c ? (b, c, a) : (c, a, b);
+    }
+}
+
+internal static class CollisionGeometryCanonicalizer
+{
+    public const float PositionPrecision = 0.000001f;
+
+    public static Vector3 CanonicalizePoint(Vector3 value) => NormalizeZero(new Vector3(
+        MathF.Round(value.X / PositionPrecision) * PositionPrecision,
+        MathF.Round(value.Y / PositionPrecision) * PositionPrecision,
+        MathF.Round(value.Z / PositionPrecision) * PositionPrecision));
+
     private static Vector3 NormalizeZero(Vector3 value) => new(
         value.X == 0.0f ? 0.0f : value.X,
         value.Y == 0.0f ? 0.0f : value.Y,
         value.Z == 0.0f ? 0.0f : value.Z);
-
-    private static Vector3 CanonicalizePoint(Vector3 value) => NormalizeZero(new Vector3(
-        MathF.Round(value.X / PositionPrecision) * PositionPrecision,
-        MathF.Round(value.Y / PositionPrecision) * PositionPrecision,
-        MathF.Round(value.Z / PositionPrecision) * PositionPrecision));
 }

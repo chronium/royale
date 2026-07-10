@@ -170,10 +170,13 @@ public static class ModelAssetManifestLoader
                         throw InvalidManifest(manifestPath, $"asset '{asset.Id}' collision source is only valid for separateMesh mode.");
                     break;
                 case ModelCollisionMode.SeparateMesh:
-                    if (string.IsNullOrWhiteSpace(asset.Collision.Source))
+                    if (validateSourceFiles && string.IsNullOrWhiteSpace(asset.Collision.Source))
                         throw InvalidManifest(manifestPath, $"asset '{asset.Id}' separateMesh collision requires source.");
-                    ValidateGlbPath(asset.Collision.Source, $"asset '{asset.Id}' collision source");
-                    ValidateSourceFile(asset.Collision.Source, sourceRoot, validateSourceFiles, manifestPath, asset.Id);
+                    if (asset.Collision.Source is not null)
+                    {
+                        ValidateGlbPath(asset.Collision.Source, $"asset '{asset.Id}' collision source");
+                        ValidateSourceFile(asset.Collision.Source, sourceRoot, validateSourceFiles, manifestPath, asset.Id);
+                    }
                     break;
                 default:
                     throw InvalidManifest(manifestPath, $"asset '{asset.Id}' has unknown collision mode '{asset.Collision.Mode}'.");

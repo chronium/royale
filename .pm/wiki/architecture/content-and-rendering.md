@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T09:13:18.0248340Z
+modifiedAt: 2026-07-10T09:20:45.5573480Z
 ---
 
 ## Content and Map Data
@@ -77,6 +77,12 @@ The first source asset is `kenney-crate`, using `meshes/kenney-prototype-kit/cra
 `ASSET-002` cooks `convex` assets during the build by loading all transformed triangle geometry through the pinned SimpleMesh dependency and passing a canonical point set through SimpleMesh Quickhull. Collision positions are snapped to a one-micrometer grid to remove exporter floating-point noise before deterministic sorting. The generated version `1` JSON artifact stores `kind: convex` and canonical support vertices only; it intentionally has no triangle indices because Box3D constructs and owns its native hull topology from those points. Triangle indices belong to `triangleMesh` artifacts.
 
 Convex artifacts are written as `collision/<asset-id>.json`, referenced from the generated catalog, and produced for both client and server audiences. They are build products under intermediate/output directories and are not committed. The cook rejects missing triangle geometry, invalid indices, non-finite vertices, degenerate triangles, coplanar point sets, and unsupported collision modes with asset-specific diagnostics. Source GLB hierarchy transforms are baked into artifact-local vertices; map placement transforms remain map-owned and are not applied by the asset pipeline.
+
+#### Triangle Collision Artifacts
+
+`ASSET-003` cooks `triangleMesh` from the asset's render GLB and `separateMesh` from the explicitly declared collision GLB. Both paths bake the source hierarchy transforms, snap positions to the shared one-micrometer collision grid, sort unique vertices and triangles deterministically, and preserve each triangle's winding. The version `1` artifact uses `kind: triangleMesh` with indexed vertices.
+
+A `separateMesh` source is build-only. Generated client and server catalogs clear its source path and retain only the collision artifact reference. Client output includes the render GLB and declared render resources but not the separate collision GLB; server output includes neither source GLB nor any render material/texture data. The build tool assembly itself participates in MSBuild input tracking so cooker changes invalidate generated outputs.
 
 ## Rendering Architecture
 

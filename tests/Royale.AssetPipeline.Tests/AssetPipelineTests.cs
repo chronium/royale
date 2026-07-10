@@ -268,6 +268,132 @@ public sealed class AssetPipelineTests
         Assert.Empty(artifact.Indices);
     }
 
+    [Fact]
+    public void TriangleMeshArtifactCanonicalizesVerticesAndPreservesWinding()
+    {
+        CollisionTriangleGeometry geometry = TetrahedronGeometry(reverseWinding: false);
+
+        ModelCollisionArtifact artifact = TriangleMeshCollisionArtifactGenerator.Generate(geometry, "triangle-tetrahedron");
+
+        Assert.Equal(ModelCollisionArtifactKind.TriangleMesh, artifact.Kind);
+        Assert.Equal(4, artifact.Vertices.Count);
+        Assert.Equal(12, artifact.Indices.Count);
+        Assert.Equal(
+            SerializeCollision(artifact),
+            SerializeCollision(TriangleMeshCollisionArtifactGenerator.Generate(geometry, "triangle-tetrahedron")));
+
+        var artifactFaces = artifact.Indices.Chunk(3).Select(face => (face[0], face[1], face[2])).ToHashSet();
+        var vertexIndices = artifact.Vertices
+            .Select((vertex, index) => (vertex: new Vector3(vertex.X, vertex.Y, vertex.Z), index))
+            .ToDictionary(item => item.vertex, item => item.index);
+        foreach (int[] sourceFace in geometry.Indices.Chunk(3))
+        {
+            int a = vertexIndices[geometry.Vertices[sourceFace[0]]];
+            int b = vertexIndices[geometry.Vertices[sourceFace[1]]];
+            int c = vertexIndices[geometry.Vertices[sourceFace[2]]];
+            Assert.Contains(RotateToSmallest(a, b, c), artifactFaces);
+        }
+    }
+
+    [Fact]
+    public void TriangleMeshModeUsesRenderSourceAndBakesTransforms()
+    {
+        using TestWorkspace workspace = TestWorkspace.Create();
+        workspace.WriteModel(
+            "models/render.glb",
+            CreateTetrahedronModel(Matrix4x4.CreateTranslation(3.0f, 4.0f, 5.0f), Matrix4x4.CreateScale(2.0f)));
+        workspace.WriteManifest(
+            """
+            {
+              "version": 1,
+              "assets": [
+                {
+                  "id": "triangle",
+                  "render": { "source": "models/render.glb" },
+                  "collision": { "mode": "triangleMesh" }
+                }
+              ]
+            }
+            """);
+
+        AssetPipelineProcessor.Build(
+            workspace.ManifestPath,
+            workspace.SourceRoot,
+            workspace.OutputRoot,
+            AssetPipelineAudience.Server);
+
+        ModelCollisionArtifact artifact = ModelCollisionArtifactLoader.Load(
+            Path.Combine(workspace.OutputRoot, "collision", "triangle.json"));
+        Assert.Equal(ModelCollisionArtifactKind.TriangleMesh, artifact.Kind);
+        Assert.Contains(new ModelCollisionVertex(3.0f, 4.0f, 5.0f), artifact.Vertices);
+        Assert.Contains(new ModelCollisionVertex(5.0f, 4.0f, 5.0f), artifact.Vertices);
+    }
+
+    [Fact]
+    public void SeparateMeshModeUsesBuildOnlyCollisionSource()
+    {
+        using TestWorkspace workspace = TestWorkspace.Create();
+        workspace.WriteModel("models/render.glb", CreateTetrahedronModel(Matrix4x4.Identity, Matrix4x4.Identity));
+        workspace.WriteModel(
+            "models/collision.glb",
+            CreateTetrahedronModel(Matrix4x4.CreateTranslation(7.0f, 8.0f, 9.0f), Matrix4x4.CreateScale(2.0f)));
+        workspace.WriteManifest(
+            """
+            {
+              "version": 1,
+              "assets": [
+                {
+                  "id": "separate",
+                  "render": { "source": "models/render.glb" },
+                  "collision": { "mode": "separateMesh", "source": "models/collision.glb" }
+                }
+              ]
+            }
+            """);
+
+        AssetPipelineProcessor.Build(
+            workspace.ManifestPath,
+            workspace.SourceRoot,
+            workspace.OutputRoot,
+            AssetPipelineAudience.Client);
+        Assert.True(File.Exists(Path.Combine(workspace.OutputRoot, "models", "render.glb")));
+        Assert.False(File.Exists(Path.Combine(workspace.OutputRoot, "models", "collision.glb")));
+        ModelAssetManifest clientCatalog = ModelAssetManifestLoader.LoadGenerated(
+            Path.Combine(workspace.OutputRoot, ContentCatalog.ModelAssetManifestFileName));
+        Assert.Null(Assert.Single(clientCatalog.Assets).Collision.Source);
+
+        AssetPipelineProcessor.Build(
+            workspace.ManifestPath,
+            workspace.SourceRoot,
+            workspace.OutputRoot,
+            AssetPipelineAudience.Server);
+        Assert.False(Directory.Exists(Path.Combine(workspace.OutputRoot, "models")));
+        ModelCollisionArtifact artifact = ModelCollisionArtifactLoader.Load(
+            Path.Combine(workspace.OutputRoot, "collision", "separate.json"));
+        Assert.Contains(new ModelCollisionVertex(7.0f, 8.0f, 9.0f), artifact.Vertices);
+        Assert.Contains(new ModelCollisionVertex(9.0f, 8.0f, 9.0f), artifact.Vertices);
+    }
+
+    [Fact]
+    public void TriangleMeshArtifactRejectsInvalidAndCollapsedTriangles()
+    {
+        var invalidIndex = new CollisionTriangleGeometry(
+            [Vector3.Zero, Vector3.UnitX, Vector3.UnitY],
+            [0, 1, 3]);
+        var collapsed = new CollisionTriangleGeometry(
+            [Vector3.Zero, new Vector3(0.0000004f, 0.0f, 0.0f), new Vector3(0.0f, 0.0000004f, 0.0f)],
+            [0, 1, 2]);
+
+        Assert.Contains(
+            "outside its vertex array",
+            Assert.Throws<InvalidDataException>(() => TriangleMeshCollisionArtifactGenerator.Generate(invalidIndex, "invalid-index")).Message,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "after canonicalization",
+            Assert.Throws<InvalidDataException>(() => TriangleMeshCollisionArtifactGenerator.Generate(collapsed, "collapsed")).Message,
+            StringComparison.Ordinal);
+    }
+
     private static string ManifestJson() =>
         """
         {
@@ -308,6 +434,12 @@ public sealed class AssetPipelineTests
         return new CollisionTriangleGeometry(vertices, indices);
     }
 
+    private static (int A, int B, int C) RotateToSmallest(int a, int b, int c)
+    {
+        if (a <= b && a <= c) return (a, b, c);
+        return b <= c ? (b, c, a) : (c, a, b);
+    }
+
     private static Model CreateTetrahedronModel(Matrix4x4 parentTransform, Matrix4x4 childTransform)
     {
         CollisionTriangleGeometry source = TetrahedronGeometry(reverseWinding: false);
@@ -331,7 +463,15 @@ public sealed class AssetPipelineTests
         };
         var child = new ModelNode { Name = "child", Transform = childTransform, Geometry = geometry };
         var parent = new ModelNode { Name = "parent", Transform = parentTransform, Children = [child] };
-        return new Model { Roots = [parent], Geometries = [geometry] };
+        return new Model
+        {
+            Roots = [parent],
+            Geometries = [geometry],
+            Materials = new Dictionary<string, Material>(StringComparer.Ordinal)
+            {
+                [material.Name] = material,
+            },
+        };
     }
 
     private static string FindRepositoryRoot()
@@ -372,6 +512,14 @@ public sealed class AssetPipelineTests
             string path = Path.Combine(SourceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, content);
+        }
+
+        public void WriteModel(string relativePath, Model model)
+        {
+            string path = Path.Combine(SourceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using FileStream stream = File.Create(path);
+            model.SaveTo(stream, ModelSaveFormat.GLB);
         }
 
         public void Dispose() => Directory.Delete(Root, recursive: true);

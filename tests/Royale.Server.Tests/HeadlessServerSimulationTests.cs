@@ -624,6 +624,33 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
+    public void AuthoritativeForwardSprintUsesSharedSpeedAndReplicatesEffectiveState()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
+        var sprint = new PlayerInputCommand(
+            Sequence: 1,
+            ClientTick: 1,
+            Move: Vector2.UnitY,
+            YawRadians: player.Look.YawRadians,
+            PitchRadians: player.Look.PitchRadians,
+            Buttons: InputButtons.Sprint);
+
+        simulation.Step(new Dictionary<ServerPlayerId, PlayerInputCommand> { [player.PlayerId] = sprint });
+
+        AuthoritativePlayerState authoritative = simulation.Players[player.PlayerId];
+        PlayerSnapshotState snapshot = Assert.Single(simulation.CreateSnapshot().Players);
+        Assert.True(authoritative.Character.IsSprinting);
+        Assert.Equal(7.0f, new Vector2(authoritative.Character.Velocity.X, authoritative.Character.Velocity.Z).Length(), precision: 4);
+        Assert.True(snapshot.Sprinting);
+
+        simulation.Step();
+
+        Assert.False(simulation.Players[player.PlayerId].Character.IsSprinting);
+        Assert.False(Assert.Single(simulation.CreateSnapshot().Players).Sprinting);
+    }
+
+    [Fact]
     public void CreateSnapshotForRecipientCarriesTopLevelAcknowledgementOnly()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);

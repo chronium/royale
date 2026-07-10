@@ -7,4 +7,5 @@ public readonly record struct PlayerInputSample(
     bool Jump,
     bool Fire,
     Vector2 LookDelta,
-    bool Crouch = false);
+    bool Crouch = false,
+    bool Sprint = false);

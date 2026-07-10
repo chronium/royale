@@ -12,7 +12,8 @@ public static class PlayerInputCommandValidation
         InputButtons.Fire |
         InputButtons.Reload |
         InputButtons.Interact |
-        InputButtons.Crouch;
+        InputButtons.Crouch |
+        InputButtons.Sprint;
 
     public static bool IsValid(PlayerInputCommand command) =>
         IsFinite(command) &&

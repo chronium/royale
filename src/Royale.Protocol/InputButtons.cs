@@ -9,4 +9,5 @@ public enum InputButtons : ushort
     Reload = 1 << 2,
     Interact = 1 << 3,
     Crouch = 1 << 4,
+    Sprint = 1 << 5,
 }

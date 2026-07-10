@@ -118,4 +118,32 @@ public sealed class GameplayInputMapperTests
         Assert.False(sample.Crouch);
         Assert.False(mapper.Crouched);
     }
+
+    [Fact]
+    public void LeftShiftMapsToHeldSprintAndReleases()
+    {
+        var mapper = new GameplayInputMapper();
+        var input = new InputState();
+        input.SetKeyDown((int)SDL_Keycode.SDLK_LSHIFT);
+
+        Assert.True(mapper.FromInputState(input, false).Sprint);
+
+        input.SetKeyUp((int)SDL_Keycode.SDLK_LSHIFT);
+
+        Assert.False(mapper.FromInputState(input, false).Sprint);
+    }
+
+    [Fact]
+    public void UnownedGameplayInputClearsSprintIntent()
+    {
+        var input = new InputState();
+        input.SetKeyDown((int)SDL_Keycode.SDLK_LSHIFT);
+
+        PlayerInputSample sample = new GameplayInputMapper().FromInputState(
+            input,
+            relativeMouseModeEnabled: false,
+            ownsGameplayInput: false);
+
+        Assert.False(sample.Sprint);
+    }
 }

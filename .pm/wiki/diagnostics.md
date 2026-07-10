@@ -1,7 +1,7 @@
 ---
 title: Diagnostics
 createdAt: 2026-07-05T19:44:39.3163150Z
-modifiedAt: 2026-07-10T15:27:22.6926950Z
+modifiedAt: 2026-07-10T18:49:40.4156720Z
 ---
 
 ## Logging
@@ -53,6 +53,10 @@ Offline mode omits the Server and Network sections. Connect mode reports explici
 Field ownership remains explicit. Frame values are client-owned. Renderer values come from the active camera controller, immutable launch options, render-view controller, SDL window, loaded map, model-asset cache, and completed frame count. Offline player and physics values come from the local controller and loaded map. Prediction and interpolation values come from `NetworkClientRuntime`. Packet totals, RTT, MTU, and loss are game-owned projections of optional transport diagnostics. Server, match, player gameplay state, weapon ammunition, and safe-zone values come only from `ClientNetworkState.LatestSnapshot`; the overlay does not query the server simulation or Grafana.
 
 The `Training Dummy` window remains separate specialized offline tooling. Latency/loss simulation controls, historical charts, and renderer timing remain outside this overlay.
+
+### Sprint diagnostics
+
+Player telemetry reports effective sprint state as `Sprinting: yes` or `Sprinting: no` for both offline simulation and authoritative network snapshots. Server player debug records and bounded structured logs expose the same effective `Sprinting` boolean alongside stance and capsule height. Wattle server-debug and snapshot wrappers expose `sprinting` for deterministic inspection. Sprint does not introduce per-player OpenTelemetry metric labels.
 
 ### Crouch diagnostics
 

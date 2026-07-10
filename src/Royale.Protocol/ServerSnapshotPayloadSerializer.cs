@@ -26,6 +26,7 @@ public static class ServerSnapshotPayloadSerializer
         MaxWeaponSnapshotStatePayloadSize +
         NullableUInt32WireSize +
         NullableUInt32WireSize +
+        sizeof(byte) +
         sizeof(byte);
 
     public const int MaxWeaponSnapshotStatePayloadSize =
@@ -159,7 +160,8 @@ public static class ServerSnapshotPayloadSerializer
             TryWriteWeapon(player.Weapon, destination, ref offset) &&
             TryWriteNullableUInt32(player.LastProcessedInputSequence, destination, ref offset) &&
             TryWriteNullableUInt32(player.LastProcessedInputClientTick, destination, ref offset) &&
-            TryWriteBoolean(player.Crouched, destination, ref offset);
+            TryWriteBoolean(player.Crouched, destination, ref offset) &&
+            TryWriteBoolean(player.Sprinting, destination, ref offset);
     }
 
     private static bool TryReadPlayer(
@@ -182,7 +184,8 @@ public static class ServerSnapshotPayloadSerializer
             !TryReadWeapon(source, ref offset, out WeaponSnapshotState weapon) ||
             !TryReadNullableUInt32(source, ref offset, out uint? lastProcessedInputSequence) ||
             !TryReadNullableUInt32(source, ref offset, out uint? lastProcessedInputClientTick) ||
-            !TryReadBoolean(source, ref offset, out bool crouched))
+            !TryReadBoolean(source, ref offset, out bool crouched) ||
+            !TryReadBoolean(source, ref offset, out bool sprinting))
         {
             return false;
         }
@@ -200,7 +203,8 @@ public static class ServerSnapshotPayloadSerializer
             weapon,
             lastProcessedInputSequence,
             lastProcessedInputClientTick,
-            crouched);
+            crouched,
+            sprinting);
         return true;
     }
 

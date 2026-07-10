@@ -75,7 +75,8 @@ public readonly record struct ImGuiDebugOverlayState(
                     null,
                     localPlayer.Weapon.MagazineSize,
                     localPlayer.CharacterState.Stance.ToString(),
-                    localPlayer.CharacterSettings.GetHeight(localPlayer.CharacterState.Stance)),
+                    localPlayer.CharacterSettings.GetHeight(localPlayer.CharacterState.Stance),
+                    localPlayer.CharacterState.IsSprinting),
                 PlayerDiagnosticsState.FromPlayer(localPlayer)),
             Physics = new TelemetryPhysicsState(
                 "offline collision world",
@@ -180,7 +181,8 @@ public readonly record struct ImGuiDebugOverlayState(
                 player.Weapon.ReserveAmmo,
                 null,
                 player.Crouched ? "Crouched" : "Standing",
-                player.Crouched ? 1.1f : 1.8f),
+                player.Crouched ? 1.1f : 1.8f,
+                player.Sprinting),
             null);
     }
 

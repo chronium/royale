@@ -604,6 +604,18 @@ public sealed class LocalPlayerControllerTests
         ],
     };
 
+    [Theory]
+    [InlineData(0.0f, 1.0f, true)]
+    [InlineData(1.0f, 1.0f, true)]
+    [InlineData(1.0f, 0.0f, false)]
+    [InlineData(0.0f, -1.0f, false)]
+    [InlineData(0.0f, 0.0f, false)]
+    public void SprintEligibilityUsesLocalForwardIntent(float x, float y, bool expected)
+    {
+        Assert.Equal(expected, PlayerMovementIntent.IsSprintEligible(new Vector2(x, y), sprintRequested: true));
+        Assert.False(PlayerMovementIntent.IsSprintEligible(new Vector2(x, y), sprintRequested: false));
+    }
+
     private static Vector3 ToVector3(MapVector3 vector) => new(vector.X, vector.Y, vector.Z);
 
     private static void AssertVector(Vector3 expected, Vector3 actual)

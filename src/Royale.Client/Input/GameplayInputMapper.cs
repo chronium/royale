@@ -44,7 +44,8 @@ public sealed class GameplayInputMapper
             Jump: input.IsKeyDown((int)SDL_Keycode.SDLK_SPACE),
             Fire: input.IsMouseButtonDown((int)SDLButton.SDL_BUTTON_LEFT),
             lookDelta,
-            crouched);
+            crouched,
+            Sprint: ownsGameplayInput && input.IsKeyDown((int)SDL_Keycode.SDLK_LSHIFT));
     }
 
     public void Reset() => crouched = false;

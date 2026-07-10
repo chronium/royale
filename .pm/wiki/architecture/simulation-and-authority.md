@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T15:27:22.6416490Z
+modifiedAt: 2026-07-10T18:49:40.3875770Z
 ---
 
 ## Simulation Model
@@ -211,6 +211,14 @@ public readonly record struct PlayerInputSample(
 `PlayerInputSample` captures local intent before network command sequencing exists. `Move.X` is local strafe right/left, `Move.Y` is local forward/back, `Jump` and `Fire` are button intent, and `LookDelta` is raw mouse movement accepted only while relative mouse mode is enabled.
 
 `PlayerMovementIntent.ToWorldMovement()` is the shared helper for converting local movement through gameplay yaw before passing world X/Z intent to `KinematicCharacterController`. The local offline player and the headless server both use this helper. Shared gameplay look state exists as `PlayerLookState`, `PlayerLookSettings`, and `PlayerLookController`.
+
+### Authoritative sprinting
+
+`GAME-016` adds hold-to-sprint intent on Left Shift. Standing walk speed remains `4.5 m/s` and accepted sprint speed is `7.0 m/s`; crouched movement remains `2.5 m/s`. The shared `PlayerMovementIntent.IsSprintEligible` rule is evaluated from local movement before yaw conversion: sprint requires held sprint intent and `Move.Y > 0`, so forward and forward-diagonal input sprint while pure strafing, backward input, and stationary input do not. Movement normalization prevents diagonal speed amplification.
+
+`KinematicCharacterController` accepts eligible sprint only after resolving the actual stance. Crouched characters and blocked stand requests cannot sprint. A standing airborne character keeps sprint speed while sprint and eligible forward input remain held. `KinematicCharacterState.IsSprinting` records the effective accepted mode even when collision blocks displacement, and clears when the held intent or eligible movement ends.
+
+Offline movement, server authority, client prediction, reconciliation replay, bot commands, and scripted commands all use this rule. The server remains authoritative and replicates the effective `Sprinting` state; clients seed prediction from it and select remote sprint state discretely from the nearest transform sample.
 
 ### Authoritative crouch stance
 

@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-10T15:27:22.6979380Z
+modifiedAt: 2026-07-10T18:49:40.4202870Z
 ---
 
 ## Overview
@@ -173,6 +173,12 @@ High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayIns
 `scenario.server.forceStart()` invokes the explicit authoritative force-start hook in both in-process and loopback UDP runtimes. It returns the string `Started` after entering `Countdown`. Rejection is explicit: zero connected players throws `scenario.server.forceStart failed: at least one connected player is required`, and a phase other than `WaitingForPlayers` throws `scenario.server.forceStart failed: the match is not waiting for players`.
 
 Every call records one deterministic test-host event. Success records `server.force_start.accepted` with detail `Started`; rejection records `server.force_start.rejected` with detail `NoPlayers` or `MatchNotWaiting` before throwing. These remain harness observations, not protocol or authoritative gameplay event types.
+
+### Sprint commands and observations
+
+The optional `sprint` field on `scenario.players.input` is a held-intent boolean and defaults to `false` when omitted. Non-boolean sprint values fail explicitly with a script runtime exception. The command still crosses the normal protocol boundary and does not mutate movement state directly.
+
+Snapshot player wrappers and server-debug player wrappers expose the effective read-only `sprinting` boolean. Tests can therefore distinguish requested sprint from the server-accepted result, including crouch rejection, ineligible local movement, and collision-blocked displacement.
 
 ### Crouch commands and observations
 

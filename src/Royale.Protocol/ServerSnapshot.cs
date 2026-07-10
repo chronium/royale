@@ -23,7 +23,8 @@ public readonly record struct PlayerSnapshotState(
     WeaponSnapshotState Weapon,
     uint? LastProcessedInputSequence = null,
     uint? LastProcessedInputClientTick = null,
-    bool Crouched = false);
+    bool Crouched = false,
+    bool Sprinting = false);
 
 public enum ServerSnapshotPlayerKind
 {

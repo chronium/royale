@@ -524,6 +524,8 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
             buttons |= InputButtons.Interact;
         if (ReadOptionalBoolean(table, "crouch"))
             buttons |= InputButtons.Crouch;
+        if (ReadOptionalBoolean(table, "sprint"))
+            buttons |= InputButtons.Sprint;
 
         return new PlayerInputCommand(
             Sequence: ReadRequiredUInt32(table, "sequence"),
@@ -912,6 +914,8 @@ public sealed class ScenarioPlayerSnapshotApi(PlayerSnapshotState player) : Scen
 
     public bool crouched => player.Crouched;
 
+    public bool sprinting => player.Sprinting;
+
     public float capsuleHeight => player.Crouched ? 1.1f : 1.8f;
 
     public ScenarioWeaponSnapshotApi weapon => new(player.Weapon);
@@ -946,6 +950,8 @@ public sealed class ScenarioPlayerDebugStateApi(ServerPlayerDebugState player) :
     public bool alive => player.Alive;
 
     public bool crouched => player.Stance == Royale.Simulation.Movement.KinematicCharacterStance.Crouched;
+
+    public bool sprinting => player.Sprinting;
 
     public string stance => player.Stance.ToString();
 

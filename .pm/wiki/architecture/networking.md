@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T15:27:22.6744080Z
+modifiedAt: 2026-07-10T18:49:40.4089080Z
 ---
 
 ## Networking Layers
@@ -208,6 +208,12 @@ ContentVersion = "dev-content-1"
 ```
 
 A server rejects mismatched build ids with `IncompatibleBuild` and mismatched content versions with `IncompatibleContent`. Sophisticated backwards compatibility remains out of scope for the first implementation; incompatible clients and servers fail clearly rather than attempting to continue.
+
+### GAME-016 sprint compatibility
+
+`PlayerInputCommand` carries held sprint intent in `InputButtons.Sprint` (`1 << 5`). The existing command payload size is unchanged because buttons remain a `ushort`; validation accepts the new bit and continues to reject undefined bits. `PlayerSnapshotState` appends one validated boolean `Sprinting` field after `Crouched`, increasing the maximum per-player snapshot payload from 157 to 158 bytes and the maximum full snapshot payload from 20162 to 20290 bytes.
+
+This snapshot layout change is wire-incompatible, but the protocol remains version `1.0`. Current development builds are lockstep-only: client and server must come from matching protocol builds, and mixed pre/post-GAME-016 binaries are unsupported. Serializers do not permissively parse the older player snapshot shape.
 
 ### GAME-015 crouch compatibility
 

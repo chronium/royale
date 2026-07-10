@@ -18,6 +18,8 @@ public sealed record KinematicCharacterSettings
 
     public float CrouchedSpeed { get; init; } = 2.5f;
 
+    public float SprintSpeed { get; init; } = 7.0f;
+
     public float Height => StandingHeight;
 
     public float WalkSpeed
@@ -39,6 +41,11 @@ public sealed record KinematicCharacterSettings
         KinematicCharacterStance.Crouched => CrouchedSpeed,
         _ => throw new ArgumentOutOfRangeException(nameof(stance), stance, "Unknown character stance."),
     };
+
+    public float GetSpeed(KinematicCharacterStance stance, bool sprinting) =>
+        sprinting && stance == KinematicCharacterStance.Standing
+            ? SprintSpeed
+            : GetSpeed(stance);
 
     public float JumpApexHeight { get; init; } = 1.1f;
 

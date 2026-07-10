@@ -377,7 +377,8 @@ public sealed class HeadlessServerSimulation : IDisposable
             CreateWeaponSnapshot(player.Weapon),
             player.LastProcessedInputSequence,
             player.LastProcessedInputClientTick,
-            player.Character.IsCrouched);
+            player.Character.IsCrouched,
+            player.Character.IsSprinting);
 
     private static ServerSnapshotPlayerKind MapPlayerKind(ServerPlayerKind kind) =>
         kind switch
@@ -508,11 +509,14 @@ public sealed class HeadlessServerSimulation : IDisposable
             bool crouch = hasCommand
                 ? (command.Buttons & InputButtons.Crouch) != 0
                 : player.Character.IsCrouched;
+            bool sprint = hasCommand && PlayerMovementIntent.IsSprintEligible(
+                localMove,
+                (command.Buttons & InputButtons.Sprint) != 0);
             Vector2 worldMove = PlayerMovementIntent.ToWorldMovement(localMove, player.Look.YawRadians);
             KinematicCharacterStepResult stepResult = characterController.Step(
                 collisionWorld,
                 player.Character,
-                new KinematicCharacterInput(worldMove, jump, crouch),
+                new KinematicCharacterInput(worldMove, jump, crouch, sprint),
                 SimulationSettings.FixedDeltaSeconds);
 
             players[playerId] = player with

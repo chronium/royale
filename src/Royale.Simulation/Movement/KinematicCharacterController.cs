@@ -44,7 +44,10 @@ public sealed class KinematicCharacterController
         }
 
         Vector2 movement = NormalizeMove(input.Move);
-        float speed = Settings.GetSpeed(stance);
+        bool sprinting = input.Sprint &&
+            stance == KinematicCharacterStance.Standing &&
+            movement.LengthSquared() > Epsilon * Epsilon;
+        float speed = Settings.GetSpeed(stance, sprinting);
         Vector3 horizontalVelocity = new(movement.X * speed, 0.0f, movement.Y * speed);
         velocity = new Vector3(horizontalVelocity.X, velocity.Y, horizontalVelocity.Z);
 
@@ -96,7 +99,7 @@ public sealed class KinematicCharacterController
 
         position = RecoverPenetration(collisionWorld, position, height);
 
-        KinematicCharacterState nextState = new(position, velocity, grounded, stance);
+        KinematicCharacterState nextState = new(position, velocity, grounded, stance, sprinting);
         return new KinematicCharacterStepResult(
             nextState,
             position - startPosition,
@@ -345,7 +348,8 @@ public sealed class KinematicCharacterController
             settings.CrouchedHeight > settings.StandingHeight)
             throw new ArgumentOutOfRangeException(nameof(settings), "Character heights must be finite, at least twice the radius, and crouched height must not exceed standing height.");
         if (!float.IsFinite(settings.StandingSpeed) || settings.StandingSpeed < 0.0f ||
-            !float.IsFinite(settings.CrouchedSpeed) || settings.CrouchedSpeed < 0.0f)
+            !float.IsFinite(settings.CrouchedSpeed) || settings.CrouchedSpeed < 0.0f ||
+            !float.IsFinite(settings.SprintSpeed) || settings.SprintSpeed < 0.0f)
             throw new ArgumentOutOfRangeException(nameof(settings), "Character speeds must be finite and non-negative.");
         if (!float.IsFinite(settings.JumpApexHeight) || settings.JumpApexHeight < 0.0f)
             throw new ArgumentOutOfRangeException(nameof(settings), "Jump apex height must be finite and non-negative.");

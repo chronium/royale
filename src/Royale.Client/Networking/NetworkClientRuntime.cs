@@ -302,6 +302,9 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         if (input.Crouch)
             buttons |= InputButtons.Crouch;
 
+        if (input.Sprint)
+            buttons |= InputButtons.Sprint;
+
         return buttons;
     }
 

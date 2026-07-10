@@ -53,6 +53,23 @@ public sealed class RemoteSnapshotInterpolatorTests
     }
 
     [Fact]
+    public void RemoteSprintUsesNearestDiscreteSnapshot()
+    {
+        var interpolator = new RemoteSnapshotInterpolator();
+        ServerSnapshot older = Snapshot(100, Remote(Vector3.Zero, sprinting: false));
+        ServerSnapshot newer = Snapshot(106, Remote(Vector3.Zero, sprinting: true));
+        interpolator.AddSnapshot(older);
+        interpolator.AddSnapshot(newer);
+        interpolator.Advance(0.15);
+
+        PlayerSnapshotState midpoint = Assert.Single(
+            interpolator.CreatePresentationSnapshot(newer)!.Players,
+            player => player.PlayerId == 2);
+
+        Assert.True(midpoint.Sprinting);
+    }
+
+    [Fact]
     public void PresentationSnapshotCombinesInterpolatedRemoteAndPredictedLocalPlayer()
     {
         ClientNetworkState state = new();
@@ -178,7 +195,8 @@ public sealed class RemoteSnapshotInterpolatorTests
         Vector3? velocity = null,
         float yaw = 0.0f,
         float pitch = 0.0f,
-        bool crouched = false) => new(
+        bool crouched = false,
+        bool sprinting = false) => new(
         PlayerId: 2,
         Kind: ServerSnapshotPlayerKind.Bot,
         Position: position,
@@ -189,7 +207,8 @@ public sealed class RemoteSnapshotInterpolatorTests
         MaxHealth: 100,
         Alive: true,
         Weapon: Weapon(),
-        Crouched: crouched);
+        Crouched: crouched,
+        Sprinting: sprinting);
 
     private static WeaponSnapshotState Weapon() => new(
         "rifle",

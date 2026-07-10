@@ -24,7 +24,7 @@ public sealed class PlayerInputCommandValidationTests
     {
         var command = ValidCommand() with
         {
-            Buttons = InputButtons.Fire | InputButtons.Reload | InputButtons.Crouch,
+            Buttons = InputButtons.Fire | InputButtons.Reload | InputButtons.Crouch | InputButtons.Sprint,
         };
 
         Assert.True(PlayerInputCommandValidation.IsValid(command));

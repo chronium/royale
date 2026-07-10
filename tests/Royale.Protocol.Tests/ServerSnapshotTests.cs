@@ -334,8 +334,37 @@ public sealed class ServerSnapshotTests
             players: [CreatePlayer(1, "rifle", true, null, null)],
             match: DefaultMatch(),
             safeZone: DefaultSafeZone()));
-        int crouchedOffset = FindMatchPhaseOffset(payload) - 1;
+        int crouchedOffset = FindMatchPhaseOffset(payload) - 2;
         payload[crouchedOffset] = 2;
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRoundTripsAuthoritativeSprintingState()
+    {
+        PlayerSnapshotState sprinting = CreatePlayer(1, "rifle", true, null, null) with { Sprinting = true };
+        ServerSnapshot decoded = RoundTrip(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [sprinting],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+
+        Assert.True(Assert.Single(decoded.Players).Sprinting);
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsMalformedSprintingBoolean()
+    {
+        byte[] payload = WriteSnapshot(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [CreatePlayer(1, "rifle", true, null, null)],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+        int sprintingOffset = FindMatchPhaseOffset(payload) - 1;
+        payload[sprintingOffset] = 2;
 
         Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
     }
@@ -413,8 +442,8 @@ public sealed class ServerSnapshotTests
     {
         Assert.Equal(128, ProtocolConstants.MaxSnapshotPlayers);
         Assert.Equal(64, ProtocolConstants.MaxSnapshotWeaponIdLength);
-        Assert.Equal(157, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
-        Assert.Equal(20162, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
+        Assert.Equal(158, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
+        Assert.Equal(20290, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
         Assert.True(ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize > ProtocolConstants.PacketHeaderSize);
 
         string maximumWeaponId = new('w', ProtocolConstants.MaxSnapshotWeaponIdLength);
@@ -546,6 +575,8 @@ public sealed class ServerSnapshotTests
             offset += payload[offset++] == 1 ? sizeof(ulong) : 0;
             offset += payload[offset++] == 1 ? sizeof(uint) : 0;
             offset += payload[offset++] == 1 ? sizeof(uint) : 0;
+            offset += sizeof(byte);
+            offset += sizeof(byte);
         }
 
         return offset;

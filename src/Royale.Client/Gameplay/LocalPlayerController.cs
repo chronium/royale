@@ -183,10 +183,11 @@ public sealed class LocalPlayerController : IDisposable
         fixedTick++;
 
         Vector2 worldMove = PlayerMovementIntent.ToWorldMovement(input.Move, LookState.YawRadians);
+        bool sprint = PlayerMovementIntent.IsSprintEligible(input.Move, input.Sprint);
         KinematicCharacterStepResult result = characterController.Step(
             collisionWorld,
             CharacterState,
-            new KinematicCharacterInput(worldMove, input.Jump, input.Crouch),
+            new KinematicCharacterInput(worldMove, input.Jump, input.Crouch, sprint),
             (float)fixedDeltaSeconds);
 
         CharacterState = result.State;

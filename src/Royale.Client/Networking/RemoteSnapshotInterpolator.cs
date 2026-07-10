@@ -242,6 +242,7 @@ public sealed class RemoteSnapshotInterpolator
             YawRadians = InterpolateAngleRadians(older.YawRadians, newer.YawRadians, amount),
             PitchRadians = older.PitchRadians + (newer.PitchRadians - older.PitchRadians) * amount,
             Crouched = amount < 0.5f ? older.Crouched : newer.Crouched,
+            Sprinting = amount < 0.5f ? older.Sprinting : newer.Sprinting,
         };
 
     private static PlayerSnapshotState CopyTransform(
@@ -253,6 +254,7 @@ public sealed class RemoteSnapshotInterpolator
             YawRadians = transformSample.YawRadians,
             PitchRadians = transformSample.PitchRadians,
             Crouched = transformSample.Crouched,
+            Sprinting = transformSample.Sprinting,
         };
 
     private static float InterpolateAngleRadians(float older, float newer, float amount)

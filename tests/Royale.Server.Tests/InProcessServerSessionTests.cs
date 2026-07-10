@@ -737,7 +737,7 @@ public sealed class InProcessServerSessionTests
                 Move = new Vector2(0.0f, 1.0f),
                 YawRadians = MathF.PI / 2.0f,
                 PitchRadians = 0.25f,
-                Buttons = InputButtons.Jump,
+                Buttons = InputButtons.Jump | InputButtons.Sprint,
             }));
 
         session.Step();
@@ -750,6 +750,8 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(0.25f, steppedBot.PitchRadians);
         Assert.Equal(1U, steppedBot.LastProcessedInputSequence);
         Assert.Equal(0U, steppedBot.LastProcessedInputClientTick);
+        Assert.True(steppedBot.Sprinting);
+        Assert.True(session.GetPlayerDebugStates().Single(player => player.PlayerId == bot.Value).Sprinting);
     }
 
     [Fact]

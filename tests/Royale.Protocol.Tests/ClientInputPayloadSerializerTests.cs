@@ -13,7 +13,7 @@ public sealed class ClientInputPayloadSerializerTests
             Move = new Vector2(0.6f, 0.8f),
             YawRadians = 1.25f,
             PitchRadians = -0.25f,
-            Buttons = InputButtons.Fire | InputButtons.Crouch,
+            Buttons = InputButtons.Fire | InputButtons.Crouch | InputButtons.Sprint,
         };
 
         PlayerInputCommand[] decoded = RoundTrip([command]);
@@ -46,7 +46,7 @@ public sealed class ClientInputPayloadSerializerTests
             Move: new Vector2(0.5f, -0.25f),
             YawRadians: 3.25f,
             PitchRadians: -0.5f,
-            Buttons: InputButtons.Fire | InputButtons.Crouch);
+            Buttons: InputButtons.Fire | InputButtons.Crouch | InputButtons.Sprint);
 
         byte[] payload = WriteCommands([command]);
 
@@ -59,7 +59,7 @@ public sealed class ClientInputPayloadSerializerTests
                 0x00, 0x00, 0x80, 0xBE,
                 0x00, 0x00, 0x50, 0x40,
                 0x00, 0x00, 0x00, 0xBF,
-                0x12, 0x00,
+                0x32, 0x00,
             ],
             payload);
     }

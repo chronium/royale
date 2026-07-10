@@ -722,7 +722,8 @@ public sealed class WattleScenarioScriptHostTests
                 pitchRadians = 0.0,
                 fire = true,
                 reload = true,
-                crouch = true
+                crouch = true,
+                sprint = true
             }));
 
             scenario.server.step(1);
@@ -732,6 +733,8 @@ public sealed class WattleScenarioScriptHostTests
             scenario.assert.isTrue(snapshot.player(player.playerId).crouched);
             scenario.assert.equal("Crouched", scenario.observe.debugPlayer(player).stance);
             scenario.assert.near(1.1, scenario.observe.debugPlayer(player).capsuleHeight, 0.001);
+            scenario.assert.equal(false, snapshot.player(player.playerId).sprinting);
+            scenario.assert.equal(false, scenario.observe.debugPlayer(player).sprinting);
 
             scenario.assert.isTrue(scenario.players.input(player, {
                 sequence = 32,
@@ -856,6 +859,44 @@ public sealed class WattleScenarioScriptHostTests
             """;
 
         Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(source));
+    }
+
+    [Fact]
+    public void ScenarioPlayersInputAcceptsSprintAndRejectsMalformedSprint()
+    {
+        const string accepted = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.assert.isTrue(scenario.players.input(player, {
+                sequence = 71,
+                clientTick = 701,
+                moveX = 0.0,
+                moveY = 1.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0,
+                sprint = true
+            }));
+            scenario.server.step(1);
+            scenario.assert.isTrue(scenario.observe.latest(player).player(player.playerId).sprinting);
+            scenario.assert.isTrue(scenario.observe.debugPlayer(player).sprinting);
+            return true;
+            """;
+        const string malformed = """
+            scenario.server.start("graybox");
+            var player = scenario.players.connect();
+            scenario.players.input(player, {
+                sequence = 72,
+                clientTick = 702,
+                moveX = 0.0,
+                moveY = 1.0,
+                yawRadians = 0.0,
+                pitchRadians = 0.0,
+                sprint = 1
+            });
+            """;
+
+        Assert.True(new WattleScenarioScriptHost().Execute(accepted).Boolean);
+        Assert.Throws<ScriptRuntimeException>(() => new WattleScenarioScriptHost().Execute(malformed));
     }
 
     [Fact]

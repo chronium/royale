@@ -24,4 +24,5 @@ public readonly record struct ServerPlayerDebugState(
     uint? LastProcessedInputClientTick,
     int QueuedInputCount,
     KinematicCharacterStance Stance = KinematicCharacterStance.Standing,
-    float CapsuleHeight = 1.8f);
+    float CapsuleHeight = 1.8f,
+    bool Sprinting = false);

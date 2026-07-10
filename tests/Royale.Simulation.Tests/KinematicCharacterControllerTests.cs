@@ -462,6 +462,104 @@ public sealed class KinematicCharacterControllerTests
         Assert.True(state.Position.X > 2.0f);
     }
 
+    [Theory]
+    [InlineData(0.0f, 1.0f)]
+    [InlineData(1.0f, 1.0f)]
+    public void SprintUsesSprintSpeedWithoutDiagonalAmplification(float x, float y)
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateFloorMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState state = new(Vector3.Zero, Vector3.Zero, true);
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(new Vector2(x, y), Jump: false, Sprint: true),
+            Tick).State;
+
+        Assert.True(state.IsSprinting);
+        Assert.Equal(7.0f, new Vector2(state.Velocity.X, state.Velocity.Z).Length(), precision: 4);
+    }
+
+    [Fact]
+    public void CrouchAndBlockedStandRequestRejectSprint()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateCrouchTunnelMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState state = new(Vector3.Zero, Vector3.Zero, true);
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.UnitX, Jump: false, Crouch: true, Sprint: true),
+            Tick).State;
+        Assert.True(state.IsCrouched);
+        Assert.False(state.IsSprinting);
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.UnitX, Jump: false, Crouch: false, Sprint: true),
+            Tick).State;
+
+        Assert.True(state.IsCrouched);
+        Assert.False(state.IsSprinting);
+        Assert.Equal(controller.Settings.CrouchedSpeed, MathF.Abs(state.Velocity.X), precision: 4);
+    }
+
+    [Fact]
+    public void SprintPersistsWhileAirborneWhenIntentRemainsHeld()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateFloorMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState state = new(Vector3.Zero, Vector3.Zero, true);
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.UnitY, Jump: true, Sprint: true),
+            Tick).State;
+        Assert.False(state.IsGrounded);
+        Assert.True(state.IsSprinting);
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.UnitY, Jump: false, Sprint: true),
+            Tick).State;
+
+        Assert.False(state.IsGrounded);
+        Assert.True(state.IsSprinting);
+        Assert.Equal(7.0f, MathF.Abs(state.Velocity.Z), precision: 4);
+    }
+
+    [Fact]
+    public void CollisionDoesNotClearEffectiveSprintState()
+    {
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(CreateWallMap());
+        var controller = new KinematicCharacterController();
+        KinematicCharacterState state = new(new Vector3(1.52f, 0.0f, 0.0f), Vector3.Zero, true);
+
+        state = controller.Step(
+            collisionWorld,
+            state,
+            new KinematicCharacterInput(Vector2.UnitX, Jump: false, Sprint: true),
+            Tick).State;
+
+        Assert.True(state.IsSprinting);
+        Assert.InRange(state.Position.X, 1.45f, 1.56f);
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(-0.01f)]
+    public void InvalidSprintSpeedIsRejected(float sprintSpeed)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new KinematicCharacterController(new KinematicCharacterSettings { SprintSpeed = sprintSpeed }));
+    }
+
     private static KinematicCharacterStepResult StepMany(
         KinematicCharacterController controller,
         MapStaticCollisionWorld collisionWorld,

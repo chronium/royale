@@ -4,6 +4,12 @@ namespace Royale.Simulation.Movement;
 
 public static class PlayerMovementIntent
 {
+    public static bool IsSprintEligible(Vector2 localMove, bool sprintRequested) =>
+        sprintRequested &&
+        float.IsFinite(localMove.X) &&
+        float.IsFinite(localMove.Y) &&
+        localMove.Y > 0.0f;
+
     public static Vector2 ToWorldMovement(Vector2 localMove, float yawRadians)
     {
         if (!float.IsFinite(localMove.X) || !float.IsFinite(localMove.Y) || !float.IsFinite(yawRadians))

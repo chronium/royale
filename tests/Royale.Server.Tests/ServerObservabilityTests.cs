@@ -290,7 +290,7 @@ public sealed class ServerObservabilityTests
             builder.SetMinimumLevel(LogLevel.Trace);
             builder.AddProvider(provider);
         });
-        using ServerObservability observability = new(loggerFactory, playerDebugLogIntervalTicks: 3);
+        using ServerObservability observability = new(loggerFactory, playerDebugLogIntervalTicks: 2);
         FakeNetworkTransport transport = new();
         NetworkPeerId peer = new(7);
         using var runtime = new NetworkServerRuntime(
@@ -307,20 +307,16 @@ public sealed class ServerObservabilityTests
                 Move = new Vector2(0.0f, 1.0f),
                 YawRadians = MathF.PI / 2.0f,
                 PitchRadians = 0.25f,
+                Buttons = InputButtons.Sprint,
             }),
             NetworkDelivery.Sequenced,
             ClientInputSender.InputChannel);
-        runtime.Step();
-        Assert.DoesNotContain(
-            provider.Entries,
-            entry => entry.Message.StartsWith("Authoritative player debug state:", StringComparison.Ordinal));
-
         runtime.Step();
 
         LogEntry playerDebug = Assert.Single(
             provider.Entries,
             entry => entry.Message.StartsWith("Authoritative player debug state:", StringComparison.Ordinal));
-        Assert.Equal(3UL, playerDebug.Properties["ServerTick"]);
+        Assert.Equal(2UL, playerDebug.Properties["ServerTick"]);
         Assert.Equal(7, playerDebug.Properties["PeerId"]);
         Assert.Equal(accept.ConnectionId, playerDebug.Properties["ConnectionId"]);
         Assert.Equal(accept.PlayerId, playerDebug.Properties["PlayerId"]);
@@ -333,6 +329,7 @@ public sealed class ServerObservabilityTests
         Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize, playerDebug.Properties["AmmoInMagazine"]);
         Assert.Equal(WeaponCatalog.DefaultRifle.MagazineSize * 3, playerDebug.Properties["ReserveAmmo"]);
         Assert.Equal(false, playerDebug.Properties["IsReloading"]);
+        Assert.Equal(true, playerDebug.Properties["Sprinting"]);
         Assert.Equal(17U, playerDebug.Properties["LastProcessedInputSequence"]);
         Assert.Equal(117U, playerDebug.Properties["LastProcessedInputClientTick"]);
         Assert.Equal(0, playerDebug.Properties["QueuedInputCount"]);

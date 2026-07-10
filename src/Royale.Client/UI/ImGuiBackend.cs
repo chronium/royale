@@ -224,6 +224,7 @@ internal sealed unsafe class ImGuiBackend : IDisposable
             Text(values.HealthText);
             Text(values.AliveText);
             Text(values.StanceText);
+            Text(values.SprintText);
             Text(values.GroundedText);
             Text(values.WeaponText);
             Text(values.AmmunitionText);

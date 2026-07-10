@@ -55,7 +55,8 @@ public sealed class NetworkClientRuntimeTests
                 Move: new Vector2(1.0f, 1.0f),
                 Jump: true,
                 Fire: true,
-                LookDelta: Vector2.Zero),
+                LookDelta: Vector2.Zero,
+                Sprint: true),
             clientTick: 12));
 
         SentPacket inputPacket = Assert.Single(transport.SentPackets);
@@ -70,6 +71,7 @@ public sealed class NetworkClientRuntimeTests
         Assert.InRange(command.Move.Length(), 0.999f, 1.001f);
         Assert.True(command.Buttons.HasFlag(InputButtons.Jump));
         Assert.True(command.Buttons.HasFlag(InputButtons.Fire));
+        Assert.True(command.Buttons.HasFlag(InputButtons.Sprint));
         Assert.Equal(0.275f, command.YawRadians, precision: 4);
         Assert.Equal(-0.45f, command.PitchRadians, precision: 4);
         Assert.Equal(1UL, runtime.Diagnostics.SuccessfulInputSendCount);
@@ -269,7 +271,7 @@ public sealed class NetworkClientRuntimeTests
         using var runtime = new NetworkClientRuntime(transport, new NetworkEndpoint("127.0.0.1", 7777));
         ServerAccept accept = Accept();
         AcceptHandshake(runtime, transport, accept);
-        ReceiveSnapshot(runtime, accept, Snapshot(localPlayerId: accept.PlayerId));
+        ReceiveSnapshot(runtime, accept, Snapshot(localPlayerId: accept.PlayerId, localSprinting: true));
 
         ImGuiDebugOverlayState state = ImGuiDebugOverlayState.CreateNetworked(
             1.0 / 60.0,
@@ -283,6 +285,7 @@ public sealed class NetworkClientRuntimeTests
         Assert.Equal(23L, state.Simulation.ServerTickDifference);
         Assert.Equal("authoritative snapshot", state.Player!.Values!.Source);
         Assert.Equal("Ammunition: 30 / 90 reserve", state.Player.Values.AmmunitionText);
+        Assert.Equal("Sprinting: yes", state.Player.Values.SprintText);
         Assert.Equal(accept.SessionId, state.Connection!.AcceptedSession!.SessionId);
         Assert.Equal(accept.ConnectionId, state.Connection.AcceptedSession.ConnectionId);
         Assert.Equal(accept.PlayerId, state.Connection.AcceptedSession.PlayerId);
@@ -344,12 +347,14 @@ public sealed class NetworkClientRuntimeTests
         Assert.True(runtime.State.TryGetLocalPlayer(out PlayerSnapshotState authoritativePlayer));
 
         Assert.True(runtime.FixedUpdate(
-            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero),
+            new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero, Sprint: true),
             clientTick: 1));
 
         Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
         Assert.Equal(ServerSnapshotPlayerKind.Human, predictedPlayer.Kind);
         Assert.True(Vector3.Distance(predictedPlayer.Position, authoritativePlayer.Position) > 0.001f);
+        Assert.True(predictedPlayer.Sprinting);
+        Assert.Equal(7.0f, new Vector2(predictedPlayer.Velocity.X, predictedPlayer.Velocity.Z).Length(), precision: 4);
         Assert.Same(authoritativeSnapshot, runtime.State.LatestSnapshot);
         Assert.True(runtime.State.TryGetLocalPlayer(out PlayerSnapshotState statePlayer));
         Assert.Equal(authoritativePlayer.Position, statePlayer.Position);
@@ -404,7 +409,12 @@ public sealed class NetworkClientRuntimeTests
             acknowledgedInputSequence: null,
             localPosition: Vector3.Zero));
 
-        var moveForward = new PlayerInputSample(Vector2.UnitY, Jump: false, Fire: false, LookDelta: Vector2.Zero);
+        var moveForward = new PlayerInputSample(
+            Vector2.UnitY,
+            Jump: false,
+            Fire: false,
+            LookDelta: Vector2.Zero,
+            Sprint: true);
         Assert.True(runtime.FixedUpdate(moveForward, clientTick: 1));
         Assert.True(runtime.FixedUpdate(moveForward, clientTick: 2));
 
@@ -427,6 +437,7 @@ public sealed class NetworkClientRuntimeTests
         Assert.Equal(correctionSnapshot.AcknowledgedInputSequence, latestSnapshot.AcknowledgedInputSequence);
         Assert.Equal(authoritativePosition, latestSnapshot.Players[0].Position);
         Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState afterSnapshot));
+        Assert.True(afterSnapshot.Sprinting);
         Assert.True(afterSnapshot.Position.Z < authoritativePosition.Z - 0.05f);
         Assert.NotEqual(authoritativePosition, afterSnapshot.Position);
     }
@@ -648,7 +659,8 @@ public sealed class NetworkClientRuntimeTests
         uint? acknowledgedInputSequence = 77,
         Vector3? localPosition = null,
         Vector3? remotePosition = null,
-        bool localAlive = true) => new(
+        bool localAlive = true,
+        bool localSprinting = false) => new(
         ServerTick: 123,
         LocalPlayerId: localPlayerId,
         AcknowledgedInputSequence: acknowledgedInputSequence,
@@ -671,7 +683,8 @@ public sealed class NetworkClientRuntimeTests
                     NextAllowedFireTick: 0,
                     LastFiredTick: null,
                     IsReloading: false,
-                    ReloadCompleteTick: null)),
+                    ReloadCompleteTick: null),
+                Sprinting: localSprinting),
             new PlayerSnapshotState(
                 99,
                 ServerSnapshotPlayerKind.Bot,

@@ -29,15 +29,19 @@ public static class DebugSceneBuilder
     public static DebugPrimitiveList Build(
         GameMap map,
         LocalPlayerController? localPlayer,
-        ServerSnapshot? networkSnapshot = null)
+        ServerSnapshot? networkSnapshot = null,
+        MapStaticCollisionWorld? staticCollisionWorld = null)
     {
         ArgumentNullException.ThrowIfNull(map);
 
         var primitives = new DebugPrimitiveList();
 
+        MapStaticCollisionWorld? debugCollisionWorld = staticCollisionWorld ?? localPlayer?.CollisionWorld;
+        if (debugCollisionWorld is not null)
+            Box3DDebugDrawAdapter.AppendWorld(debugCollisionWorld, primitives);
+
         if (localPlayer is not null)
         {
-            Box3DDebugDrawAdapter.AppendWorld(localPlayer.CollisionWorld, primitives);
             AddLocalPlayerCapsule(primitives, localPlayer);
             AddTrainingDummyCapsule(primitives, localPlayer.TrainingDummy);
             AddWeaponFeedback(primitives, localPlayer.WeaponFeedback.ActiveShot);

@@ -8,6 +8,7 @@ using Royale.Client.Rendering.Meshes;
 using Royale.Client.Rendering.Screenshots;
 using Royale.Client.Rendering.Text;
 using Royale.Content;
+using Royale.Protocol;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;
@@ -126,6 +127,48 @@ public sealed class DebugPrimitiveNativeRenderingTests
         DebugPrimitiveList primitives = DebugSceneBuilder.Build(map, localPlayer);
 
         Assert.Equal(107, primitives.LineCount);
+    }
+
+    [Fact]
+    public void ConnectedDebugSceneBorrowsPredictionCollisionWorldAndEmitsAllExpectedPrimitives()
+    {
+        GameMap map = MapCatalog.LoadDefault();
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        var snapshot = new ServerSnapshot(
+            ServerTick: 1,
+            LocalPlayerId: 7,
+            AcknowledgedInputSequence: null,
+            Players:
+            [
+                new PlayerSnapshotState(
+                    PlayerId: 7,
+                    Kind: ServerSnapshotPlayerKind.Human,
+                    Position: Vector3.Zero,
+                    Velocity: Vector3.Zero,
+                    YawRadians: 0.0f,
+                    PitchRadians: 0.0f,
+                    CurrentHealth: 100,
+                    MaxHealth: 100,
+                    Alive: true,
+                    Weapon: new WeaponSnapshotState("rifle", 30, 90, 0, null, false, null)),
+            ],
+            Match: new MatchSnapshotState(ServerSnapshotMatchPhase.Playing, 0, 1, null),
+            SafeZone: new SafeZoneSnapshotState(Vector3.Zero, map.SafeZone.Radius, map.SafeZone.Radius, 0));
+
+        DebugPrimitiveList primitives = DebugSceneBuilder.Build(
+            map,
+            localPlayer: null,
+            snapshot,
+            collisionWorld);
+
+        int expectedMinimumLineCount =
+            (map.StaticBoxes.Count * 12) +
+            52 +
+            (map.SpawnPoints.Count * 3) +
+            48;
+        Assert.True(primitives.LineCount >= expectedMinimumLineCount);
+        Assert.False(collisionWorld.IsDisposed);
+        Assert.Equal(map.StaticBoxes.Count, collisionWorld.ColliderCount);
     }
 
     [Fact]

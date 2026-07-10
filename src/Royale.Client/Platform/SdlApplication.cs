@@ -179,7 +179,11 @@ public sealed unsafe class SdlApplication : IDisposable
         ServerSnapshot? networkPresentationSnapshot = CreateNetworkPresentationSnapshot(networkPresentationPlayer, time);
         DebugPrimitiveList? debugPrimitives = loadedMap is null
             ? null
-            : DebugSceneBuilder.Build(loadedMap, localPlayer, networkPresentationSnapshot);
+            : DebugSceneBuilder.Build(
+                loadedMap,
+                localPlayer,
+                networkPresentationSnapshot,
+                networkClient?.PredictionCollisionWorld);
 
         IReadOnlyList<WorldTextBillboard>? worldTextBillboards = localPlayer is null
             ? null

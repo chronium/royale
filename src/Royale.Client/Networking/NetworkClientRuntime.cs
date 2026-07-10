@@ -5,6 +5,7 @@ using Royale.Content;
 using Royale.Network;
 using Royale.Protocol;
 using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 
 namespace Royale.Client.Networking;
 
@@ -55,6 +56,8 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
     public ServerReject? HandshakeRejection => handshake?.Rejection;
 
     public bool PredictionMapAvailable => prediction.MapAvailable;
+
+    internal MapStaticCollisionWorld? PredictionCollisionWorld => prediction.CollisionWorld;
 
     public bool PredictionSeeded => prediction.Seeded;
 

@@ -27,6 +27,8 @@ internal sealed class ClientMovementPrediction : IDisposable
 
     public bool MapAvailable => collisionWorld is not null;
 
+    internal MapStaticCollisionWorld? CollisionWorld => collisionWorld;
+
     public bool Seeded => seeded;
 
     public bool Active => MapAvailable && seeded;

@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T13:13:16.2634810Z
+modifiedAt: 2026-07-10T13:34:09.4198960Z
 ---
 
 ## Content and Map Data
@@ -77,6 +77,8 @@ Model assets are declared in the strict, case-sensitive JSON manifest `assets/mo
 `tools/Royale.AssetPipeline` validates and normalizes the source manifest during client and server builds. Outputs are deterministic and uncommitted under each project's `obj/<configuration>/<framework>/royale-assets/<audience>` tree. MSBuild input/output tracking skips generation when the manifest and source files are unchanged. Client output receives the normalized runtime catalog, declared GLBs, and declared render resources. Server output receives a collision-only catalog and never receives GLBs, textures, SimpleMesh, or the pipeline tool as runtime dependencies.
 
 The first source asset is `kenney-crate`, using `meshes/kenney-prototype-kit/crate.glb` and its required `Textures/colormap.png`. Both remain CC0 Kenney Prototype Kit content with attribution recorded beside the sources. Map placement transforms remain separate map-owned data; the asset manifest does not add an import-transform layer.
+
+`DEBT-002` validates external GLB dependencies before generated output is created. The source-manifest loader inspects GLB 2.0 JSON `buffers[].uri` and `images[].uri` values, resolves non-data URIs relative to the render GLB, and requires the resulting asset-root-relative path to appear exactly in that asset's `render.resources`. Missing declarations fail with asset, GLB, URI, and resolved-path context, preventing a render asset from reaching client startup without all of its external files.
 
 #### Convex Collision Artifacts
 

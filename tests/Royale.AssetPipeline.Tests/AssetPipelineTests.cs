@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Buffers.Binary;
+using System.Text;
 using System.Text.Json;
 using Royale.AssetPipeline;
 using Royale.Content;
@@ -120,6 +122,47 @@ public sealed class AssetPipelineTests
 
         Assert.Contains("crate", exception.Message, StringComparison.Ordinal);
         Assert.Contains("models/crate.glb", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SourceManifestRejectsUndeclaredExternalGlbResource()
+    {
+        using TestWorkspace workspace = TestWorkspace.Create();
+        workspace.WriteExternalResourceModel("models/crate.glb", "Textures/color.png");
+        workspace.WriteSource("models/Textures/color.png", "texture");
+        workspace.WriteManifest(
+            """
+            {
+              "version": 1,
+              "assets": [
+                {
+                  "id": "crate",
+                  "render": { "source": "models/crate.glb" },
+                  "collision": { "mode": "none" }
+                }
+              ]
+            }
+            """);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+            ModelAssetManifestLoader.LoadSource(workspace.ManifestPath, workspace.SourceRoot));
+
+        Assert.Contains("crate", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Textures/color.png", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("not declared", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SourceManifestAcceptsDeclaredExternalGlbResource()
+    {
+        using TestWorkspace workspace = TestWorkspace.Create();
+        workspace.WriteExternalResourceModel("models/crate.glb", "Textures/color.png");
+        workspace.WriteSource("models/Textures/color.png", "texture");
+        workspace.WriteManifest(ManifestJson());
+
+        ModelAssetManifest manifest = ModelAssetManifestLoader.LoadSource(workspace.ManifestPath, workspace.SourceRoot);
+
+        Assert.Equal("models/Textures/color.png", Assert.Single(manifest.Assets).Render!.Resources.Single());
     }
 
     [Fact]
@@ -520,6 +563,25 @@ public sealed class AssetPipelineTests
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using FileStream stream = File.Create(path);
             model.SaveTo(stream, ModelSaveFormat.GLB);
+        }
+
+        public void WriteExternalResourceModel(string relativePath, string resourceUri)
+        {
+            string json = $$"""{"asset":{"version":"2.0"},"buffers":[{"byteLength":0}],"images":[{"uri":"{{resourceUri}}"}]}""";
+            byte[] jsonBytes = Encoding.UTF8.GetBytes(json);
+            int paddedJsonLength = (jsonBytes.Length + 3) & ~3;
+            byte[] glb = new byte[20 + paddedJsonLength];
+            BinaryPrimitives.WriteUInt32LittleEndian(glb, 0x46546C67);
+            BinaryPrimitives.WriteUInt32LittleEndian(glb.AsSpan(4), 2);
+            BinaryPrimitives.WriteUInt32LittleEndian(glb.AsSpan(8), checked((uint)glb.Length));
+            BinaryPrimitives.WriteUInt32LittleEndian(glb.AsSpan(12), checked((uint)paddedJsonLength));
+            BinaryPrimitives.WriteUInt32LittleEndian(glb.AsSpan(16), 0x4E4F534A);
+            jsonBytes.CopyTo(glb.AsSpan(20));
+            glb.AsSpan(20 + jsonBytes.Length).Fill((byte)' ');
+
+            string path = Path.Combine(SourceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, glb);
         }
 
         public void Dispose() => Directory.Delete(Root, recursive: true);

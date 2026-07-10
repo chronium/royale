@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Buffers.Binary;
 
 namespace Royale.Content;
 
@@ -159,6 +160,9 @@ public static class ModelAssetManifestLoader
                         throw InvalidManifest(manifestPath, $"asset '{asset.Id}' render resource '{resource}' is duplicated.");
                     ValidateSourceFile(resource, sourceRoot, validateSourceFiles, manifestPath, asset.Id);
                 }
+
+                if (validateSourceFiles)
+                    ValidateExternalGlbResources(asset, sourceRoot!, manifestPath, resources);
             }
 
             switch (asset.Collision.Mode)
@@ -238,6 +242,72 @@ public static class ModelAssetManifestLoader
         string path = ResolveSourcePath(sourceRoot!, relativePath);
         if (!File.Exists(path))
             throw InvalidManifest(manifestPath, $"asset '{assetId}' source file '{relativePath}' does not exist under '{sourceRoot}'.");
+    }
+
+    private static void ValidateExternalGlbResources(
+        ModelAssetDefinition asset,
+        string sourceRoot,
+        string manifestPath,
+        HashSet<string> declaredResources)
+    {
+        string renderSource = asset.Render!.Source;
+        string renderPath = ResolveSourcePath(sourceRoot, renderSource);
+        byte[] bytes = File.ReadAllBytes(renderPath);
+        // Mesh decoding remains the runtime/collision cooker's responsibility. This pass only
+        // inspects files that identify themselves as GLB 2.0 containers so legacy lightweight
+        // render-only fixtures do not become GLB parser tests.
+        if (bytes.Length < 20
+            || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != 0x46546C67
+            || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4)) != 2)
+            return;
+
+        uint declaredLength = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(8));
+        uint jsonLength = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12));
+        uint jsonType = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(16));
+        if (declaredLength != bytes.Length || jsonType != 0x4E4F534A || jsonLength > bytes.Length - 20)
+            throw InvalidManifest(manifestPath, $"asset '{asset.Id}' render source '{renderSource}' has an invalid GLB container.");
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(bytes.AsMemory(20, checked((int)jsonLength)));
+            ValidateUriArray("buffers");
+            ValidateUriArray("images");
+
+            void ValidateUriArray(string propertyName)
+            {
+                if (!document.RootElement.TryGetProperty(propertyName, out JsonElement values))
+                    return;
+
+                foreach (JsonElement value in values.EnumerateArray())
+                {
+                    if (!value.TryGetProperty("uri", out JsonElement uriElement))
+                        continue;
+
+                    string uri = uriElement.GetString()
+                        ?? throw new InvalidDataException($"GLB {propertyName} URI must be a string.");
+                    if (uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string decodedUri = Uri.UnescapeDataString(uri);
+                    string sourceDirectory = Path.GetDirectoryName(renderSource.Replace('/', Path.DirectorySeparatorChar)) ?? string.Empty;
+                    string resource = Path.GetRelativePath(
+                            sourceRoot,
+                            Path.GetFullPath(Path.Combine(sourceRoot, sourceDirectory, decodedUri.Replace('/', Path.DirectorySeparatorChar))))
+                        .Replace(Path.DirectorySeparatorChar, '/');
+                    ValidateRelativePath(resource, $"asset '{asset.Id}' external GLB resource");
+                    if (!declaredResources.Contains(resource))
+                    {
+                        throw InvalidManifest(
+                            manifestPath,
+                            $"asset '{asset.Id}' render source '{renderSource}' references external resource '{uri}', but '{resource}' is not declared in render.resources.");
+                    }
+                }
+            }
+        }
+        catch (JsonException exception)
+        {
+            throw InvalidManifest(manifestPath, $"asset '{asset.Id}' render source '{renderSource}' has an invalid GLB JSON chunk.", exception);
+        }
     }
 
     private static InvalidDataException InvalidManifest(string path, string message, Exception? inner = null) =>

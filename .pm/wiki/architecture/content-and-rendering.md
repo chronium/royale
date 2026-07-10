@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T09:44:55.4228860Z
+modifiedAt: 2026-07-10T09:55:51.1855580Z
 ---
 
 ## Content and Map Data
@@ -58,7 +58,7 @@ Client rendering treats each static box as a centered unit-box mesh scaled by `s
 
 Spawn points are gameplay content, not placeholders. `MapCatalog` requires at least one spawn point, each spawn id must be non-empty and unique, and every spawn position must be inside `worldBounds`. `MapSpawnPoint.Position` is the player feet anchor. `GAME-007` uses spawn points in `Royale.Simulation` for deterministic first-valid selection with static-collision clearance checks and caller-provided occupancy reservations. `BR-003` integrates them into authoritative admission: the server randomizes eligible candidates, preserves each selected spawn's authored yaw, and reserves its player footprint. Graybox spawn yaw values use the gameplay convention where yaw `0` faces world `-Z`; all twelve are authored to face the initial safe-zone center.
 
-Loot points and safe-zone fields are still placeholders at this stage and do not yet drive gameplay behavior. Static map collision and spawn selection exist, but the map content does not yet implement loot collision, safe-zone simulation, mesh collision, height fields, dynamic bodies, or protocol compatibility behavior.
+Loot points and safe-zone fields are still placeholders at this stage and do not yet drive gameplay behavior. Static map collision, generated model collision, and spawn selection exist, but the map content does not yet implement loot collision, safe-zone simulation, height fields, dynamic bodies, or protocol compatibility behavior.
 
 Rendering-only data may remain client-specific.
 

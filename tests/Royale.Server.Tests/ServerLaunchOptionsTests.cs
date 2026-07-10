@@ -143,7 +143,7 @@ public sealed class ServerLaunchOptionsTests
 
     [Theory]
     [InlineData("server.production.json", 300, 120)]
-    [InlineData("server.development.json", 5, 5)]
+    [InlineData("server.development.json", 60, 5)]
     public void CommittedServerProfilesParseExpectedValues(
         string fileName,
         int waitingSeconds,

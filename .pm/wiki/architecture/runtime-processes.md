@@ -1,7 +1,7 @@
 ---
 title: Runtime Processes
 createdAt: 2026-07-05T16:10:17.2894450Z
-modifiedAt: 2026-07-10T08:11:16.3315150Z
+modifiedAt: 2026-07-10T12:58:41.6376700Z
 ---
 
 ## Game Client
@@ -111,7 +111,7 @@ Supported server flags are:
 
 `--config` explicitly selects one JSON profile. It may appear anywhere exactly once, and relative paths resolve against the current working directory. Server configuration properties are `port`, `mapId`, `runTicks`, `minimumPlayers`, `targetPlayers`, `waitingSeconds`, and `preparationSeconds`. Properties are optional and merge in this fixed order: built-in defaults, selected profile, explicit CLI arguments. There is no implicit profile discovery, environment detection, inheritance, environment-variable expansion, or secrets handling.
 
-The committed `config/server.production.json` profile uses the built-in production values. `config/server.development.json` keeps the same endpoint and roster but reduces waiting and preparation to five seconds each. Only server profiles are copied into server build and publish output.
+The committed `config/server.production.json` profile uses the built-in production values. `config/server.development.json` keeps the same endpoint and roster, uses a 60-second waiting window so agent-driven client startup can complete before roster admission closes, and retains a five-second preparation period. Only server profiles are copied into server build and publish output.
 
 JSON parsing uses `System.Text.Json`, allows comments and trailing commas, and rejects malformed documents, unknown or incorrectly cased fields, missing files, invalid ports or run tick counts, invalid player counts, a minimum above the target, and duration overflow. Existing validation runs after all profile and CLI merging.
 

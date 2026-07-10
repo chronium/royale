@@ -4,6 +4,6 @@
   "runTicks": null,
   "minimumPlayers": 2,
   "targetPlayers": 8,
-  "waitingSeconds": 5,
+  "waitingSeconds": 60,
   "preparationSeconds": 5
 }

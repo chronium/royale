@@ -1,3 +1,4 @@
+using System.Numerics;
 using Royale.Content;
 
 namespace Royale.Client.Tests;
@@ -234,6 +235,24 @@ public sealed class MapContentTests
             float alignment = (forward.X * centerX * inverseLength) + (forward.Z * centerZ * inverseLength);
             Assert.True(alignment > 0.999f, $"Spawn '{spawn.Id}' does not face the arena center.");
         });
+    }
+
+    [Fact]
+    public void PrototypeArenaSlopeHighEdgeFacesRaisedPlatformInsteadOfStairs()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+        StaticModelDefinition slope = Assert.Single(map.StaticModels, model => model.Id == "north-slope-approach");
+        StaticModelDefinition platform = Assert.Single(map.StaticModels, model => model.Id == "north-platform");
+        StaticModelDefinition stairs = Assert.Single(map.StaticModels, model => model.Id == "north-stairs-approach");
+        Matrix4x4 slopeTransform = MapStaticModelTransforms.CreateWorldMatrix(slope);
+        Vector3 highEdge = Vector3.Transform(new Vector3(0.5f, 1.0f, 0.0f), slopeTransform);
+        Vector3 lowEdge = Vector3.Transform(new Vector3(-0.5f, 0.0f, 0.0f), slopeTransform);
+        Vector3 platformPosition = new(platform.Position.X, platform.Position.Y, platform.Position.Z);
+        Vector3 stairsPosition = new(stairs.Position.X, stairs.Position.Y, stairs.Position.Z);
+
+        Assert.Equal(90.0f, slope.RotationEuler.Y);
+        Assert.True(Vector3.DistanceSquared(highEdge, platformPosition) < Vector3.DistanceSquared(lowEdge, platformPosition));
+        Assert.True(Vector3.DistanceSquared(highEdge, platformPosition) < Vector3.DistanceSquared(highEdge, stairsPosition));
     }
 
     [Fact]

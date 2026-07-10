@@ -12,6 +12,7 @@ public sealed record ServerSnapshot(
 
 public readonly record struct PlayerSnapshotState(
     uint PlayerId,
+    ServerSnapshotPlayerKind Kind,
     Vector3 Position,
     Vector3 Velocity,
     float YawRadians,
@@ -20,6 +21,12 @@ public readonly record struct PlayerSnapshotState(
     int MaxHealth,
     bool Alive,
     WeaponSnapshotState Weapon);
+
+public enum ServerSnapshotPlayerKind
+{
+    Human = 0,
+    Bot = 1,
+}
 
 public readonly record struct WeaponSnapshotState(
     string WeaponId,

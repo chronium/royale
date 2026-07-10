@@ -17,6 +17,10 @@ internal interface IScenarioRuntime : IDisposable
 
     int ConnectedPlayerCount { get; }
 
+    int ParticipantCount { get; }
+
+    int BotPlayerCount { get; }
+
     int LivingPlayerCount { get; }
 
     ScenarioPlayerHandle ConnectPlayer();
@@ -70,7 +74,11 @@ internal sealed class InProcessScenarioRuntime : IScenarioRuntime
 
     public int ConnectedPlayerCount => session.ConnectedClientCount;
 
-    public int LivingPlayerCount => session.ActivePlayerCount;
+    public int ParticipantCount => session.ActivePlayerCount;
+
+    public int BotPlayerCount => session.BotPlayerCount;
+
+    public int LivingPlayerCount => session.LivingPlayerCount;
 
     public static InProcessScenarioRuntime Start(string mapId) => new(InProcessServerSession.Create(mapId));
 
@@ -166,7 +174,11 @@ internal sealed class UdpScenarioRuntime : IScenarioRuntime
 
     public int ConnectedPlayerCount => server.ConnectedClientCount;
 
-    public int LivingPlayerCount => server.ActivePlayerCount;
+    public int ParticipantCount => server.ActivePlayerCount;
+
+    public int BotPlayerCount => server.BotPlayerCount;
+
+    public int LivingPlayerCount => server.LivingPlayerCount;
 
     public static UdpScenarioRuntime Start(string mapId)
     {

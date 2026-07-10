@@ -1,7 +1,7 @@
 ---
 title: Simulation and Authority
 createdAt: 2026-07-05T16:10:17.3093740Z
-modifiedAt: 2026-07-10T05:05:56.7783300Z
+modifiedAt: 2026-07-10T05:44:26.4713480Z
 ---
 
 ## Simulation Model
@@ -133,7 +133,7 @@ SERVER-002 introduces the first concrete authoritative state container in `Royal
 
 Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player IDs are allocated monotonically by the simulation and are not reused when a player is removed.
 
-`AuthoritativePlayerState` contains the server player id, optional connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and the last processed input sequence. `AddPlayer` selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the player with `WeaponCatalog.DefaultRifle`.
+`AuthoritativePlayerState` contains the server player id, required participant kind, optional human connection id, `KinematicCharacterState`, `PlayerLookState`, `HealthState`, `AuthoritativeWeaponState`, the spawn reservation, and the last processed input sequence. `AddHumanPlayer` and `AddBotPlayer` share one participant-creation path that selects a valid unoccupied map spawn through `MapSpawnSelector`, reserves that spawn volume, initializes finite position, velocity, and look from the spawn point, sets `HealthState.DefaultPlayer`, and arms the participant with `WeaponCatalog.DefaultRifle`.
 
 `AuthoritativeWeaponState` stores the current weapon id, magazine ammunition, reserve ammunition, `WeaponFireState`, and reload placeholders. SERVER-006 consumes magazine ammunition and advances rifle fire cadence for accepted server-authoritative shots. Reload behavior remains future work.
 
@@ -142,6 +142,14 @@ Server-owned identifiers are `ServerPlayerId` and `ServerConnectionId`. Player I
 `BR-001` makes the five-phase match lifecycle concrete in `Royale.Server`: `WaitingForPlayers`, `Countdown`, `Playing`, `Finished`, and `Resetting`. `MatchPhaseStateMachine` owns legal transition validation; `HeadlessServerSimulation` owns the mutable authoritative state and stamps accepted transitions with its current `CurrentTick`. Living-player count and optional winner are preserved by a phase transition because winner selection and reset mutation are separate match-loop responsibilities.
 
 Phase changes are explicit orchestration operations. The fixed simulation `Step()` does not automatically change phase, and this foundation does not yet gate movement or combat by phase. Every subsequently produced authoritative snapshot maps the current server phase and its stamped start tick into the protocol transfer shape.
+
+### Authoritative Participant Identity
+
+`BOT-001` distinguishes authoritative participants with `ServerPlayerKind.Human = 0` and `Bot = 1`. Both kinds live in the same match-scoped authoritative player dictionary and receive IDs from the same monotonic allocator. They share spawn reservations, transform/look state, health, weapon state, combat, snapshots, elimination/living counts, and force-start eligibility.
+
+Only humans may be associated with a nullable `ServerConnectionId`. Bots always have no connection ID and are absent from connection, peer, input-queue, and recipient snapshot-queue storage. `ActivePlayerCount` is the total participant roster, `HumanPlayerCount` and `BotPlayerCount` partition it, `ConnectedClientCount` counts live human client sessions, and `LivingPlayerCount` counts alive humans and bots.
+
+The normal minimum-player start policy compares the configured threshold with `HumanPlayerCount`; bots cannot trigger it. Explicit `ForceStart()` remains valid for any non-empty roster.
 
 ## Input Commands
 

@@ -242,11 +242,12 @@ public sealed class ServerObservability : IDisposable
         foreach (ServerPlayerDebugState player in players)
         {
             logger.LogInformation(
-                "Authoritative player debug state: server_tick {ServerTick}, peer_id {PeerId}, connection_id {ConnectionId}, player_id {PlayerId}, position ({PositionX}, {PositionY}, {PositionZ}), velocity ({VelocityX}, {VelocityY}, {VelocityZ}), yaw {YawRadians}, pitch {PitchRadians}, health {CurrentHealth}/{MaxHealth}, alive {Alive}, weapon {WeaponId}, ammo {AmmoInMagazine}/{ReserveAmmo}, reloading {IsReloading}, last_input {LastProcessedInputSequence}, last_input_client_tick {LastProcessedInputClientTick}, queued_inputs {QueuedInputCount}.",
+                "Authoritative player debug state: server_tick {ServerTick}, peer_id {PeerId}, connection_id {ConnectionId}, player_id {PlayerId}, kind {PlayerKind}, position ({PositionX}, {PositionY}, {PositionZ}), velocity ({VelocityX}, {VelocityY}, {VelocityZ}), yaw {YawRadians}, pitch {PitchRadians}, health {CurrentHealth}/{MaxHealth}, alive {Alive}, weapon {WeaponId}, ammo {AmmoInMagazine}/{ReserveAmmo}, reloading {IsReloading}, last_input {LastProcessedInputSequence}, last_input_client_tick {LastProcessedInputClientTick}, queued_inputs {QueuedInputCount}.",
                 player.ServerTick,
                 player.PeerId,
                 player.ConnectionId,
                 player.PlayerId,
+                player.Kind,
                 player.Position.X,
                 player.Position.Y,
                 player.Position.Z,

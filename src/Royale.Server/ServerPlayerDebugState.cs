@@ -7,6 +7,7 @@ public readonly record struct ServerPlayerDebugState(
     int? PeerId,
     uint ConnectionId,
     uint PlayerId,
+    ServerPlayerKind Kind,
     Vector3 Position,
     Vector3 Velocity,
     float YawRadians,

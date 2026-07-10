@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T02:12:51.9826640Z
+modifiedAt: 2026-07-10T05:41:45.0749720Z
 ---
 
 ## Networking Layers
@@ -175,6 +175,14 @@ Fallback behavior is intentionally conservative. With fewer than two usable snap
 `NetworkClientRuntime` exposes lightweight remote interpolation diagnostics: buffered snapshot count, interpolation delay ticks, last interpolation target tick, and whether the last render used interpolation or fallback.
 
 Production bad-network controls, event replication, delta compression, and broader cosmetic smoothing remain outside this task unless already supported by existing presentation code.
+
+### Participant Kind Replication
+
+Every serialized player snapshot carries a one-byte `ServerSnapshotPlayerKind` immediately after `PlayerId`: `Human = 0`, `Bot = 1`. Serialization rejects undefined enum values; deserialization rejects unknown wire values and truncated payloads. The maximum snapshot payload budget includes one additional byte per possible player.
+
+Participant kind is preserved through decoded client state, local prediction copies, presentation snapshots, and remote interpolation. Rendering behavior is unchanged.
+
+This snapshot layout change deliberately keeps protocol version 1 unchanged. Builds from before and after `BOT-001` are wire-incompatible despite advertising the same protocol version: there is no legacy parsing path for snapshots without participant kind. Client and server builds must therefore be deployed in lockstep.
 
 ## Protocol Versioning
 

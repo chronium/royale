@@ -15,6 +15,12 @@ public readonly record struct ServerConnectionId(uint Value)
     public override string ToString() => Value.ToString();
 }
 
+public enum ServerPlayerKind
+{
+    Human = 0,
+    Bot = 1,
+}
+
 public enum MatchPhase
 {
     WaitingForPlayers = 0,
@@ -27,6 +33,8 @@ public enum MatchPhase
 public sealed record AuthoritativePlayerState
 {
     public required ServerPlayerId PlayerId { get; init; }
+
+    public required ServerPlayerKind Kind { get; init; }
 
     public ServerConnectionId? ConnectionId { get; init; }
 

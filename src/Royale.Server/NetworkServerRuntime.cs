@@ -36,6 +36,12 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
 
     public int ActivePlayerCount => session.ActivePlayerCount;
 
+    public int HumanPlayerCount => session.HumanPlayerCount;
+
+    public int BotPlayerCount => session.BotPlayerCount;
+
+    public int LivingPlayerCount => session.LivingPlayerCount;
+
     public int ConnectedClientCount => session.ConnectedClientCount;
 
     public int QueuedInputCommandCount => session.QueuedInputCommandCount;
@@ -96,6 +102,22 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         ForceStartResult result = session.ForceStart();
         UpdateObservabilityState();
         return result;
+    }
+
+    public ServerPlayerId AddBot()
+    {
+        ThrowIfDisposed();
+        ServerPlayerId playerId = session.AddBot();
+        UpdateObservabilityState();
+        return playerId;
+    }
+
+    public bool TryRemoveBot(ServerPlayerId playerId)
+    {
+        ThrowIfDisposed();
+        bool removed = session.TryRemoveBot(playerId);
+        UpdateObservabilityState();
+        return removed;
     }
 
     public void Connected(NetworkPeerId peerId, NetworkEndpoint endpoint)

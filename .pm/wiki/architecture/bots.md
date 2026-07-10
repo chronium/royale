@@ -1,12 +1,16 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-10T05:23:38.3777380Z
+modifiedAt: 2026-07-10T05:41:45.0477770Z
 ---
 
 ## Status
 
-This page records the planned bot architecture owned by the `BOT` PM track. The behavior described here is not implemented until its corresponding BOT tasks are complete. Current match-start behavior remains defined by `BR-002`.
+`BOT-001` implements explicit server-owned bot participant identity. Human and bot participants share the authoritative player ID allocator, spawn selection and reservations, movement/combat state, health, weapons, match lifecycle storage, snapshots, and living-player accounting.
+
+Bots have `ServerPlayerKind.Bot`, no connection ID, no network peer, no client connection, no input queue, and no per-client snapshot queue. Humans use `ServerPlayerKind.Human`; the protocol mirrors these identities as `ServerSnapshotPlayerKind.Human = 0` and `Bot = 1`.
+
+The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. Session APIs may add and remove bot participants for C# integration, but WattleScript does not expose bot creation. Bot controllers, lobby filling, navigation, combat decisions, input delay, rendering differences, names, UI, and admin commands remain later BOT-track work.
 
 ## Purpose
 

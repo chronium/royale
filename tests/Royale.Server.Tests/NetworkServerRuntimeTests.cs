@@ -106,6 +106,34 @@ public sealed class NetworkServerRuntimeTests
         Assert.Equal(ForceStartResult.MatchNotWaiting, runtime.ForceStart());
     }
 
+    [Fact]
+    public void BotParticipantDoesNotCreatePeerAndIsReplicatedToConnectedHuman()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(ContentCatalog.DefaultMapId));
+
+        ServerPlayerId bot = runtime.AddBot();
+        ServerAccept accept = ConnectClient(runtime, transport, new NetworkPeerId(1));
+
+        Assert.Equal(1, runtime.ConnectedClientCount);
+        Assert.Equal(1, runtime.HumanPlayerCount);
+        Assert.Equal(1, runtime.BotPlayerCount);
+        Assert.Equal(2, runtime.ActivePlayerCount);
+        Assert.Single(runtime.AcceptedPeers);
+
+        transport.SentPackets.Clear();
+        runtime.Step();
+        runtime.Step();
+
+        SentPacket packet = Assert.Single(transport.SentPackets);
+        ServerSnapshot snapshot = ReadSnapshot(packet.Payload);
+        Assert.Equal(accept.PlayerId, snapshot.LocalPlayerId);
+        Assert.Contains(snapshot.Players, player =>
+            player.PlayerId == bot.Value && player.Kind == ServerSnapshotPlayerKind.Bot);
+    }
+
     private static ServerAccept ConnectClient(
         NetworkServerRuntime runtime,
         FakeNetworkTransport transport,

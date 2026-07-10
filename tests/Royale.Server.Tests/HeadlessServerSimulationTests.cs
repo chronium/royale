@@ -56,7 +56,7 @@ public sealed class HeadlessServerSimulationTests
 
         Assert.Equal("server-test-map", simulation.MapId);
         Assert.Equal(1, simulation.StaticColliderCount);
-        AuthoritativePlayerState player = simulation.AddPlayer();
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
         Assert.Equal(new ServerPlayerId(1), player.PlayerId);
     }
 
@@ -79,13 +79,14 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
-    public void AddPlayerCreatesAliveAuthoritativePlayerState()
+    public void AddHumanPlayerCreatesAliveAuthoritativePlayerState()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
 
-        AuthoritativePlayerState player = simulation.AddPlayer(new ServerConnectionId(42));
+        AuthoritativePlayerState player = simulation.AddHumanPlayer(new ServerConnectionId(42));
 
         Assert.Equal(new ServerPlayerId(1), player.PlayerId);
+        Assert.Equal(ServerPlayerKind.Human, player.Kind);
         Assert.Equal(new ServerConnectionId(42), player.ConnectionId);
         Assert.Equal(HealthState.DefaultPlayer, player.Health);
         Assert.True(player.Health.Alive);
@@ -104,21 +105,30 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
-    public void AddPlayerAssignsUniqueIdsAndNonOverlappingSpawnReservations()
+    public void HumanAndBotParticipantsShareIdsSpawnsAndInitialGameplayState()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
 
-        AuthoritativePlayerState first = simulation.AddPlayer();
-        AuthoritativePlayerState second = simulation.AddPlayer();
-        AuthoritativePlayerState third = simulation.AddPlayer();
+        AuthoritativePlayerState first = simulation.AddHumanPlayer();
+        AuthoritativePlayerState second = simulation.AddBotPlayer();
+        AuthoritativePlayerState third = simulation.AddHumanPlayer();
 
         Assert.Equal(new ServerPlayerId(1), first.PlayerId);
         Assert.Equal(new ServerPlayerId(2), second.PlayerId);
         Assert.Equal(new ServerPlayerId(3), third.PlayerId);
+        Assert.Equal(ServerPlayerKind.Human, first.Kind);
+        Assert.Equal(ServerPlayerKind.Bot, second.Kind);
+        Assert.Equal(ServerPlayerKind.Human, third.Kind);
+        Assert.Null(second.ConnectionId);
+        Assert.Equal(first.Health, second.Health);
+        Assert.Equal(first.Weapon, second.Weapon);
         Assert.False(first.SpawnReservation.Overlaps(second.SpawnReservation));
         Assert.False(first.SpawnReservation.Overlaps(third.SpawnReservation));
         Assert.False(second.SpawnReservation.Overlaps(third.SpawnReservation));
         Assert.Equal(3, simulation.Players.Count);
+        Assert.Equal(3, simulation.ActivePlayerCount);
+        Assert.Equal(2, simulation.HumanPlayerCount);
+        Assert.Equal(1, simulation.BotPlayerCount);
         Assert.Equal(3, simulation.MatchState.LivingPlayerCount);
     }
 
@@ -126,7 +136,7 @@ public sealed class HeadlessServerSimulationTests
     public void TryGetPlayerAndRemovePlayerUseAuthoritativeIds()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        AuthoritativePlayerState player = simulation.AddPlayer();
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
 
         Assert.True(simulation.TryGetPlayer(player.PlayerId, out AuthoritativePlayerState? found));
         Assert.Same(player, found);
@@ -152,7 +162,8 @@ public sealed class HeadlessServerSimulationTests
         HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
         simulation.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => simulation.AddPlayer());
+        Assert.Throws<ObjectDisposedException>(() => simulation.AddHumanPlayer());
+        Assert.Throws<ObjectDisposedException>(() => simulation.AddBotPlayer());
         Assert.Throws<ObjectDisposedException>(() => simulation.RemovePlayer(new ServerPlayerId(1)));
     }
 
@@ -172,7 +183,7 @@ public sealed class HeadlessServerSimulationTests
     public void TransitionMatchPhaseUsesCurrentAuthoritativeTickAndAppearsInSnapshot()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
         simulation.Step();
 
         simulation.TransitionMatchPhase(MatchPhase.Countdown);
@@ -204,12 +215,12 @@ public sealed class HeadlessServerSimulationTests
     public void StepWaitsBelowMinimumAndStartsCountdownWhenMinimumIsReached()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
 
         simulation.Step();
         Assert.Equal(MatchPhase.WaitingForPlayers, simulation.MatchState.Phase);
 
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
         Assert.Equal(MatchPhase.WaitingForPlayers, simulation.MatchState.Phase);
 
         simulation.Step();
@@ -224,7 +235,7 @@ public sealed class HeadlessServerSimulationTests
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(
             ContentCatalog.DefaultMapId,
             new MatchStartSettings(minimumPlayers: 1));
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
 
         simulation.Step();
 
@@ -236,8 +247,8 @@ public sealed class HeadlessServerSimulationTests
     public void CountdownTransitionsToPlayingAfterExactlyThreeHundredTicks()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        simulation.AddPlayer();
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
+        simulation.AddHumanPlayer();
 
         simulation.Step();
         Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
@@ -258,8 +269,8 @@ public sealed class HeadlessServerSimulationTests
     public void DisconnectDuringCountdownDoesNotCancelOrPauseIt()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        AuthoritativePlayerState first = simulation.AddPlayer();
-        simulation.AddPlayer();
+        AuthoritativePlayerState first = simulation.AddHumanPlayer();
+        simulation.AddHumanPlayer();
         simulation.Step();
 
         Assert.True(simulation.RemovePlayer(first.PlayerId));
@@ -277,17 +288,32 @@ public sealed class HeadlessServerSimulationTests
 
         Assert.Equal(ForceStartResult.NoPlayers, simulation.ForceStart());
 
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
         Assert.Equal(ForceStartResult.Started, simulation.ForceStart());
         Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
         Assert.Equal(ForceStartResult.MatchNotWaiting, simulation.ForceStart());
     }
 
     [Fact]
+    public void BotsDoNotSatisfyAutomaticHumanMinimumButCanForceStartBotOnlyMatch()
+    {
+        using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(
+            ContentCatalog.DefaultMapId,
+            new MatchStartSettings(minimumPlayers: 1));
+
+        simulation.AddBotPlayer();
+        simulation.Step();
+
+        Assert.Equal(MatchPhase.WaitingForPlayers, simulation.MatchState.Phase);
+        Assert.Equal(ForceStartResult.Started, simulation.ForceStart());
+        Assert.Equal(MatchPhase.Countdown, simulation.MatchState.Phase);
+    }
+
+    [Fact]
     public void StepDoesNotUpdateLastProcessedInputSequence()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        AuthoritativePlayerState player = simulation.AddPlayer();
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
 
         simulation.Step();
 
@@ -323,17 +349,29 @@ public sealed class HeadlessServerSimulationTests
     public void CreateSnapshotOrdersPlayersByAuthoritativePlayerId()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        simulation.AddPlayer();
-        simulation.AddPlayer();
-        simulation.AddPlayer();
+        simulation.AddHumanPlayer();
+        simulation.AddHumanPlayer();
+        simulation.AddBotPlayer();
 
         ServerSnapshot snapshot = simulation.CreateSnapshot();
 
         Assert.Collection(
             snapshot.Players,
-            player => Assert.Equal(1U, player.PlayerId),
-            player => Assert.Equal(2U, player.PlayerId),
-            player => Assert.Equal(3U, player.PlayerId));
+            player =>
+            {
+                Assert.Equal(1U, player.PlayerId);
+                Assert.Equal(ServerSnapshotPlayerKind.Human, player.Kind);
+            },
+            player =>
+            {
+                Assert.Equal(2U, player.PlayerId);
+                Assert.Equal(ServerSnapshotPlayerKind.Human, player.Kind);
+            },
+            player =>
+            {
+                Assert.Equal(3U, player.PlayerId);
+                Assert.Equal(ServerSnapshotPlayerKind.Bot, player.Kind);
+            });
     }
 
     [Fact]
@@ -341,7 +379,7 @@ public sealed class HeadlessServerSimulationTests
     {
         GameMap map = MapCatalog.LoadDefault();
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        AuthoritativePlayerState player = simulation.AddPlayer();
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
 
         simulation.Step();
 
@@ -378,7 +416,7 @@ public sealed class HeadlessServerSimulationTests
     public void CreateSnapshotForRecipientCarriesTopLevelAcknowledgementOnly()
     {
         using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(ContentCatalog.DefaultMapId);
-        AuthoritativePlayerState player = simulation.AddPlayer();
+        AuthoritativePlayerState player = simulation.AddHumanPlayer();
 
         ServerSnapshot snapshot = simulation.CreateSnapshot(player.PlayerId);
         PlayerSnapshotState playerSnapshot = Assert.Single(snapshot.Players);

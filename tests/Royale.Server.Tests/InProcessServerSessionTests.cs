@@ -22,6 +22,8 @@ public sealed class InProcessServerSessionTests
         Assert.Equal(new ServerPlayerId(1), client.PlayerId);
         Assert.Equal(1, session.ConnectedClientCount);
         Assert.Equal(1, session.ActivePlayerCount);
+        Assert.Equal(1, session.HumanPlayerCount);
+        Assert.Equal(0, session.BotPlayerCount);
         Assert.Equal(0UL, snapshot.ServerTick);
         Assert.Equal(client.PlayerId.Value, snapshot.LocalPlayerId);
         Assert.Null(snapshot.AcknowledgedInputSequence);
@@ -42,6 +44,7 @@ public sealed class InProcessServerSessionTests
         Assert.Null(debugState.PeerId);
         Assert.Equal(client.ConnectionId.Value, debugState.ConnectionId);
         Assert.Equal(client.PlayerId.Value, debugState.PlayerId);
+        Assert.Equal(ServerPlayerKind.Human, debugState.Kind);
         Assert.Equal(HealthState.DefaultPlayer.CurrentHealth, debugState.CurrentHealth);
         Assert.Equal(HealthState.DefaultPlayer.MaxHealth, debugState.MaxHealth);
         Assert.True(debugState.Alive);
@@ -488,6 +491,40 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void BotsAreParticipantsWithoutClientsQueuesAndCanOnlyBeRemovedThroughBotApi()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        InProcessClientConnection human = session.ConnectClient();
+        ServerPlayerId bot = session.AddBot();
+
+        Assert.Equal(1, session.ConnectedClientCount);
+        Assert.Equal(2, session.ActivePlayerCount);
+        Assert.Equal(1, session.HumanPlayerCount);
+        Assert.Equal(1, session.BotPlayerCount);
+        Assert.Equal(2, session.LivingPlayerCount);
+        Assert.Equal(0, session.QueuedInputCommandCount);
+
+        ServerPlayerDebugState botDebug = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(ServerPlayerKind.Bot, botDebug.Kind);
+        Assert.Equal(0U, botDebug.ConnectionId);
+        Assert.Null(botDebug.PeerId);
+        Assert.Equal(0, botDebug.QueuedInputCount);
+
+        session.Step();
+        ServerSnapshot humanSnapshot = session.DrainSnapshots(human)[^1];
+        Assert.Equal(2, humanSnapshot.Players.Count);
+        Assert.Contains(humanSnapshot.Players, player =>
+            player.PlayerId == bot.Value && player.Kind == ServerSnapshotPlayerKind.Bot);
+
+        Assert.False(session.TryRemoveBot(human.PlayerId));
+        Assert.True(session.TryRemoveBot(bot));
+        Assert.False(session.TryRemoveBot(bot));
+        Assert.Equal(1, session.ActivePlayerCount);
+        Assert.Equal(0, session.BotPlayerCount);
+    }
+
+    [Fact]
     public void DisposeDisposesWrappedSimulationAndRejectsOperations()
     {
         InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
@@ -498,6 +535,8 @@ public sealed class InProcessServerSessionTests
         Assert.True(session.IsDisposed);
         Assert.True(session.IsSimulationDisposed);
         Assert.Throws<ObjectDisposedException>(() => session.ConnectClient());
+        Assert.Throws<ObjectDisposedException>(() => session.AddBot());
+        Assert.Throws<ObjectDisposedException>(() => session.TryRemoveBot(new ServerPlayerId(1)));
         Assert.Throws<ObjectDisposedException>(
             () => session.TryEnqueueInputCommand(client, ValidCommand(sequence: 1)));
         Assert.Throws<ObjectDisposedException>(() => session.Step());

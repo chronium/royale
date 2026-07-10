@@ -1,4 +1,6 @@
+using System.Numerics;
 using Royale.Protocol;
+using Royale.Server;
 using WattleScript.Interpreter;
 
 namespace Royale.Gameplay.Tests;
@@ -6,6 +8,56 @@ namespace Royale.Gameplay.Tests;
 [Collection(Box3DNativeTestCollection.Name)]
 public sealed class WattleScenarioScriptHostTests
 {
+    [Fact]
+    public void SnapshotWrappersExposeParticipantKindsAndHumanBotCounts()
+    {
+        PlayerSnapshotState human = PlayerSnapshot(1, ServerSnapshotPlayerKind.Human);
+        PlayerSnapshotState bot = PlayerSnapshot(2, ServerSnapshotPlayerKind.Bot);
+        var api = new ScenarioSnapshotApi(new ServerSnapshot(
+            0,
+            LocalPlayerId: 1,
+            AcknowledgedInputSequence: null,
+            Players: [human, bot],
+            Match: new MatchSnapshotState(ServerSnapshotMatchPhase.WaitingForPlayers, 0, 2, null),
+            SafeZone: new SafeZoneSnapshotState(Vector3.Zero, 1.0f, 1.0f, 0)));
+
+        Assert.Equal(1, api.connectedPlayerCount);
+        Assert.Equal(2, api.participantCount);
+        Assert.Equal(1, api.botPlayerCount);
+        Assert.Equal("Human", api.player(1)!.kind);
+        Assert.False(api.player(1)!.isBot);
+        Assert.Equal("Bot", api.player(2)!.kind);
+        Assert.True(api.player(2)!.isBot);
+    }
+
+    [Fact]
+    public void DebugWrapperExposesBotIdentity()
+    {
+        var api = new ScenarioPlayerDebugStateApi(new ServerPlayerDebugState(
+            ServerTick: 3,
+            PeerId: null,
+            ConnectionId: 0,
+            PlayerId: 7,
+            Kind: ServerPlayerKind.Bot,
+            Position: Vector3.Zero,
+            Velocity: Vector3.Zero,
+            YawRadians: 0,
+            PitchRadians: 0,
+            CurrentHealth: 100,
+            MaxHealth: 100,
+            Alive: true,
+            WeaponId: "rifle",
+            AmmoInMagazine: 30,
+            ReserveAmmo: 90,
+            IsReloading: false,
+            LastProcessedInputSequence: null,
+            LastProcessedInputClientTick: null,
+            QueuedInputCount: 0));
+
+        Assert.Equal("Bot", api.kind);
+        Assert.True(api.isBot);
+    }
+
     [Theory]
     [InlineData(ServerSnapshotMatchPhase.WaitingForPlayers, "WaitingForPlayers")]
     [InlineData(ServerSnapshotMatchPhase.Playing, "Playing")]
@@ -391,7 +443,11 @@ public sealed class WattleScenarioScriptHostTests
             scenario.assert.equal(second.playerId, secondSnapshot.localPlayerId);
             scenario.assert.isTrue(first.playerId != second.playerId);
             scenario.assert.equal(2, firstSnapshot.connectedPlayerCount);
+            scenario.assert.equal(2, firstSnapshot.participantCount);
+            scenario.assert.equal(0, firstSnapshot.botPlayerCount);
             scenario.assert.equal(2, firstSnapshot.livingPlayerCount);
+            scenario.assert.equal("Human", firstSnapshot.player(first.playerId).kind);
+            scenario.assert.equal(false, firstSnapshot.player(first.playerId).isBot);
 
             return true;
             """;
@@ -400,6 +456,18 @@ public sealed class WattleScenarioScriptHostTests
 
         Assert.True(result.Boolean);
     }
+
+    private static PlayerSnapshotState PlayerSnapshot(uint playerId, ServerSnapshotPlayerKind kind) => new(
+        playerId,
+        kind,
+        Vector3.Zero,
+        Vector3.Zero,
+        YawRadians: 0,
+        PitchRadians: 0,
+        CurrentHealth: 100,
+        MaxHealth: 100,
+        Alive: true,
+        Weapon: new WeaponSnapshotState("rifle", 30, 90, 0, null, false, null));
 
     [Fact]
     public void ScenarioServerStepAdvancesLatestSnapshotAndClockTick()

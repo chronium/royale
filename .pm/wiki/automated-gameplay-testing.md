@@ -1,7 +1,7 @@
 ---
 title: Automated Gameplay Testing
 createdAt: 2026-07-05T15:18:15.6422560Z
-modifiedAt: 2026-07-10T05:05:56.7956450Z
+modifiedAt: 2026-07-10T05:41:45.0841150Z
 ---
 
 ## Overview
@@ -173,6 +173,12 @@ High-level actions such as `moveTo`, `lookAt`, `pickUp`, `shootAt`, and `stayIns
 `scenario.server.forceStart()` invokes the explicit authoritative force-start hook in both in-process and loopback UDP runtimes. It returns the string `Started` after entering `Countdown`. Rejection is explicit: zero connected players throws `scenario.server.forceStart failed: at least one connected player is required`, and a phase other than `WaitingForPlayers` throws `scenario.server.forceStart failed: the match is not waiting for players`.
 
 Every call records one deterministic test-host event. Success records `server.force_start.accepted` with detail `Started`; rejection records `server.force_start.rejected` with detail `NoPlayers` or `MatchNotWaiting` before throwing. These remain harness observations, not protocol or authoritative gameplay event types.
+
+### Bot Participant Observability
+
+Wattle snapshot wrappers distinguish connected humans from the full authoritative roster. `connectedPlayerCount` counts snapshot players whose participant kind is human; `participantCount` counts all humans and bots; and `botPlayerCount` counts bots. Player snapshot and server debug wrappers expose `kind` as the stable `Human` or `Bot` name and `isBot` as a boolean. `scenario.observe` also exposes connected-human, participant, bot, and living-player counts from the active runtime.
+
+The script API intentionally has no bot creation or removal methods. BOT-001 tests participant lifecycle through C# session APIs while WattleScript remains observational until later bot-controller and lobby tasks define script-facing behavior.
 
 ## Execution Model
 

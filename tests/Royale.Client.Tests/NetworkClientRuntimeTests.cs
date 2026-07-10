@@ -301,6 +301,7 @@ public sealed class NetworkClientRuntimeTests
             clientTick: 1));
 
         Assert.True(runtime.TryGetPredictedLocalPlayer(out PlayerSnapshotState predictedPlayer));
+        Assert.Equal(ServerSnapshotPlayerKind.Human, predictedPlayer.Kind);
         Assert.True(Vector3.Distance(predictedPlayer.Position, authoritativePlayer.Position) > 0.001f);
         Assert.Same(authoritativeSnapshot, runtime.State.LatestSnapshot);
         Assert.True(runtime.State.TryGetLocalPlayer(out PlayerSnapshotState statePlayer));
@@ -608,6 +609,7 @@ public sealed class NetworkClientRuntimeTests
         [
             new PlayerSnapshotState(
                 localPlayerId,
+                ServerSnapshotPlayerKind.Human,
                 localPosition ?? new Vector3(1.0f, 0.0f, 3.0f),
                 Vector3.Zero,
                 YawRadians: 0.25f,
@@ -625,6 +627,7 @@ public sealed class NetworkClientRuntimeTests
                     ReloadCompleteTick: null)),
             new PlayerSnapshotState(
                 99,
+                ServerSnapshotPlayerKind.Bot,
                 remotePosition ?? new Vector3(3.0f, 0.0f, 1.0f),
                 Vector3.Zero,
                 YawRadians: 0.0f,

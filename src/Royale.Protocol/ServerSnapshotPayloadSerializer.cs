@@ -15,6 +15,7 @@ public static class ServerSnapshotPayloadSerializer
 
     public const int MaxPlayerSnapshotStatePayloadSize =
         sizeof(uint) +
+        sizeof(byte) +
         Vector3WireSize +
         Vector3WireSize +
         sizeof(float) +
@@ -138,16 +139,22 @@ public static class ServerSnapshotPayloadSerializer
     private static bool TryWritePlayer(
         PlayerSnapshotState player,
         Span<byte> destination,
-        ref int offset) =>
-        TryWriteUInt32(player.PlayerId, destination, ref offset) &&
-        TryWriteVector3(player.Position, destination, ref offset) &&
-        TryWriteVector3(player.Velocity, destination, ref offset) &&
-        TryWriteSingle(player.YawRadians, destination, ref offset) &&
-        TryWriteSingle(player.PitchRadians, destination, ref offset) &&
-        TryWriteInt32(player.CurrentHealth, destination, ref offset) &&
-        TryWriteInt32(player.MaxHealth, destination, ref offset) &&
-        TryWriteBoolean(player.Alive, destination, ref offset) &&
-        TryWriteWeapon(player.Weapon, destination, ref offset);
+        ref int offset)
+    {
+        if (!Enum.IsDefined(player.Kind))
+            return false;
+
+        return TryWriteUInt32(player.PlayerId, destination, ref offset) &&
+            TryWriteByte((byte)player.Kind, destination, ref offset) &&
+            TryWriteVector3(player.Position, destination, ref offset) &&
+            TryWriteVector3(player.Velocity, destination, ref offset) &&
+            TryWriteSingle(player.YawRadians, destination, ref offset) &&
+            TryWriteSingle(player.PitchRadians, destination, ref offset) &&
+            TryWriteInt32(player.CurrentHealth, destination, ref offset) &&
+            TryWriteInt32(player.MaxHealth, destination, ref offset) &&
+            TryWriteBoolean(player.Alive, destination, ref offset) &&
+            TryWriteWeapon(player.Weapon, destination, ref offset);
+    }
 
     private static bool TryReadPlayer(
         ReadOnlySpan<byte> source,
@@ -157,6 +164,8 @@ public static class ServerSnapshotPayloadSerializer
         player = default;
 
         if (!TryReadUInt32(source, ref offset, out uint playerId) ||
+            !TryReadByte(source, ref offset, out byte kindValue) ||
+            !Enum.IsDefined((ServerSnapshotPlayerKind)kindValue) ||
             !TryReadVector3(source, ref offset, out Vector3 position) ||
             !TryReadVector3(source, ref offset, out Vector3 velocity) ||
             !TryReadSingle(source, ref offset, out float yawRadians) ||
@@ -171,6 +180,7 @@ public static class ServerSnapshotPayloadSerializer
 
         player = new PlayerSnapshotState(
             playerId,
+            (ServerSnapshotPlayerKind)kindValue,
             position,
             velocity,
             yawRadians,

@@ -110,6 +110,7 @@ public sealed class ServerSnapshotSenderTests
         [
             new PlayerSnapshotState(
                 accept.PlayerId,
+                ServerSnapshotPlayerKind.Human,
                 new Vector3(1.0f, 2.0f, 3.0f),
                 Vector3.Zero,
                 YawRadians: 0.25f,

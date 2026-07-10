@@ -30,6 +30,7 @@ public sealed class RemoteSnapshotInterpolatorTests
         Assert.Equal(6.0f, remote.Velocity.X, precision: 4);
         Assert.Equal(0.5f, remote.YawRadians, precision: 4);
         Assert.Equal(0.25f, remote.PitchRadians, precision: 4);
+        Assert.Equal(ServerSnapshotPlayerKind.Bot, remote.Kind);
         Assert.True(interpolator.LastRenderUsedInterpolation);
         Assert.Equal(103.0, interpolator.LastInterpolationTargetTick, precision: 4);
     }
@@ -145,6 +146,7 @@ public sealed class RemoteSnapshotInterpolatorTests
 
     private static PlayerSnapshotState Local() => new(
         PlayerId: 1,
+        Kind: ServerSnapshotPlayerKind.Human,
         Position: new Vector3(-1.0f, 0.0f, 0.0f),
         Velocity: Vector3.Zero,
         YawRadians: 0.0f,
@@ -160,6 +162,7 @@ public sealed class RemoteSnapshotInterpolatorTests
         float yaw = 0.0f,
         float pitch = 0.0f) => new(
         PlayerId: 2,
+        Kind: ServerSnapshotPlayerKind.Bot,
         Position: position,
         Velocity: velocity ?? Vector3.Zero,
         YawRadians: yaw,

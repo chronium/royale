@@ -108,6 +108,7 @@ public sealed class LocalPredictionSmootherTests
 
     private static PlayerSnapshotState Player(Vector3 position, bool alive = true) => new(
         PlayerId: 1,
+        Kind: ServerSnapshotPlayerKind.Human,
         Position: position,
         Velocity: Vector3.Zero,
         YawRadians: 0.0f,

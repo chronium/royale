@@ -43,6 +43,14 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public IReadOnlyDictionary<ServerPlayerId, AuthoritativePlayerState> Players => players;
 
+    public int ActivePlayerCount => players.Count;
+
+    public int HumanPlayerCount => players.Values.Count(player => player.Kind == ServerPlayerKind.Human);
+
+    public int BotPlayerCount => players.Values.Count(player => player.Kind == ServerPlayerKind.Bot);
+
+    public int LivingPlayerCount => MatchState.LivingPlayerCount;
+
     public AuthoritativeMatchState MatchState { get; private set; }
 
     public MatchStartSettings MatchStartSettings => matchStartSettings;
@@ -79,9 +87,23 @@ public sealed class HeadlessServerSimulation : IDisposable
         }
     }
 
-    public AuthoritativePlayerState AddPlayer(ServerConnectionId? connectionId = null)
+    public AuthoritativePlayerState AddHumanPlayer(ServerConnectionId? connectionId = null) =>
+        AddParticipant(ServerPlayerKind.Human, connectionId);
+
+    public AuthoritativePlayerState AddBotPlayer() =>
+        AddParticipant(ServerPlayerKind.Bot, connectionId: null);
+
+    private AuthoritativePlayerState AddParticipant(
+        ServerPlayerKind kind,
+        ServerConnectionId? connectionId)
     {
         ThrowIfDisposed();
+
+        if (!Enum.IsDefined(kind))
+            throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown server player kind.");
+
+        if (kind == ServerPlayerKind.Bot && connectionId.HasValue)
+            throw new ArgumentException("Bot participants cannot have connection IDs.", nameof(connectionId));
 
         if (!MapSpawnSelector.TrySelectSpawn(map, collisionWorld, spawnReservations.Values, out MapSpawnPoint? spawnPoint))
             throw new InvalidOperationException($"Map '{MapId}' has no available unoccupied spawn point.");
@@ -90,7 +112,7 @@ public sealed class HeadlessServerSimulation : IDisposable
             ?? throw new InvalidOperationException($"Map '{MapId}' returned an invalid spawn selection.");
         ServerPlayerId playerId = new(nextPlayerId++);
         SpawnReservation spawnReservation = MapSpawnSelector.CreateReservation(selectedSpawn);
-        AuthoritativePlayerState player = CreatePlayerState(playerId, connectionId, selectedSpawn, spawnReservation);
+        AuthoritativePlayerState player = CreatePlayerState(playerId, kind, connectionId, selectedSpawn, spawnReservation);
 
         players.Add(playerId, player);
         spawnReservations.Add(playerId, spawnReservation);
@@ -223,6 +245,7 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     private static AuthoritativePlayerState CreatePlayerState(
         ServerPlayerId playerId,
+        ServerPlayerKind kind,
         ServerConnectionId? connectionId,
         MapSpawnPoint spawnPoint,
         SpawnReservation spawnReservation)
@@ -232,6 +255,7 @@ public sealed class HeadlessServerSimulation : IDisposable
         return new AuthoritativePlayerState
         {
             PlayerId = playerId,
+            Kind = kind,
             ConnectionId = connectionId,
             Character = new KinematicCharacterState(
                 MapStaticBoxTransforms.ToVector3(spawnPoint.Position),
@@ -257,6 +281,7 @@ public sealed class HeadlessServerSimulation : IDisposable
     private static PlayerSnapshotState CreatePlayerSnapshot(AuthoritativePlayerState player) =>
         new(
             player.PlayerId.Value,
+            MapPlayerKind(player.Kind),
             player.Character.Position,
             player.Character.Velocity,
             player.Look.YawRadians,
@@ -265,6 +290,14 @@ public sealed class HeadlessServerSimulation : IDisposable
             player.Health.MaxHealth,
             player.Health.Alive,
             CreateWeaponSnapshot(player.Weapon));
+
+    private static ServerSnapshotPlayerKind MapPlayerKind(ServerPlayerKind kind) =>
+        kind switch
+        {
+            ServerPlayerKind.Human => ServerSnapshotPlayerKind.Human,
+            ServerPlayerKind.Bot => ServerSnapshotPlayerKind.Bot,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown server player kind."),
+        };
 
     private static WeaponSnapshotState CreateWeaponSnapshot(AuthoritativeWeaponState weapon) =>
         new(
@@ -317,7 +350,7 @@ public sealed class HeadlessServerSimulation : IDisposable
     private void ApplyMatchStartPolicy()
     {
         if (MatchState.Phase == MatchPhase.WaitingForPlayers &&
-            players.Count >= matchStartSettings.MinimumPlayers)
+            HumanPlayerCount >= matchStartSettings.MinimumPlayers)
         {
             TransitionMatchPhase(MatchPhase.Countdown);
         }

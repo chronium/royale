@@ -18,6 +18,7 @@ public sealed class ServerSnapshotTests
             ReloadCompleteTick: null);
         var player = new PlayerSnapshotState(
             PlayerId: 7,
+            Kind: ServerSnapshotPlayerKind.Human,
             Position: new Vector3(1.0f, 2.0f, 3.0f),
             Velocity: new Vector3(4.0f, 5.0f, 6.0f),
             YawRadians: 0.5f,
@@ -67,6 +68,7 @@ public sealed class ServerSnapshotTests
 
         var player = new PlayerSnapshotState(
             PlayerId: 2,
+            Kind: ServerSnapshotPlayerKind.Bot,
             Position: new Vector3(1.0f, 0.0f, 2.0f),
             Velocity: new Vector3(0.1f, 0.0f, -0.2f),
             YawRadians: 1.25f,
@@ -77,6 +79,7 @@ public sealed class ServerSnapshotTests
             Weapon: weapon);
 
         Assert.Equal(2U, player.PlayerId);
+        Assert.Equal(ServerSnapshotPlayerKind.Bot, player.Kind);
         Assert.Equal(new Vector3(1.0f, 0.0f, 2.0f), player.Position);
         Assert.Equal(new Vector3(0.1f, 0.0f, -0.2f), player.Velocity);
         Assert.Equal(1.25f, player.YawRadians);
@@ -172,6 +175,57 @@ public sealed class ServerSnapshotTests
         Assert.Equal(expectedWireValue, payload[FindMatchPhaseOffset(payload)]);
     }
 
+    [Theory]
+    [InlineData(ServerSnapshotPlayerKind.Human, 0)]
+    [InlineData(ServerSnapshotPlayerKind.Bot, 1)]
+    public void PlayerKindsRetainStableWireValues(ServerSnapshotPlayerKind kind, byte expectedWireValue)
+    {
+        PlayerSnapshotState player = CreatePlayer(
+            1,
+            "rifle",
+            alive: true,
+            lastFiredTick: null,
+            reloadCompleteTick: null) with { Kind = kind };
+        byte[] payload = WriteSnapshot(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [player],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+
+        const int firstPlayerKindOffset = sizeof(ulong) + 5 + 1 + sizeof(ushort) + sizeof(uint);
+        Assert.Equal(expectedWireValue, payload[firstPlayerKindOffset]);
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsInvalidPlayerKindForWriteAndRead()
+    {
+        PlayerSnapshotState invalidPlayer = CreatePlayer(
+            1,
+            "rifle",
+            alive: true,
+            lastFiredTick: null,
+            reloadCompleteTick: null) with { Kind = (ServerSnapshotPlayerKind)0xFF };
+        ServerSnapshot invalidSnapshot = CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [invalidPlayer],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone());
+        byte[] destination = new byte[ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize];
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryWriteSnapshot(invalidSnapshot, destination, out int bytesWritten));
+        Assert.Equal(0, bytesWritten);
+
+        byte[] payload = WriteSnapshot(invalidSnapshot with
+        {
+            Players = [invalidPlayer with { Kind = ServerSnapshotPlayerKind.Human }],
+        });
+        const int firstPlayerKindOffset = sizeof(ulong) + 5 + 1 + sizeof(ushort) + sizeof(uint);
+        payload[firstPlayerKindOffset] = 0xFF;
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
+    }
+
     [Fact]
     public void SnapshotPayloadUsesStableLittleEndianLayoutForRepresentativeValues()
     {
@@ -239,7 +293,7 @@ public sealed class ServerSnapshotTests
             players: [CreatePlayer(1, "rifle", alive: true, lastFiredTick: null, reloadCompleteTick: null)],
             match: DefaultMatch(),
             safeZone: DefaultSafeZone()));
-        int aliveOffset = 8 + 5 + 1 + 2 + 4 + 12 + 12 + 4 + 4 + 4 + 4;
+        int aliveOffset = 8 + 5 + 1 + 2 + 4 + 1 + 12 + 12 + 4 + 4 + 4 + 4;
         payload[aliveOffset] = 2;
 
         Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload, out _));
@@ -251,6 +305,22 @@ public sealed class ServerSnapshotTests
         byte[] payload = WriteSnapshot(CreateMinimalSnapshot());
 
         Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(payload.AsSpan(0, payload.Length - 1), out _));
+    }
+
+    [Fact]
+    public void SnapshotPayloadRejectsPlayerTruncatedBeforeParticipantKind()
+    {
+        byte[] payload = WriteSnapshot(CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: null,
+            players: [CreatePlayer(1, "rifle", true, null, null)],
+            match: DefaultMatch(),
+            safeZone: DefaultSafeZone()));
+        const int firstPlayerKindOffset = sizeof(ulong) + 5 + 1 + sizeof(ushort) + sizeof(uint);
+
+        Assert.False(ServerSnapshotPayloadSerializer.TryReadSnapshot(
+            payload.AsSpan(0, firstPlayerKindOffset),
+            out _));
     }
 
     [Fact]
@@ -302,7 +372,32 @@ public sealed class ServerSnapshotTests
     {
         Assert.Equal(128, ProtocolConstants.MaxSnapshotPlayers);
         Assert.Equal(64, ProtocolConstants.MaxSnapshotWeaponIdLength);
+        Assert.Equal(146, ServerSnapshotPayloadSerializer.MaxPlayerSnapshotStatePayloadSize);
+        Assert.Equal(18754, ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize);
         Assert.True(ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize > ProtocolConstants.PacketHeaderSize);
+
+        string maximumWeaponId = new('w', ProtocolConstants.MaxSnapshotWeaponIdLength);
+        PlayerSnapshotState[] players = Enumerable.Range(1, ProtocolConstants.MaxSnapshotPlayers)
+            .Select(index => CreatePlayer(
+                (uint)index,
+                maximumWeaponId,
+                alive: true,
+                lastFiredTick: 1,
+                reloadCompleteTick: 2))
+            .ToArray();
+        ServerSnapshot maximumSnapshot = CreateSnapshot(
+            localPlayerId: 1,
+            acknowledgedInputSequence: 2,
+            players,
+            match: DefaultMatch() with { WinnerPlayerId = 1 },
+            safeZone: DefaultSafeZone());
+        byte[] maximumPayload = new byte[ServerSnapshotPayloadSerializer.MaxServerSnapshotPayloadSize];
+
+        Assert.True(ServerSnapshotPayloadSerializer.TryWriteSnapshot(
+            maximumSnapshot,
+            maximumPayload,
+            out int bytesWritten));
+        Assert.Equal(maximumPayload.Length, bytesWritten);
     }
 
     private static ServerSnapshot RoundTrip(ServerSnapshot snapshot)
@@ -348,6 +443,7 @@ public sealed class ServerSnapshotTests
         ulong? lastFiredTick,
         ulong? reloadCompleteTick) => new(
         playerId,
+        ServerSnapshotPlayerKind.Human,
         new Vector3(1.0f + playerId, 2.0f, 3.0f),
         new Vector3(4.0f, 5.0f, 6.0f),
         YawRadians: 0.5f,
@@ -388,6 +484,7 @@ public sealed class ServerSnapshotTests
         {
             const int playerBeforeWeaponBytes =
                 sizeof(uint) +
+                sizeof(byte) +
                 (sizeof(float) * 3) +
                 (sizeof(float) * 3) +
                 sizeof(float) +

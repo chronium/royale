@@ -49,6 +49,10 @@ public sealed class ScenarioApi : ScenarioScriptObject, IDisposable
 
     internal int ConnectedPlayerCount => runtime?.ConnectedPlayerCount ?? 0;
 
+    internal int ParticipantCount => runtime?.ParticipantCount ?? 0;
+
+    internal int BotPlayerCount => runtime?.BotPlayerCount ?? 0;
+
     internal int LivingPlayerCount => runtime?.LivingPlayerCount ?? 0;
 
     internal void StartServer(string mapId)
@@ -612,6 +616,10 @@ public sealed class ScenarioObservationsApi(ScenarioApi scenario) : ScenarioScri
 {
     public int connectedPlayerCount => scenario.ConnectedPlayerCount;
 
+    public int participantCount => scenario.ParticipantCount;
+
+    public int botPlayerCount => scenario.BotPlayerCount;
+
     public int livingPlayerCount => scenario.LivingPlayerCount;
 
     public ScenarioSnapshotApi latest(ScenarioPlayerApi player) => new(scenario.GetLatestSnapshot(player));
@@ -849,7 +857,13 @@ public sealed class ScenarioSnapshotApi(ServerSnapshot snapshot) : ScenarioScrip
 
     public uint? acknowledgedInputSequence => snapshot.AcknowledgedInputSequence;
 
-    public int connectedPlayerCount => snapshot.Players.Count;
+    public int connectedPlayerCount => snapshot.Players.Count(
+        player => player.Kind == ServerSnapshotPlayerKind.Human);
+
+    public int participantCount => snapshot.Players.Count;
+
+    public int botPlayerCount => snapshot.Players.Count(
+        player => player.Kind == ServerSnapshotPlayerKind.Bot);
 
     public int livingPlayerCount => snapshot.Match.LivingPlayerCount;
 
@@ -878,6 +892,10 @@ public sealed class ScenarioPlayerSnapshotApi(PlayerSnapshotState player) : Scen
 {
     public uint playerId => player.PlayerId;
 
+    public string kind => player.Kind.ToString();
+
+    public bool isBot => player.Kind == ServerSnapshotPlayerKind.Bot;
+
     public ScenarioVector3Api position => new(player.Position);
 
     public ScenarioVector3Api velocity => new(player.Velocity);
@@ -904,6 +922,10 @@ public sealed class ScenarioPlayerDebugStateApi(ServerPlayerDebugState player) :
     public uint connectionId => player.ConnectionId;
 
     public uint playerId => player.PlayerId;
+
+    public string kind => player.Kind.ToString();
+
+    public bool isBot => player.Kind == ServerPlayerKind.Bot;
 
     public ScenarioVector3Api position => new(player.Position);
 

@@ -19,11 +19,15 @@ public sealed class InProcessServerSession : IDisposable
 
     public string MapId => simulation.MapId;
 
-    public int ActivePlayerCount => simulation.Players.Count;
+    public int ActivePlayerCount => simulation.ActivePlayerCount;
+
+    public int HumanPlayerCount => simulation.HumanPlayerCount;
+
+    public int BotPlayerCount => simulation.BotPlayerCount;
 
     public int ConnectedClientCount => clients.Count;
 
-    public int LivingPlayerCount => simulation.MatchState.LivingPlayerCount;
+    public int LivingPlayerCount => simulation.LivingPlayerCount;
 
     public MatchPhase MatchPhase => simulation.MatchState.Phase;
 
@@ -68,7 +72,7 @@ public sealed class InProcessServerSession : IDisposable
         ThrowIfDisposed();
 
         ServerConnectionId connectionId = new(nextConnectionId++);
-        AuthoritativePlayerState player = simulation.AddPlayer(connectionId);
+        AuthoritativePlayerState player = simulation.AddHumanPlayer(connectionId);
         var client = new InProcessClientConnection(connectionId, player.PlayerId);
         var state = new InProcessClientState(connectionId, player.PlayerId);
 
@@ -76,6 +80,26 @@ public sealed class InProcessServerSession : IDisposable
         clients.Add(connectionId, state);
 
         return client;
+    }
+
+    public ServerPlayerId AddBot()
+    {
+        ThrowIfDisposed();
+        return simulation.AddBotPlayer().PlayerId;
+    }
+
+    public bool TryRemoveBot(ServerPlayerId playerId)
+    {
+        ThrowIfDisposed();
+
+        if (!simulation.TryGetPlayer(playerId, out AuthoritativePlayerState? player) ||
+            player is null ||
+            player.Kind != ServerPlayerKind.Bot)
+        {
+            return false;
+        }
+
+        return simulation.RemovePlayer(playerId);
     }
 
     public bool TryEnqueueInputCommand(InProcessClientConnection client, PlayerInputCommand command)
@@ -188,6 +212,7 @@ public sealed class InProcessServerSession : IDisposable
             peerId,
             player.ConnectionId?.Value ?? 0,
             player.PlayerId.Value,
+            player.Kind,
             player.Character.Position,
             player.Character.Velocity,
             player.Look.YawRadians,

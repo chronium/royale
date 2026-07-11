@@ -1,6 +1,7 @@
 using System.Numerics;
 using Royale.Client.Networking;
 using Royale.Client.Rendering.Cameras;
+using Royale.Rendering.Cameras;
 using Royale.Protocol.Framing;
 using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;

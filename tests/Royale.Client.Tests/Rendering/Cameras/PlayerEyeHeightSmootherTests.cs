@@ -1,3 +1,4 @@
+using Royale.Rendering.Cameras;
 using Royale.Client.Rendering.Cameras;
 using Royale.Simulation.Movement;
 

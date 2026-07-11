@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Royale.Client.Presentation;
-using Royale.Client.Rendering;
+using Royale.Rendering;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;

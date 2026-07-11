@@ -1,5 +1,6 @@
 using System.Numerics;
 using Royale.Client.Gameplay;
+using Royale.Rendering.Debug;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;

@@ -9,6 +9,7 @@
     <ProjectReference Include="..\Royale.Box3D\Royale.Box3D.csproj" />
     <ProjectReference Include="..\Royale.Native\Royale.Native.csproj" />
     <ProjectReference Include="..\Royale.Platform\Royale.Platform.csproj" />
+    <ProjectReference Include="..\Royale.Rendering\Royale.Rendering.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\SDL3-CS\SDL3-CS\SDL3-CS.csproj" AdditionalProperties="CI_DONT_TARGET_ANDROID=1" SetTargetFramework="TargetFramework=net8.0" />
     <ProjectReference Include="..\..\thirdparty\repos\ImGui.Net\Generator\Evergine.Bindings.Imgui\Evergine.Bindings.Imgui.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\blurgtext\dotnet\BlurgText\BlurgText.csproj" SetTargetFramework="TargetFramework=net8.0" />
@@ -54,26 +55,14 @@
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />
 
-    <RoyaleShaderSource Include="Shaders/**/*.vert.hlsl">
-      <ShaderStage>vertex</ShaderStage>
-    </RoyaleShaderSource>
-    <RoyaleShaderSource Include="Shaders/**/*.frag.hlsl">
-      <ShaderStage>fragment</ShaderStage>
-    </RoyaleShaderSource>
-    <RoyaleShaderSource Include="Shaders/**/*.comp.hlsl">
-      <ShaderStage>compute</ShaderStage>
-    </RoyaleShaderSource>
   </ItemGroup>
 
-  <Target Name="CompileRoyaleShaders"
-          AfterTargets="Build"
-          Inputs="@(RoyaleShaderSource)"
-          Outputs="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename).spv');@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename).msl');@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')">
-    <MakeDir Directories="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)')" />
-    <Exec Command="shadercross &quot;%(RoyaleShaderSource.FullPath)&quot; --source HLSL --dest SPIRV --stage %(RoyaleShaderSource.ShaderStage) --entrypoint main --output &quot;$(OutputPath)shaders/%(RoyaleShaderSource.RecursiveDir)%(RoyaleShaderSource.Filename).spv&quot;" />
-    <Exec Command="shadercross &quot;%(RoyaleShaderSource.FullPath)&quot; --source HLSL --dest MSL --stage %(RoyaleShaderSource.ShaderStage) --entrypoint main --output &quot;$(OutputPath)shaders/%(RoyaleShaderSource.RecursiveDir)%(RoyaleShaderSource.Filename).msl&quot;" />
-    <Copy SourceFiles="@(RoyaleShaderSource)"
-          DestinationFiles="@(RoyaleShaderSource->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')"
+  <Target Name="CopyRoyaleRenderingShaders" AfterTargets="Build">
+    <ItemGroup>
+      <RenderingShaderAsset Include="..\Royale.Rendering\bin\$(Configuration)\$(TargetFramework)\shaders\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RenderingShaderAsset)"
+          DestinationFiles="@(RenderingShaderAsset->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 

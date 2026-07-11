@@ -1,6 +1,6 @@
 using Royale.Client.Input;
 using Royale.Platform.Input;
-using Royale.Client.UI;
+using Royale.Rendering.UI;
 
 namespace Royale.Client.Tests.Input;
 

@@ -1,7 +1,7 @@
 using System.Numerics;
 using Royale.Client.Launch;
 using Royale.Client.Presentation;
-using Royale.Client.Rendering;
+using Royale.Rendering;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;

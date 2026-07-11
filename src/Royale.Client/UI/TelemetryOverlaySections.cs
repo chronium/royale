@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Net.Sockets;
 using Royale.Client.Presentation;
-using Royale.Client.Rendering;
+using Royale.Rendering;
 using Royale.Client.Networking;
 using Royale.Network.Handshake;
 using Royale.Network.Input;

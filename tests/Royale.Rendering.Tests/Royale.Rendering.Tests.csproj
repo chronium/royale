@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup><Using Include="Xunit" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Royale.Rendering\Royale.Rendering.csproj" />
+    <ProjectReference Include="..\..\src\Royale.Platform\Royale.Platform.csproj" />
+  </ItemGroup>
+  <PropertyGroup><RoyaleAssetAudience>client</RoyaleAssetAudience></PropertyGroup>
+  <PropertyGroup>
+    <RoyaleEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
+    <RoyaleEffectiveRuntimeIdentifier Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'osx-arm64'">
+    <None Include="..\..\thirdparty\repos\SDL3-CS\native\osx-arm64\libSDL3.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="runtimes/osx-arm64/native/libSDL3.dylib" />
+    <None Include="..\..\thirdparty\artifacts\imgui\osx-arm64\lib\libroyale_imgui.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="runtimes/osx-arm64/native/libroyale_imgui.dylib" />
+    <None Include="..\..\thirdparty\artifacts\blurgtext\osx-arm64\lib\libblurgtext.dylib" CopyToOutputDirectory="PreserveNewest" TargetPath="runtimes/osx-arm64/native/libblurgtext.dylib" />
+  </ItemGroup>
+  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
+</Project>

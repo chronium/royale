@@ -7,11 +7,16 @@ using Royale.Client.Input;
 using Royale.Client.Launch;
 using Royale.Client.Networking;
 using Royale.Client.Presentation;
-using Royale.Client.Rendering;
+using Royale.Rendering;
+using Royale.Rendering.Cameras;
+using Royale.Rendering.Debug;
+using Royale.Rendering.Meshes;
+using Royale.Rendering.Screenshots;
+using Royale.Rendering.Text;
+using Royale.Rendering.Platform;
+using Royale.Rendering.UI;
 using Royale.Client.Rendering.Cameras;
 using Royale.Client.Rendering.Debug;
-using Royale.Client.Rendering.Meshes;
-using Royale.Client.Rendering.Screenshots;
 using Royale.Client.Rendering.Text;
 using Royale.Client.UI;
 using Royale.Content;
@@ -56,11 +61,12 @@ public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
     private double secondsSinceTitleUpdate;
     private int lastFixedTicksThisFrame;
     private SdlGpuDevice? gpuDevice;
-    private ImGuiBackend? imguiBackend;
+    private SdlGpuImGuiBackend? imguiBackend;
     private LocalPlayerController? localPlayer;
     private NetworkClientRuntime? networkClient;
     private GameMap? loadedMap;
     private StaticMeshAssetCache? staticMeshAssetCache;
+    private StaticMeshScene? staticMeshScene;
     private PlayerInputSample lastGameplayInput;
 
     public SdlApplication()
@@ -138,7 +144,7 @@ public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
         lastFixedTicksThisFrame = host.LastFixedTicksThisFrame;
         if (imguiBackend is not null && telemetryVisibility.Visible)
         {
-            imguiBackend.BuildDebugOverlay(
+            ImGuiDebugOverlay.Build(
                 CreateTelemetryState(time),
                 localPlayer,
                 DebugKillLocalPlayer,
@@ -175,14 +181,15 @@ public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
             ? null
             : WorldTextSmokeLabelState.CreateDefault(localPlayer.TrainingDummy.FeetPosition, localPlayer.TrainingDummy.Height).Labels;
 
-        gpuDevice?.PresentFrame(
-            time.DeltaSeconds,
-            renderCamera,
-            renderViewMode.Mode,
-            debugPrimitives,
-            worldTextBillboards,
-            imguiBackend,
-            screenshotPath);
+        if (gpuDevice is not null && staticMeshScene is not null)
+        {
+            GpuImageReadback? image = gpuDevice.PresentFrame(
+                new RenderFrame(renderCamera, staticMeshScene, renderViewMode.Mode, debugPrimitives, worldTextBillboards),
+                imguiBackend,
+                readback: screenshotPath is not null);
+            if (image is not null && screenshotPath is not null)
+                BmpScreenshotWriter.Save(screenshotPath, image.RgbaBytes, image.Width, image.Height, SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+        }
 
         localPlayer?.WeaponFeedback.Update(time.DeltaSeconds);
         UpdateWindowTitle(time);
@@ -213,13 +220,13 @@ public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
             .Select(model => model.AssetId)
             .Distinct(StringComparer.Ordinal)
             .ToDictionary(assetId => assetId, assetCache.GetRequired, StringComparer.Ordinal);
-        StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, mapAssets);
+        staticMeshScene = MapStaticMeshScene.CreateScene(map, mapAssets);
         logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and {map.StaticModels.Count} static models.");
 
         logger.ZLogInformation($"Creating SDL GPU device.");
-        gpuDevice = SdlGpuDevice.Create(Window!, staticMeshScene);
+        gpuDevice = SdlGpuDevice.Create(Window!);
         logger.ZLogInformation($"SDL GPU device created.");
-        imguiBackend = ImGuiBackend.Create(Window!, gpuDevice);
+        imguiBackend = SdlGpuImGuiBackend.Create(Window!, gpuDevice);
     }
 
     private void ApplyCameraLaunchOptions(ClientLaunchOptions launchOptions)

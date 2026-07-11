@@ -28,4 +28,13 @@
 
   <Import Project="..\..\build\Royale.AssetPipeline.targets" />
 
+  <Target Name="CopyRoyaleRenderingShaders" AfterTargets="Build">
+    <ItemGroup>
+      <RenderingShaderAsset Include="..\..\src\Royale.Rendering\bin\$(Configuration)\$(TargetFramework)\shaders\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RenderingShaderAsset)"
+          DestinationFiles="@(RenderingShaderAsset->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

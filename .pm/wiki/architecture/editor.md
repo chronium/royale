@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-11T19:04:02.4346970Z
+modifiedAt: 2026-07-11T19:49:19.8182830Z
 ---
 
 ## Purpose
@@ -39,7 +39,19 @@ Client networking, gameplay presentation, telemetry, and client-specific UI rema
 
 Graphical applications implement `ISdlDesktopApplication`. `SdlDesktopHost` runs callbacks in this order: measure frame time; begin the input frame; poll events; refresh window size and process close requests; forward every SDL event; run variable update; run monotonically numbered bounded fixed updates; render; and apply the configured SDL idle delay. Applications request shutdown through `SdlDesktopHost.RequestExit()` and dispose their ImGui, GPU, gameplay, and networking resources before disposing the host.
 
-SDL GPU, ImGui, cameras, rendering, networking, gameplay presentation, telemetry, and screenshots remain in `Royale.Client` until the rendering extraction.
+### Implemented Rendering Boundary
+
+`EDITOR-002` established `Royale.Rendering`. It references only `Royale.Platform`, `Royale.Content`, `Royale.Native`, SDL3-CS, ImGui.Net, BlurgText, and SimpleMesh; it does not depend on client, server, simulation, protocol, network, or Box3D projects.
+
+`RenderFrame` supplies the current camera, static scene, render-view mode, debug primitives, world text, and clear color for each draw. `SdlGpuDevice` no longer owns an immutable map scene. Static geometry, material textures, samplers, and pipelines are cached independently of instance transforms, so a caller can replace scenes or instance lists without recreating the device. Resources remain resident until device disposal for the initial implementation.
+
+`SdlGpuDevice.PresentFrame` renders to the swapchain. `CreateOffscreenTarget` and `RenderOffscreen` use resizable owned color/depth textures in the swapchain-compatible color format. Offscreen color textures include sampler usage, and `SdlGpuOffscreenTarget.NativeTextureHandle` exposes the SDL GPU texture pointer for the later editor viewport. Multi-viewport ImGui remains disabled.
+
+Both target paths can return `GpuImageReadback`. Eight-bit BGRA and RGBA source textures are normalized to RGBA bytes before screenshot or image consumers receive them. BMP encoding remains reusable in `Royale.Rendering`.
+
+The low-level `SdlGpuImGuiBackend` owns context/native resolver setup, SDL event forwarding, capture state, frame setup, SDL GPU draw submission, and disposal. `SdlGpuImGuiSettings` leaves docking off by default and permits the editor to opt in. Client telemetry, player controls, and training-dummy windows remain in `ImGuiDebugOverlay`.
+
+Shader HLSL sources and compilation now belong to `Royale.Rendering`; generated SPIR-V, MSL, and HLSL files are copied into the client executable output. Native SDL, ImGui, and Blurg binary packaging remains executable/test-host responsibility.
 
 ## Editor Workspace
 

@@ -1,4 +1,4 @@
-using Royale.Client.UI;
+using Royale.Rendering.UI;
 
 namespace Royale.Client.Input;
 

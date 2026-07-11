@@ -9,6 +9,7 @@
     <Project Path="src/Royale.Network/Royale.Network.csproj" />
     <Project Path="src/Royale.Platform/Royale.Platform.csproj" />
     <Project Path="src/Royale.Protocol/Royale.Protocol.csproj" />
+    <Project Path="src/Royale.Rendering/Royale.Rendering.csproj" />
     <Project Path="src/Royale.Server/Royale.Server.csproj" />
     <Project Path="src/Royale.Simulation/Royale.Simulation.csproj" />
   </Folder>
@@ -23,6 +24,7 @@
     <Project Path="tests/Royale.Network.Tests/Royale.Network.Tests.csproj" />
     <Project Path="tests/Royale.Platform.Tests/Royale.Platform.Tests.csproj" />
     <Project Path="tests/Royale.Protocol.Tests/Royale.Protocol.Tests.csproj" />
+    <Project Path="tests/Royale.Rendering.Tests/Royale.Rendering.Tests.csproj" />
     <Project Path="tests/Royale.Server.Tests/Royale.Server.Tests.csproj" />
     <Project Path="tests/Royale.Simulation.Tests/Royale.Simulation.Tests.csproj" />
   </Folder>

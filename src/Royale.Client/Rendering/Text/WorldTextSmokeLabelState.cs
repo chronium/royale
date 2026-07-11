@@ -1,5 +1,6 @@
 using System.Numerics;
 using BlurgText;
+using Royale.Rendering.Text;
 
 namespace Royale.Client.Rendering.Text;
 

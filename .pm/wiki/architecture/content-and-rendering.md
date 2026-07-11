@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-11T07:19:47.9951810Z
+modifiedAt: 2026-07-11T07:47:57.8925380Z
 ---
 
 ## Content and Map Data
@@ -142,6 +142,24 @@ Convex artifacts are written as `collision/<asset-id>.json`, referenced from the
 `ASSET-003` cooks `triangleMesh` from the asset's render GLB and `separateMesh` from the explicitly declared collision GLB. Both paths bake the source hierarchy transforms, snap positions to the shared one-micrometer collision grid, sort unique vertices and triangles deterministically, and preserve each triangle's winding. The version `1` artifact uses `kind: triangleMesh` with indexed vertices.
 
 A `separateMesh` source is build-only. Generated client and server catalogs clear its source path and retain only the collision artifact reference. Client output includes the render GLB and declared render resources but not the separate collision GLB; server output includes neither source GLB nor any render material/texture data. The build tool assembly itself participates in MSBuild input tracking so cooker changes invalidate generated outputs.
+
+### Blender Map Authoring Contract
+
+`ASSET-004` adds `tools/blender/royale_map_export.py` as the reusable authoring/export entry point. Blender is an authoring dependency only: the .NET build and runtime consume committed GLBs and map JSON and never invoke or reference Blender.
+
+A map scene owns exactly these top-level contract collections:
+
+* `Royale.Render`: visible mesh geometry with base-colour materials.
+* `Royale.Collision`: simplified static mesh geometry; exported without materials.
+* `Royale.Spawns`: Empty markers named `spawn.<id>`.
+* `Royale.Loot`: Empty markers named `loot.<id>`.
+* `Royale.Navigation`: Empty markers named `waypoint.<id>`; the optional `royale_links` custom property is either a comma-separated string or string array of waypoint IDs.
+
+Markers must belong to exactly their declared marker collection. IDs use ASCII letters, digits, `-`, or `_`, and are unique within their marker kind. Navigation links are canonicalized into sorted undirected pairs, so reciprocal authoring produces one JSON link. Marker transforms must be finite and may use only Blender Z yaw. Blender local `+Y` is marker forward. Positions convert from Blender to Royale as `(x, z, -y)`; converted yaw uses Royale's convention where zero faces world `-Z`.
+
+The scene properties are `royale_map_id`, `royale_map_name`, `royale_bounds_min`, `royale_bounds_max`, `royale_safe_zone_center`, `royale_safe_zone_radius`, and `royale_output_asset_id`. Bounds and safe-zone vectors are stored directly in Royale coordinates. Export emits one identity-transformed static model instance at the origin, deterministic sorted marker/link JSON, a material-bearing render GLB, and a material-free collision GLB. GLB export applies modifiers and normals with Y-up conversion and excludes animations, cameras, and lights.
+
+Run inside Blender with `--validate-only` to check the complete scene contract without writing outputs, or with `--output-root <repository>` to export committed deliverables. Failures include the collection, marker, property, or link context.
 
 ## Rendering Architecture
 

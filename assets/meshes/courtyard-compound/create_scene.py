@@ -144,11 +144,12 @@ for name, position, size in (
 ):
     cube(name, position, size, red)
 
-# Building slabs: ground, split upper floor leaving an interior stair void, and roof edge.
-cube("building.ground-slab", (0, -0.1, -11), (28, 0.2, 18), concrete)
-cube("building.upper-floor-west", (-8.5, 3.1, -11), (11, 0.2, 18), concrete)
-cube("building.upper-floor-east", (8.5, 3.1, -11), (11, 0.2, 18), concrete)
-cube("building.upper-floor-south-bridge", (0, 3.1, -3.75), (6, 0.2, 3.5), concrete)
+# Building slabs: a thin render-only interior finish above the shared ground, then an
+# upper floor inset to the inner wall faces and widened stair void.
+cube("building.ground-finish", (0, 0.01, -11), (27.3, 0.02, 17.3), concrete, collision=False)
+cube("building.upper-floor-west", (-8.575, 3.1, -11), (10.15, 0.2, 17.3), concrete)
+cube("building.upper-floor-east", (8.575, 3.1, -11), (10.15, 0.2, 17.3), concrete)
+cube("building.upper-floor-south-bridge", (0, 3.1, -3.925), (7.0, 0.2, 3.15), concrete)
 
 # Exterior walls are segmented for permanently open doors and real window apertures.
 wall_t = 0.35
@@ -158,7 +159,7 @@ for level_y in (1.55, 4.75):
         for z, length in ((-18.0, 4.0), (-13.0, 3.2), (-8.0, 3.2), (-3.0, 2.0)):
             cube(f"building.wall.{x}.{level_y}.{z}", (x, level_y, z), (wall_t, 3.1, length), plaster)
         for z, length in ((-15.3, 1.4), (-10.5, 1.8), (-5.2, 2.4)):
-            cube(f"building.sill.{x}.{level_y}.{z}", (x, level_y - 1.1, z), (wall_t, 0.9, length), red)
+            cube(f"building.sill.{x}.{level_y}.{z}", (x, level_y - 1.1, z), (wall_t + 0.04, 0.9, length), red)
             cube(f"building.window-head.{x}.{level_y}.{z}", (x, level_y + 1.25, z), (wall_t, 0.6, length), plaster)
     # North wall with windows and an exterior-stair upper doorway at east.
     north_segments = ((-11.0, 6.0), (-4.5, 3.0), (1.0, 6.0), (9.5, 5.0)) if level_y < 3 else ((-11.0, 6.0), (-4.5, 3.0), (1.0, 6.0))
@@ -166,7 +167,7 @@ for level_y in (1.55, 4.75):
         cube(f"building.north.{level_y}.{x}", (x, level_y, -19.825), (width, 3.1, wall_t), plaster)
     north_windows = ((-7.0, 2.0), (5.5, 3.0)) if level_y < 3 else ((-7.0, 2.0),)
     for x, width in north_windows:
-        cube(f"building.north-sill.{level_y}.{x}", (x, level_y - 1.1, -19.825), (width, 0.9, wall_t), red)
+        cube(f"building.north-sill.{level_y}.{x}", (x, level_y - 1.1, -19.825), (width, 0.9, wall_t + 0.04), red)
         cube(f"building.north-head.{level_y}.{x}", (x, level_y + 1.25, -19.825), (width, 0.6, wall_t), plaster)
     # South facade: three wide, permanently open entrances on ground; windows above.
     if level_y < 3:
@@ -178,7 +179,7 @@ for level_y in (1.55, 4.75):
         for x, width in ((-11.0, 5.0), (-5.0, 3.0), (0.0, 5.0), (6.0, 3.0), (11.5, 5.0)):
             cube(f"building.south-upper.{x}", (x, level_y, -2.175), (width, 3.1, wall_t), plaster)
         for x, width in ((-7.5, 2.0), (3.5, 2.0), (8.25, 1.5)):
-            cube(f"building.south-upper-sill.{x}", (x, level_y - 1.1, -2.175), (width, 0.9, wall_t), red)
+            cube(f"building.south-upper-sill.{x}", (x, level_y - 1.1, -2.175), (width, 0.9, wall_t + 0.04), red)
             cube(f"building.south-upper-head.{x}", (x, level_y + 1.25, -2.175), (width, 0.6, wall_t), plaster)
 
 # Interior hall/rooms with open doorway gaps and standing clearance.
@@ -199,7 +200,7 @@ ramp("interior-ramp-b", (2.4, 1.6, -13.25), (2.4, 3.2, -7.0), 2.2, 0.18, concret
 # Rear exterior stair gives a second upper route, with matching collision ramp.
 steps("exterior-stairs", (10.0, 0, -30.0), (0, 1), 11, 2.4, 10.0 / 11, 3.2 / 11, steel)
 ramp("exterior-ramp", (10.0, 0, -30.0), (10.0, 3.2, -20.0), 2.4, 0.18, steel)
-cube("exterior-upper-landing", (10.0, 3.1, -19.0), (4.5, 0.2, 2.0), steel)
+cube("exterior-upper-landing", (10.0, 3.2, -19.0), (4.5, 0.2, 2.0), steel)
 
 # Courtyard fence at X -20..20, Z -2..33 with south, east, west gates.
 for name, position, size in (
@@ -270,7 +271,7 @@ waypoints = {
     "upper-landing": (0, 3.19, -5), "upper-west-south": (-4, 3.19, -5),
     "upper-east-south": (4, 3.19, -5),
     "room-west-upper": (-9, 3.19, -11), "room-east-upper": (9, 3.19, -11),
-    "exterior-stair-bottom": (10, 0, -30.8), "exterior-stair-top": (10, 3.19, -19.0),
+    "exterior-stair-bottom": (10, 0, -30.8), "exterior-stair-top": (10, 3.29, -19.0),
     "rear-upper-door": (10, 3.19, -18),
 }
 links = [

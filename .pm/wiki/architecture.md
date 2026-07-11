@@ -1,7 +1,7 @@
 ---
 title: Architecture
 createdAt: 2026-07-05T16:10:17.2845730Z
-modifiedAt: 2026-07-05T19:44:50.5075380Z
+modifiedAt: 2026-07-11T18:49:29.7939910Z
 ---
 
 ## Overview
@@ -20,3 +20,8 @@ Start here:
 * `diagnostics` - concrete logging implementation, log shape, sinks, and lifecycle log policy
 
 The main invariant across all pages is unchanged: the dedicated server owns gameplay authority; the client owns interaction, prediction, presentation, and rendering.
+
+Editor architecture:
+
+* `architecture/editor` - graphical process boundaries, docked workspace, map documents, ImGuizmo transforms, face snapping, validation, playtesting, and deferred editor capabilities
+* `development/editor-mcp` - live editor MCP transport, security, document revisions, mutation tools, and model contact sheets

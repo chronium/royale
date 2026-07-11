@@ -25,6 +25,7 @@ tracks:
   DEBT: Technical debt
   BOT: Bots and autonomous players
   ASSET: Model asset pipeline
+  EDITOR: Game and map editor
 milestones:
   M0: Cross-platform technical skeleton
   M1: Gray-box physics sandbox

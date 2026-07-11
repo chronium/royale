@@ -91,7 +91,7 @@
       { "id": "loot-east", "position": { "x": 12.0, "y": 0.0, "z": 0.0 } },
       { "id": "loot-east-entry", "position": { "x": 12.0, "y": 0.0, "z": 2.0 } },
       { "id": "outer-east-entry", "position": { "x": 17.0, "y": 0.0, "z": 2.0 } },
-      { "id": "loot-north-platform", "position": { "x": 0.0, "y": 0.8, "z": -12.0 } },
+      { "id": "loot-north-platform", "position": { "x": 0.0, "y": 1.0, "z": -12.0 } },
       { "id": "loot-north-route", "position": { "x": 6.0, "y": 0.0, "z": -2.0 } },
       { "id": "loot-south", "position": { "x": 0.0, "y": 0.0, "z": 12.0 } },
       { "id": "loot-south-route", "position": { "x": 0.0, "y": 0.0, "z": 6.0 } },
@@ -116,8 +116,9 @@
       { "id": "outer-west-south", "position": { "x": -18.5, "y": 0.0, "z": 12.0 } },
       { "id": "outer-west-route", "position": { "x": -18.5, "y": 0.0, "z": 0.0 } },
       { "id": "outer-west-north", "position": { "x": -18.5, "y": 0.0, "z": -12.0 } },
-      { "id": "stairs-bottom", "position": { "x": -2.0, "y": 0.0, "z": -4.0 } },
-      { "id": "stairs-top", "position": { "x": -2.0, "y": 0.7, "z": -8.5 } }
+      { "id": "stairs-bottom", "position": { "x": -2.0, "y": 0.2, "z": -3.5 } },
+      { "id": "stairs-landing-approach", "position": { "x": -4.7, "y": 0.0, "z": -3.5 } },
+      { "id": "stairs-top", "position": { "x": -2.0, "y": 0.9, "z": -8.2 } }
     ],
     "links": [
       { "from": "outer-north", "to": "outer-north-east" },
@@ -154,7 +155,8 @@
       { "from": "outer-west", "to": "loot-west" },
       { "from": "loot-west", "to": "loot-west-entry" },
       { "from": "loot-west-entry", "to": "outer-west-south" },
-      { "from": "inner-north-west", "to": "stairs-bottom" },
+      { "from": "inner-north-west", "to": "stairs-landing-approach" },
+      { "from": "stairs-landing-approach", "to": "stairs-bottom" },
       { "from": "stairs-bottom", "to": "stairs-top" },
       { "from": "stairs-top", "to": "loot-north-platform" }
     ]
@@ -256,21 +258,28 @@
     {
       "id": "north-platform",
       "assetId": "kenney-floor-thick",
-      "position": { "x": 0.0, "y": -0.2, "z": -12.0 },
+      "position": { "x": 0.0, "y": 0.0, "z": -12.0 },
       "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "scale": { "x": 8.0, "y": 5.0, "z": 8.0 }
     },
     {
       "id": "north-stairs-approach",
       "assetId": "kenney-stairs",
-      "position": { "x": -2.0, "y": 0.0, "z": -6.5 },
+      "position": { "x": -2.0, "y": 0.2, "z": -6.0 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
       "scale": { "x": 4.0, "y": 0.7, "z": 4.0 }
     },
     {
+      "id": "north-stairs-landing",
+      "assetId": "kenney-floor-thick",
+      "position": { "x": -2.0, "y": 0.0, "z": -5.5 },
+      "rotationEuler": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "scale": { "x": 4.0, "y": 1.0, "z": 5.0 }
+    },
+    {
       "id": "north-slope-approach",
       "assetId": "kenney-shape-slope",
-      "position": { "x": 3.0, "y": 0.0, "z": -6.0 },
+      "position": { "x": 2.0, "y": 0.0, "z": -6.0 },
       "rotationEuler": { "x": 0.0, "y": 90.0, "z": 0.0 },
       "scale": { "x": 4.0, "y": 1.0, "z": 4.0 }
     },

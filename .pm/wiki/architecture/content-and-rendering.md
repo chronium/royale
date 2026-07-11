@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-11T07:00:49.3606260Z
+modifiedAt: 2026-07-11T07:19:47.9951810Z
 ---
 
 ## Content and Map Data
@@ -104,6 +104,10 @@ dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build --no-rest
 `BUG-006` raises both south-compound doorway instances to vertical scale `2.5`. Since the source opening reaches local Y=`0.8`, this provides 2.0 metres of clear height for the default 1.8-metre player capsule while preserving doorway width and the rest of the compound layout. Simulation validation casts the full default capsule through both openings rather than relying on a single waist-height ray.
 
 `BUG-007` aligns the complete wall family at a 2.5-metre world-space top. Ground-level `kenney-wall` and `kenney-wall-corner` instances use vertical scale `2.5`; both doorway arches already use `2.5`, while the north platform rails remain at position Y=`1.0` and scale Y=`1.5`. Horizontal transforms and all non-wall assets remain unchanged. Content validation asserts the common world-space top across all 21 wall, corner, and doorway instances.
+
+`BUG-008` corrects the north raised-platform approaches after owner visual validation of `BOT-005`. The platform and slope apex are both at Y=1.0, and the slope instance is centered inward at X=2.0 so its outer edge does not overhang the platform. The stairs return to their non-overlapping Z=-6.0 placement, face the platform at yaw 90 degrees, and use vertical position 0.2 / scale 0.7. A `kenney-floor-thick` plinth at `(-2, 0, -5.5)` with scale `(4, 1, 5)` runs continuously from the 0.2-metre approach step to the platform edge, fully supporting the stairs instead of leaving them floating. Navigation retains an explicit landing approach and validates ordinary standing walking in both directions. Project-owner visual and movement validation approved the final arrangement.
+
+The final `BUG-008` map contains 46 static model instances and 47 total static colliders, superseding the original `GAME-013` counts above; the added model is the stair-support plinth.
 
 ### Map-Authored Static Models
 

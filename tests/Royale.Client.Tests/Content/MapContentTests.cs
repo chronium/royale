@@ -174,7 +174,7 @@ public sealed class MapContentTests
         Assert.Equal(20.0f, map.SafeZone.Radius);
         Assert.Equal(12, map.SpawnPoints.Count);
         Assert.Equal(8, map.LootPoints.Count);
-        Assert.Equal(45, map.StaticModels.Count);
+        Assert.Equal(46, map.StaticModels.Count);
         Assert.Single(map.StaticBoxes);
 
         string[] staticIds = map.StaticBoxes.Select(box => box.Id)
@@ -261,16 +261,38 @@ public sealed class MapContentTests
         GameMap map = MapCatalog.LoadById("prototype-arena");
         StaticModelDefinition slope = Assert.Single(map.StaticModels, model => model.Id == "north-slope-approach");
         StaticModelDefinition platform = Assert.Single(map.StaticModels, model => model.Id == "north-platform");
-        StaticModelDefinition stairs = Assert.Single(map.StaticModels, model => model.Id == "north-stairs-approach");
         Matrix4x4 slopeTransform = MapStaticModelTransforms.CreateWorldMatrix(slope);
         Vector3 highEdge = Vector3.Transform(new Vector3(0.5f, 1.0f, 0.0f), slopeTransform);
         Vector3 lowEdge = Vector3.Transform(new Vector3(-0.5f, 0.0f, 0.0f), slopeTransform);
         Vector3 platformPosition = new(platform.Position.X, platform.Position.Y, platform.Position.Z);
-        Vector3 stairsPosition = new(stairs.Position.X, stairs.Position.Y, stairs.Position.Z);
 
         Assert.Equal(90.0f, slope.RotationEuler.Y);
         Assert.True(Vector3.DistanceSquared(highEdge, platformPosition) < Vector3.DistanceSquared(lowEdge, platformPosition));
-        Assert.True(Vector3.DistanceSquared(highEdge, platformPosition) < Vector3.DistanceSquared(highEdge, stairsPosition));
+    }
+
+    [Fact]
+    public void PrototypeArenaStairsAndSlopeMeetPlatformWithoutVisualOverlapOrHeightMismatch()
+    {
+        GameMap map = MapCatalog.LoadById("prototype-arena");
+        StaticModelDefinition platform = Assert.Single(map.StaticModels, model => model.Id == "north-platform");
+        StaticModelDefinition stairs = Assert.Single(map.StaticModels, model => model.Id == "north-stairs-approach");
+        StaticModelDefinition landing = Assert.Single(map.StaticModels, model => model.Id == "north-stairs-landing");
+        StaticModelDefinition slope = Assert.Single(map.StaticModels, model => model.Id == "north-slope-approach");
+
+        float platformTop = platform.Position.Y + (platform.Scale.Y * 0.2f);
+        Vector3 slopeHighEdge = Vector3.Transform(
+            new Vector3(0.5f, 1.0f, 0.0f),
+            MapStaticModelTransforms.CreateWorldMatrix(slope));
+
+        Assert.Equal(1.0f, platformTop, precision: 5);
+        Assert.Equal(platformTop, slopeHighEdge.Y, precision: 5);
+        Assert.Equal(-6.0f, stairs.Position.Z);
+        Assert.Equal(90.0f, stairs.RotationEuler.Y);
+        Assert.Equal(0.2f, stairs.Position.Y);
+        Assert.Equal(0.7f, stairs.Scale.Y);
+        Assert.Equal(new MapVector3(-2.0f, 0.0f, -5.5f), landing.Position);
+        Assert.Equal(new MapVector3(4.0f, 1.0f, 5.0f), landing.Scale);
+        Assert.Equal(2.0f, slope.Position.X);
     }
 
     [Fact]

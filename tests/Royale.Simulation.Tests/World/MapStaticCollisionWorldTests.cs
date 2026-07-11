@@ -122,9 +122,9 @@ public sealed class MapStaticCollisionWorldTests
 
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
 
-        Assert.Equal(46, collisionWorld.ColliderCount);
+        Assert.Equal(47, collisionWorld.ColliderCount);
         Assert.Single(collisionWorld.Colliders, collider => collider.Kind == MapStaticColliderKind.Box);
-        Assert.Equal(45, collisionWorld.Colliders.Count(collider => collider.Kind == MapStaticColliderKind.Model));
+        Assert.Equal(46, collisionWorld.Colliders.Count(collider => collider.Kind == MapStaticColliderKind.Model));
         Assert.All(collisionWorld.Colliders, collider =>
         {
             Assert.True(Box3DBindingSurface.b3Body_IsValid(collider.BodyId));
@@ -148,7 +148,7 @@ public sealed class MapStaticCollisionWorldTests
             new MapVector3(0.0f, 4.0f, -12.0f),
             new MapVector3(0.0f, -5.0f, 0.0f),
             "north-platform",
-            expectedY: 0.8f);
+            expectedY: 1.0f);
         AssertRayHits(
             collisionWorld,
             new MapVector3(0.0f, 1.0f, 18.0f),

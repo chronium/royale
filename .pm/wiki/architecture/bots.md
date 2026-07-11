@@ -1,7 +1,7 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-11T07:00:49.3377750Z
+modifiedAt: 2026-07-11T13:19:14.4685960Z
 ---
 
 ## Status
@@ -17,6 +17,8 @@ Bots still have no connection ID, network peer, client connection, human input q
 The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. WattleScript does not expose bot creation or bot input controls. Autonomous decisions, navigation, combat policy, rendering differences, names, UI, and admin commands remain later BOT-track work.
 
 `BOT-004` implements preparation-period participant takeover. During `Countdown`, each successful human admission converts the lowest-player-ID bot slot in place, preserving player ID, spawn reservation, transform, velocity, look, health, and weapon state while clearing delayed bot input, processed-sequence acknowledgement, and decision-tick metadata. If that human disconnects during `Countdown`, the same slot converts back to a bot with fresh sequencing beginning at `1`. During `WaitingForPlayers`, humans are admitted only below the configured target. A full-human `Countdown` and every phase from `Playing` through `Resetting` reject new connections; no replacement bot is introduced after `Playing` begins.
+
+`BOT-006` implements autonomous server-owned navigation and standing-walk movement during `Playing`, including assigned world-position goals, deterministic patrol fallback, weighted waypoint routing, delayed command generation, and bounded stuck recovery. Perception, combat policy, safe-zone response, loot behavior, reset integration, and detailed diagnostics remain later BOT-track work.
 
 ## Purpose
 
@@ -78,15 +80,13 @@ The concrete navigation representation, perception ranges, target-selection poli
 
 ### Navigation Direction
 
-`BOT-005` implements a small map-owned undirected waypoint graph for both production arenas. Waypoints use unique portable string IDs and standing-player feet positions; links name two waypoint IDs and are traversable in both directions.
+`BOT-005` provides the validated, map-owned undirected waypoint graph. `BOT-006` adds server-owned deterministic weighted A*: edge cost and heuristic use three-dimensional link length, waypoint IDs and neighbor expansion use ordinal ordering, and equal-cost choices therefore remain stable. Routes begin at the waypoint nearest the authoritative bot position and end at the waypoint nearest the goal, followed by a direct final approach to the exact world-position goal.
 
-`MapCatalog` requires non-empty navigation data, finite in-bounds waypoint positions, valid unique IDs, valid non-self undirected links without reversed duplicates, one connected component, and a waypoint within 2 metres in 3D of every spawn and loot point.
+The session owns finite, world-bounds-validated assigned goals. An assigned goal overrides patrol; after arrival the bot remains idle until that goal changes or clears. Without an assigned goal during `Playing`, a bot chooses a deterministic patrol waypoint from stable map ID, player ID, and patrol generation. Patrol selection uses no spawn randomness, avoids the current waypoint when alternatives exist, and advances after arrival or abandonment.
 
-`MapNavigationGraph` lives in shared simulation, indexes waypoints by ordinal ID, exposes ordinal waypoint and neighbor ordering, and resolves nearest waypoints deterministically with ordinal ID tie-breaking. Server simulation constructs and retains this graph beside the authoritative static collision world.
+Every active decision emits ordinary standing-walk intent: local forward `(0, 1)`, authoritative yaw toward the current route target, zero pitch, and no buttons. Commands retain the per-bot sequence and delayed FIFO path; bots never teleport, directly mutate transforms, sprint, crouch, or jump. Manual current-tick submission remains available and takes precedence over autonomous generation.
 
-Runtime construction validates that every waypoint supports a clear grounded standing capsule and walks every link in both directions through the shared kinematic character controller at ordinary standing walk speed. Arrival tolerances are 0.35 metres horizontally and vertically; the deterministic budget is link travel time plus two seconds. Graybox explicitly covers its repaired step/ramp/platform chain, and prototype-arena covers its corrected stairs/platform route.
-
-`BOT-005` does not add pathfinding, decisions, movement generation, recovery behavior, rendering, protocol fields, or bot transform mutation. Navmesh generation and runtime queries remain deferred to `DEBT-007`.
+Navigation state is separate from player authority and is created or removed with bot lifecycle and human takeover. Autonomous decisions run only for living bots during `Playing`; already queued commands remain intact. Progress uses the graph's 0.35 m horizontal and vertical arrival tolerances. A moving bot that gains less than 0.1 m over 90 ticks replans from its nearest waypoint. Meaningful progress or waypoint arrival resets recovery; three consecutive failed windows clear an assigned goal or abandon patrol so a new deterministic patrol destination can be selected. No local steering, obstacle probes, auto-jump, navmesh query, teleport, or position correction is used.
 
 ## Lifecycle And Authority
 

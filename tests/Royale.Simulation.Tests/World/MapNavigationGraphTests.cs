@@ -25,6 +25,32 @@ public sealed class MapNavigationGraphTests
     }
 
     [Fact]
+    public void WeightedAStarSelectsShortestRouteAndBreaksEqualCostTiesOrdinally()
+    {
+        GameMap map = CreateMap(
+            [
+                Waypoint("start", -3.0f, 0.0f),
+                Waypoint("alpha", -1.0f, 1.0f),
+                Waypoint("zeta", -1.0f, -1.0f),
+                Waypoint("goal", 1.0f, 0.0f),
+                Waypoint("detour", 0.0f, 4.0f),
+            ],
+            [
+                Link("start", "zeta"), Link("zeta", "goal"),
+                Link("start", "alpha"), Link("alpha", "goal"),
+                Link("start", "detour"), Link("detour", "goal"),
+            ]);
+        using MapStaticCollisionWorld world = MapStaticCollisionWorld.Create(map);
+        MapNavigationGraph graph = MapNavigationGraph.Create(map, world);
+
+        IReadOnlyList<MapNavigationWaypoint> path = graph.FindPath(
+            new Vector3(-3.0f, 0.0f, 0.0f),
+            new Vector3(1.0f, 0.0f, 0.0f));
+
+        Assert.Equal(new[] { "start", "alpha", "goal" }, path.Select(waypoint => waypoint.Id));
+    }
+
+    [Fact]
     public void UnsupportedWaypointIsRejectedWithMapAndWaypointContext()
     {
         GameMap map = CreateMap(

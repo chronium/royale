@@ -769,6 +769,32 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void AutonomousBotGoalUsesStandingWalkAndRejectsInvalidGoals()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId, spawnSeed: 0);
+        ServerPlayerId bot = session.AddBot();
+        InProcessClientConnection human = session.ConnectClient();
+        ServerPlayerDebugState initial = session.GetPlayerDebugStates().Single(player => player.PlayerId == bot.Value);
+
+        Assert.False(session.TryAssignBotNavigationGoal(bot, new Vector3(float.NaN, 0.0f, 0.0f)));
+        Assert.False(session.TryAssignBotNavigationGoal(bot, new Vector3(1000.0f, 0.0f, 0.0f)));
+        Assert.False(session.TryAssignBotNavigationGoal(human.PlayerId, Vector3.Zero));
+        Assert.True(session.TryAssignBotNavigationGoal(bot, Vector3.Zero));
+
+        session.Step();
+        Assert.Null(session.GetPlayerDebugStates().Single(player => player.PlayerId == bot.Value).LastProcessedInputSequence);
+
+        EnterPlaying(session);
+        session.Step();
+        ServerPlayerDebugState moving = session.GetPlayerDebugStates().Single(player => player.PlayerId == bot.Value);
+        Assert.True(Vector3.Distance(moving.Position, initial.Position) > 0.01f);
+        Assert.Equal(0.0f, moving.PitchRadians);
+        Assert.False(moving.Sprinting);
+        Assert.Equal(1U, moving.LastProcessedInputSequence);
+        Assert.True(session.TryClearBotNavigationGoal(bot));
+    }
+
+    [Fact]
     public void BotFireUsesPlayingPhaseCombatAndIsGatedBeforePlaying()
     {
         using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);

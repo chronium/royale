@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Diagnostics;
+using System.Numerics;
 using Royale.Network.Handshake;
 using Royale.Network.Input;
 using Royale.Network.Simulation;
@@ -104,7 +105,14 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         int previousBotCount = session.BotPlayerCount;
         int sentSnapshots = 0;
         transport.Poll(this);
-        session.Step();
+        int autonomousBotDelayTicks = 0;
+        if (session.GeneratesAutonomousBotInput)
+        {
+            botInputDelayDiagnostics = SampleBotInputDelay();
+            observability?.BotInputDelaySampled(botInputDelayDiagnostics);
+            autonomousBotDelayTicks = botInputDelayDiagnostics.EffectiveDelayTicks;
+        }
+        session.Step(autonomousBotDelayTicks);
         ReportAutomaticBotFill(previousBotCount);
         sentSnapshots = snapshotSender.SendDueSnapshots(session.CurrentTick);
         observability?.SnapshotsSent(sentSnapshots);
@@ -138,6 +146,18 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         bool removed = session.TryRemoveBot(playerId);
         UpdateObservabilityState();
         return removed;
+    }
+
+    public bool TryAssignBotNavigationGoal(ServerPlayerId playerId, Vector3 goal)
+    {
+        ThrowIfDisposed();
+        return session.TryAssignBotNavigationGoal(playerId, goal);
+    }
+
+    public bool TryClearBotNavigationGoal(ServerPlayerId playerId)
+    {
+        ThrowIfDisposed();
+        return session.TryClearBotNavigationGoal(playerId);
     }
 
     public bool TrySubmitBotInput(ServerPlayerId playerId, BotInputIntent intent)

@@ -58,6 +58,8 @@ public sealed class HeadlessServerSimulation : IDisposable
 
     public MapNavigationGraph NavigationGraph => navigationGraph;
 
+    public MapBounds WorldBounds => map.WorldBounds;
+
     public KinematicCharacterSettings CharacterSettings => characterController.Settings;
 
     public IReadOnlyDictionary<ServerPlayerId, AuthoritativePlayerState> Players => players;

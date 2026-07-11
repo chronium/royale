@@ -1,3 +1,4 @@
+using System.Numerics;
 using Royale.Protocol.Framing;
 using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;
@@ -17,12 +18,14 @@ public sealed class InProcessServerSession : IDisposable
     private readonly HeadlessServerSimulation simulation;
     private readonly Dictionary<ServerConnectionId, InProcessClientState> clients = [];
     private readonly Dictionary<ServerPlayerId, BotInputState> botInputs = [];
+    private readonly BotNavigationSystem botNavigation;
     private uint nextConnectionId = 1;
     private bool disposed;
 
     private InProcessServerSession(HeadlessServerSimulation simulation)
     {
         this.simulation = simulation;
+        botNavigation = new BotNavigationSystem(simulation.MapId, simulation.WorldBounds, simulation.NavigationGraph);
     }
 
     public ulong CurrentTick => simulation.CurrentTick;
@@ -40,6 +43,10 @@ public sealed class InProcessServerSession : IDisposable
     public int LivingPlayerCount => simulation.LivingPlayerCount;
 
     public MatchPhase MatchPhase => simulation.MatchState.Phase;
+
+    public bool GeneratesAutonomousBotInput =>
+        MatchPhase == MatchPhase.Playing &&
+        simulation.Players.Values.Any(player => player.Kind == ServerPlayerKind.Bot && player.Health.Alive);
 
     public MatchStartSettings MatchStartSettings => simulation.MatchStartSettings;
 
@@ -131,6 +138,7 @@ public sealed class InProcessServerSession : IDisposable
                 throw new InvalidOperationException($"Bot participant '{bot.PlayerId}' could not be assigned to a client.");
 
             botInputs.Remove(bot.PlayerId);
+            botNavigation.Remove(bot.PlayerId);
             player = simulation.Players[bot.PlayerId];
         }
         else
@@ -153,6 +161,7 @@ public sealed class InProcessServerSession : IDisposable
         ThrowIfDisposed();
         ServerPlayerId playerId = simulation.AddBotPlayer().PlayerId;
         botInputs.Add(playerId, new BotInputState());
+        botNavigation.Add(playerId);
         return playerId;
     }
 
@@ -169,9 +178,28 @@ public sealed class InProcessServerSession : IDisposable
 
         bool removed = simulation.RemovePlayer(playerId);
         if (removed)
+        {
             botInputs.Remove(playerId);
+            botNavigation.Remove(playerId);
+        }
 
         return removed;
+    }
+
+    public bool TryAssignBotNavigationGoal(ServerPlayerId playerId, Vector3 goal)
+    {
+        ThrowIfDisposed();
+        return simulation.TryGetPlayer(playerId, out AuthoritativePlayerState? player) &&
+            player?.Kind == ServerPlayerKind.Bot &&
+            botNavigation.TryAssignGoal(playerId, goal);
+    }
+
+    public bool TryClearBotNavigationGoal(ServerPlayerId playerId)
+    {
+        ThrowIfDisposed();
+        return simulation.TryGetPlayer(playerId, out AuthoritativePlayerState? player) &&
+            player?.Kind == ServerPlayerKind.Bot &&
+            botNavigation.TryClearGoal(playerId);
     }
 
     public bool TrySubmitBotInput(
@@ -264,9 +292,14 @@ public sealed class InProcessServerSession : IDisposable
         return snapshots;
     }
 
-    public void Step()
+    public void Step(int autonomousBotDelayTicks = 0)
     {
         ThrowIfDisposed();
+
+        if (autonomousBotDelayTicks < 0)
+            throw new ArgumentOutOfRangeException(nameof(autonomousBotDelayTicks));
+
+        GenerateAutonomousBotInputs(autonomousBotDelayTicks);
 
         var inputCommands = new Dictionary<ServerPlayerId, PlayerInputCommand>();
 
@@ -301,7 +334,10 @@ public sealed class InProcessServerSession : IDisposable
         clients.Remove(state.ConnectionId);
 
         if (simulation.TryConvertHumanToBot(state.PlayerId))
+        {
             botInputs[state.PlayerId] = new BotInputState();
+            botNavigation.Add(state.PlayerId);
+        }
         else
             simulation.RemovePlayer(state.PlayerId);
     }
@@ -339,13 +375,26 @@ public sealed class InProcessServerSession : IDisposable
                 player?.Kind != ServerPlayerKind.Bot)
             {
                 botInputs.Remove(playerId);
+                botNavigation.Remove(playerId);
             }
         }
 
         foreach (AuthoritativePlayerState bot in simulation.Players.Values
                      .Where(player => player.Kind == ServerPlayerKind.Bot))
         {
-            botInputs.TryAdd(bot.PlayerId, new BotInputState());
+            if (botInputs.TryAdd(bot.PlayerId, new BotInputState()))
+                botNavigation.Add(bot.PlayerId);
+        }
+    }
+
+    private void GenerateAutonomousBotInputs(int delayTicks)
+    {
+        foreach (AuthoritativePlayerState bot in simulation.Players.Values
+                     .Where(player => player.Kind == ServerPlayerKind.Bot)
+                     .OrderBy(player => player.PlayerId.Value))
+        {
+            if (botNavigation.TryGenerate(bot, MatchPhase, CurrentTick, out BotInputIntent intent))
+                TrySubmitBotInput(bot.PlayerId, intent, delayTicks);
         }
     }
 

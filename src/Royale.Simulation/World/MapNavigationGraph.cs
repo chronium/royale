@@ -74,6 +74,60 @@ public sealed class MapNavigationGraph
             .First();
     }
 
+    public IReadOnlyList<MapNavigationWaypoint> FindPath(Vector3 start, Vector3 goal)
+    {
+        MapNavigationWaypoint startWaypoint = FindNearest(start);
+        MapNavigationWaypoint goalWaypoint = FindNearest(goal);
+        if (startWaypoint.Id == goalWaypoint.Id)
+            return [startWaypoint];
+
+        var open = new HashSet<string>(StringComparer.Ordinal) { startWaypoint.Id };
+        var cameFrom = new Dictionary<string, string>(StringComparer.Ordinal);
+        var costs = new Dictionary<string, float>(StringComparer.Ordinal) { [startWaypoint.Id] = 0.0f };
+
+        while (open.Count > 0)
+        {
+            string currentId = open
+                .OrderBy(id => costs[id] + Distance(waypointsById[id], goalWaypoint))
+                .ThenBy(id => id, StringComparer.Ordinal)
+                .First();
+            if (currentId == goalWaypoint.Id)
+                return ReconstructPath(cameFrom, currentId);
+
+            open.Remove(currentId);
+            foreach (MapNavigationWaypoint neighbor in neighborsById[currentId])
+            {
+                float candidateCost = costs[currentId] + Distance(waypointsById[currentId], neighbor);
+                if (costs.TryGetValue(neighbor.Id, out float knownCost) && candidateCost >= knownCost)
+                    continue;
+
+                cameFrom[neighbor.Id] = currentId;
+                costs[neighbor.Id] = candidateCost;
+                open.Add(neighbor.Id);
+            }
+        }
+
+        throw new InvalidOperationException($"Navigation graph has no path from '{startWaypoint.Id}' to '{goalWaypoint.Id}'.");
+    }
+
+    private IReadOnlyList<MapNavigationWaypoint> ReconstructPath(
+        IReadOnlyDictionary<string, string> cameFrom,
+        string currentId)
+    {
+        var path = new List<MapNavigationWaypoint> { waypointsById[currentId] };
+        while (cameFrom.TryGetValue(currentId, out string? previousId))
+        {
+            currentId = previousId;
+            path.Add(waypointsById[currentId]);
+        }
+
+        path.Reverse();
+        return path;
+    }
+
+    private static float Distance(MapNavigationWaypoint first, MapNavigationWaypoint second) =>
+        Vector3.Distance(ToVector3(first.Position), ToVector3(second.Position));
+
     private void ValidatePhysicalPlacement(string mapId, MapStaticCollisionWorld collisionWorld)
     {
         var controller = new KinematicCharacterController();

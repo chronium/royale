@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-11T06:22:27.6361480Z
+modifiedAt: 2026-07-11T13:18:25.8146870Z
 ---
 
 ## Networking Layers
@@ -270,3 +270,5 @@ The in-process session remains authoritative for local/synthetic clients: queued
 The session accepts at most one generated command per bot per decision tick and consumes at most one due command per bot per simulation step in ascending player-ID order. Queue-depth diagnostics count the complete delayed backlog. Runtime diagnostics and aggregate OpenTelemetry gauges expose the latest sampled latency and effective tick delay without per-peer or per-player metric labels.
 
 Bots remain server-owned participants without peer IDs, connection IDs, packet serialization, handshake state, or snapshot-send queues. The v1 wire layout and compatibility behavior are unchanged.
+
+`BOT-006` samples that aggregate human delay once per `NetworkServerRuntime.Step` whenever autonomous input generation runs, then passes the effective delay into the session for every bot decision on that authoritative tick. In-process session steps default to zero autonomous delay. Manual bot submission remains supported and retains its existing sampling behavior. Autonomous commands use the existing internal FIFO only; no packet, serializer, protocol-version, or compatibility change is introduced.

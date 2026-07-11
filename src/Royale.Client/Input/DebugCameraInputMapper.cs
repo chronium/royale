@@ -4,6 +4,7 @@ using Royale.Client.Rendering.Debug;
 using Royale.Client.Rendering.Meshes;
 using Royale.Client.Rendering.Screenshots;
 using Royale.Client.Rendering.Text;
+using Royale.Platform.Input;
 using SDL;
 
 namespace Royale.Client.Input;

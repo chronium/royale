@@ -1,4 +1,4 @@
-namespace Royale.Client.Input;
+namespace Royale.Platform.Input;
 
 public sealed class InputState
 {

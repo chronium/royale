@@ -1,7 +1,7 @@
 using SDL;
 using static SDL.SDL3;
 
-namespace Royale.Client.Platform;
+namespace Royale.Platform.Desktop;
 
 public sealed unsafe class SdlWindow : IDisposable
 {
@@ -32,14 +32,16 @@ public sealed unsafe class SdlWindow : IDisposable
 
     public RelativeMouseMode RelativeMouseMode { get; }
 
-    internal SDL_Window* Handle
+    public nint NativeHandle
     {
         get
         {
             ThrowIfDisposed();
-            return handle;
+            return (nint)handle;
         }
     }
+
+    internal SDL_Window* Handle => (SDL_Window*)NativeHandle;
 
     public static SdlWindow Create(string title, int width, int height, SDL_WindowFlags flags)
     {
@@ -49,6 +51,12 @@ public sealed unsafe class SdlWindow : IDisposable
             throw new InvalidOperationException($"SDL window creation failed: {SDL_GetError()}");
 
         return new SdlWindow(handle);
+    }
+
+    public static SdlWindow Create(SdlWindowSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return Create(settings.Title, settings.Width, settings.Height, settings.Flags);
     }
 
     public void RefreshSize()
@@ -70,7 +78,7 @@ public sealed unsafe class SdlWindow : IDisposable
         UpdatePixelSize(currentWidth, currentHeight);
     }
 
-    internal void UpdatePixelSize(int width, int height)
+    public void UpdatePixelSize(int width, int height)
     {
         ThrowIfDisposed();
 

@@ -13,6 +13,7 @@ using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;
 using Royale.Protocol.Snapshots;
 using SDL;
+using Royale.Platform.Desktop;
 
 namespace Royale.Client.UI;
 
@@ -61,7 +62,7 @@ internal sealed unsafe class ImGuiBackend : IDisposable
 
             ImguiNative.igSetCurrentContext(backend.context);
 
-            if (!royale_imgui_sdl3_init_for_sdlgpu(window.Handle))
+            if (!royale_imgui_sdl3_init_for_sdlgpu((SDL_Window*)window.NativeHandle))
                 throw new InvalidOperationException("ImGui SDL3 platform backend initialization failed.");
 
             backend.sdl3Initialized = true;

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Royale.Platform.Input;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;

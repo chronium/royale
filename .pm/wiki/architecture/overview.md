@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 createdAt: 2026-07-05T07:34:45.0706070Z
-modifiedAt: 2026-07-11T05:36:30.3934170Z
+modifiedAt: 2026-07-11T19:04:09.1959560Z
 ---
 
 ## Overview
@@ -87,6 +87,8 @@ The client and simulation retain their established responsibility splits. Protoc
 
 Projects should still be split only for meaningful dependency, testing, or deployment boundaries. Domain folders are an internal navigation tool and must not be used to introduce new assembly dependencies or weaken server authority.
 
+`Royale.Platform` is the reusable SDL desktop project. Its `Desktop`, `Input`, and `Timing` domains own window/event lifecycle, relative mouse mode, input state, frame timing, and fixed scheduling for graphical executables. `Royale.Client` retains its composition root plus SDL GPU, ImGui, rendering, cameras, networking, gameplay presentation, and telemetry.
+
 ## Dependency Direction
 
 The most important dependency rule is that low-level and shared projects must not depend on client presentation code.
@@ -128,6 +130,8 @@ The dedicated server must not reference:
 * Client UI
 * Client-specific input handling
 * Rendering assets that are not required for collision or simulation
+
+`Royale.Client` may depend on `Royale.Platform`. `Royale.Platform` depends only on SDL3-CS, `Royale.Native`, and logging; it must not depend on the client, content, simulation, protocol/networking, rendering, or ImGui. Server and simulation projects must not depend on `Royale.Platform`.
 
 ## Summary
 

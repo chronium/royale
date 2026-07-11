@@ -8,6 +8,7 @@
     <ProjectReference Include="..\Royale.Diagnostics\Royale.Diagnostics.csproj" />
     <ProjectReference Include="..\Royale.Box3D\Royale.Box3D.csproj" />
     <ProjectReference Include="..\Royale.Native\Royale.Native.csproj" />
+    <ProjectReference Include="..\Royale.Platform\Royale.Platform.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\SDL3-CS\SDL3-CS\SDL3-CS.csproj" AdditionalProperties="CI_DONT_TARGET_ANDROID=1" SetTargetFramework="TargetFramework=net8.0" />
     <ProjectReference Include="..\..\thirdparty\repos\ImGui.Net\Generator\Evergine.Bindings.Imgui\Evergine.Bindings.Imgui.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\blurgtext\dotnet\BlurgText\BlurgText.csproj" SetTargetFramework="TargetFramework=net8.0" />

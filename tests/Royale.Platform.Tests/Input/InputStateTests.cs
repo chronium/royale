@@ -1,6 +1,6 @@
-using Royale.Client.Input;
+using Royale.Platform.Input;
 
-namespace Royale.Client.Tests.Input;
+namespace Royale.Platform.Tests.Input;
 
 public sealed class InputStateTests
 {

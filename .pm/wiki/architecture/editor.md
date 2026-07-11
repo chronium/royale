@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-11T18:49:21.0208000Z
+modifiedAt: 2026-07-11T19:04:02.4346970Z
 ---
 
 ## Purpose
@@ -32,6 +32,14 @@ Royale.Editor
 `Royale.Rendering` owns reusable SDL GPU device and render-target management, cameras, mesh and material resources, debug primitives, ImGui SDL3_GPU integration, GPU readback, and screenshots. It supports swapchain and offscreen targets without becoming a general scene framework.
 
 Client networking, gameplay presentation, telemetry, and client-specific UI remain in `Royale.Client`. The server and shared simulation must not depend on Platform, Rendering, ImGui, SDL windowing, or the editor.
+
+### Implemented Platform Lifecycle
+
+`EDITOR-001` established `Royale.Platform` as the shared SDL desktop boundary. It owns SDL/native initialization, checked window ownership, logical and pixel size refresh, relative mouse mode, per-frame input transitions, performance-counter frame timing, bounded fixed-tick scheduling, exit requests, and SDL shutdown. Native binary packaging remains with executable projects.
+
+Graphical applications implement `ISdlDesktopApplication`. `SdlDesktopHost` runs callbacks in this order: measure frame time; begin the input frame; poll events; refresh window size and process close requests; forward every SDL event; run variable update; run monotonically numbered bounded fixed updates; render; and apply the configured SDL idle delay. Applications request shutdown through `SdlDesktopHost.RequestExit()` and dispose their ImGui, GPU, gameplay, and networking resources before disposing the host.
+
+SDL GPU, ImGui, cameras, rendering, networking, gameplay presentation, telemetry, and screenshots remain in `Royale.Client` until the rendering extraction.
 
 ## Editor Workspace
 

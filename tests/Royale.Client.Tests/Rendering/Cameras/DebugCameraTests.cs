@@ -1,5 +1,6 @@
 using System.Numerics;
 using Royale.Client.Input;
+using Royale.Platform.Input;
 using Royale.Client.Rendering;
 using Royale.Client.Rendering.Cameras;
 using Royale.Client.Rendering.Debug;

@@ -1,4 +1,4 @@
-namespace Royale.Client.Timing;
+namespace Royale.Platform.Timing;
 
 public sealed class FixedUpdateAccumulator
 {

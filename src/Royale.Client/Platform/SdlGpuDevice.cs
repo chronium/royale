@@ -1,4 +1,5 @@
 using SDL;
+using Royale.Platform.Desktop;
 using Royale.Client.Rendering;
 using Royale.Client.Rendering.Cameras;
 using Royale.Client.Rendering.Debug;
@@ -85,7 +86,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
     internal SDL_GPUTextureFormat GetSwapchainTextureFormat()
     {
         ThrowIfDisposed();
-        return SDL_GetGPUSwapchainTextureFormat(device, window.Handle);
+        return SDL_GetGPUSwapchainTextureFormat(device, (SDL_Window*)window.NativeHandle);
     }
 
     internal void PresentFrame(
@@ -111,7 +112,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         uint swapchainWidth;
         uint swapchainHeight;
 
-        if (!SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, window.Handle, &swapchainTexture, &swapchainWidth, &swapchainHeight))
+        if (!SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, (SDL_Window*)window.NativeHandle, &swapchainTexture, &swapchainWidth, &swapchainHeight))
             throw new InvalidOperationException($"SDL GPU swapchain texture acquisition failed: {SDL_GetError()}");
 
         SDL_GPUTextureFormat swapchainFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_INVALID;
@@ -121,7 +122,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         if (swapchainTexture is not null)
         {
             window.UpdatePixelSize((int)swapchainWidth, (int)swapchainHeight);
-            swapchainFormat = SDL_GetGPUSwapchainTextureFormat(device, window.Handle);
+            swapchainFormat = SDL_GetGPUSwapchainTextureFormat(device, (SDL_Window*)window.NativeHandle);
             staticMeshRenderer ??= new StaticMeshRenderer(
                 Handle,
                 swapchainFormat,
@@ -207,7 +208,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
         if (windowClaimed)
         {
-            SDL_ReleaseWindowFromGPUDevice(device, window.Handle);
+            SDL_ReleaseWindowFromGPUDevice(device, (SDL_Window*)window.NativeHandle);
             windowClaimed = false;
         }
 
@@ -217,7 +218,7 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
     private void ClaimWindow()
     {
-        if (!SDL_ClaimWindowForGPUDevice(device, window.Handle))
+        if (!SDL_ClaimWindowForGPUDevice(device, (SDL_Window*)window.NativeHandle))
             throw new InvalidOperationException($"SDL GPU window claim failed: {SDL_GetError()}");
 
         windowClaimed = true;

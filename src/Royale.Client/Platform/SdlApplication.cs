@@ -13,13 +13,13 @@ using Royale.Client.Rendering.Debug;
 using Royale.Client.Rendering.Meshes;
 using Royale.Client.Rendering.Screenshots;
 using Royale.Client.Rendering.Text;
-using Royale.Client.Timing;
 using Royale.Client.UI;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;
 using Royale.Content.Weapons;
-using Royale.Native;
+using Royale.Platform.Desktop;
+using Royale.Platform.Input;
 using Royale.Protocol.Framing;
 using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;
@@ -28,24 +28,18 @@ using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;
 using Royale.Simulation.World;
-using static SDL.SDL3;
 using ZLogger;
 
 namespace Royale.Client.Platform;
 
-public sealed unsafe class SdlApplication : IDisposable
+public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
 {
-    private readonly record struct FrameTime(double DeltaSeconds);
-
-    private readonly record struct FixedTickTime(double DeltaSeconds, ulong Tick);
-
     private const double FixedDeltaSeconds = 1.0 / 60.0;
     private const int MaxFixedTicksPerFrame = 4;
     private const int TitleUpdateIntervalMilliseconds = 500;
     private const int DefaultWindowWidth = 1920;
     private const int DefaultWindowHeight = 1080;
 
-    private readonly InputState input = new();
     private readonly GameplayInputMapper gameplayInputMapper = new();
     private readonly DebugCamera freeCamera = DebugCamera.CreateDefault();
     private readonly GameplayView gameplayView = GameplayView.CreateDefault();
@@ -53,12 +47,10 @@ public sealed unsafe class SdlApplication : IDisposable
     private readonly ClientCameraModeController cameraMode = new();
     private readonly RenderViewModeController renderViewMode;
     private readonly LocalPredictionSmoother networkPredictionSmoother = new();
-    private readonly FixedUpdateAccumulator fixedTime = new(FixedDeltaSeconds, MaxFixedTicksPerFrame);
+    private readonly SdlDesktopHost host;
     private readonly TelemetryVisibilityController telemetryVisibility;
     private readonly ClientLaunchOptions options;
     private readonly ILogger<SdlApplication> logger;
-    private bool initialized;
-    private bool running;
     private int renderedFrames;
     private int framesSinceTitleUpdate;
     private double secondsSinceTitleUpdate;
@@ -85,14 +77,22 @@ public sealed unsafe class SdlApplication : IDisposable
     {
         this.options = options;
         this.logger = logger;
+        host = new SdlDesktopHost(
+            new SdlWindowSettings(
+                "Royale",
+                DefaultWindowWidth,
+                DefaultWindowHeight,
+                SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY),
+            new SdlLoopSettings(FixedDeltaSeconds, MaxFixedTicksPerFrame, idleDelayMilliseconds: 1),
+            logger);
         renderViewMode = new RenderViewModeController(options.RenderViewMode);
         telemetryVisibility = new TelemetryVisibilityController(options.TelemetryVisible);
         ApplyCameraLaunchOptions(options);
     }
 
-    public SdlWindow? Window { get; private set; }
+    public SdlWindow? Window => host.Window;
 
-    public InputState Input => input;
+    public InputState Input => host.Input;
 
     public ClientCameraMode CameraMode => cameraMode.Mode;
 
@@ -108,55 +108,13 @@ public sealed unsafe class SdlApplication : IDisposable
 
     public void Run()
     {
-        Initialize();
-
-        running = true;
         renderedFrames = 0;
         framesSinceTitleUpdate = 0;
         secondsSinceTitleUpdate = 0;
-
-        ulong performanceFrequency = SDL_GetPerformanceFrequency();
-
-        if (performanceFrequency == 0)
-            throw new InvalidOperationException("SDL performance counter frequency is zero.");
-
-        ulong previousCounter = SDL_GetPerformanceCounter();
-
-        while (running)
-        {
-            ulong currentCounter = SDL_GetPerformanceCounter();
-            double frameDeltaSeconds = (currentCounter - previousCounter) / (double)performanceFrequency;
-            previousCounter = currentCounter;
-            var frameTime = new FrameTime(frameDeltaSeconds);
-
-            input.BeginFrame();
-            ImGuiCaptureState imguiCapture = imguiBackend?.Capture ?? default;
-            PollEvents(imguiCapture);
-            UpdateCamera(frameTime);
-            imguiBackend?.NewFrame(frameTime.DeltaSeconds);
-
-            lastFixedTicksThisFrame = fixedTime.AddFrameTime(frameDeltaSeconds);
-            ulong firstFixedTick = fixedTime.TotalFixedTicks - (ulong)lastFixedTicksThisFrame + 1;
-
-            for (int tick = 0; tick < lastFixedTicksThisFrame; tick++)
-                FixedUpdate(new FixedTickTime(FixedDeltaSeconds, firstFixedTick + (ulong)tick));
-
-            if (imguiBackend is not null && telemetryVisibility.Visible)
-            {
-                imguiBackend.BuildDebugOverlay(
-                    CreateTelemetryState(frameTime),
-                    localPlayer,
-                    DebugKillLocalPlayer,
-                    DebugRespawnLocalPlayer);
-            }
-            Render(frameTime);
-            UpdateWindowTitle(frameTime);
-
-            SDL_Delay(1);
-        }
+        host.Run(this);
     }
 
-    private void FixedUpdate(FixedTickTime time)
+    public void FixedUpdate(SdlFixedTickTime time)
     {
         if (networkClient is not null)
         {
@@ -175,8 +133,18 @@ public sealed unsafe class SdlApplication : IDisposable
         cameraMode.HandleLocalPlayerAliveTransition(wasAlive, localPlayer.Alive);
     }
 
-    private void Render(FrameTime time)
+    public void Render(SdlFrameTime time)
     {
+        lastFixedTicksThisFrame = host.LastFixedTicksThisFrame;
+        if (imguiBackend is not null && telemetryVisibility.Visible)
+        {
+            imguiBackend.BuildDebugOverlay(
+                CreateTelemetryState(time),
+                localPlayer,
+                DebugKillLocalPlayer,
+                DebugRespawnLocalPlayer);
+        }
+
         renderedFrames++;
         string? screenshotPath = options.ScreenshotPath is not null && renderedFrames == options.ScreenshotAfterFrames
             ? options.ScreenshotPath
@@ -217,25 +185,19 @@ public sealed unsafe class SdlApplication : IDisposable
             screenshotPath);
 
         localPlayer?.WeaponFeedback.Update(time.DeltaSeconds);
+        UpdateWindowTitle(time);
 
         if (screenshotPath is not null)
-            running = false;
+            host.RequestExit();
     }
 
-    private void Initialize()
+    public void Initialize(SdlDesktopHost desktopHost)
     {
-        if (initialized)
+        if (!ReferenceEquals(host, desktopHost))
+            throw new InvalidOperationException("The client was initialized by an unexpected SDL desktop host.");
+
+        if (gpuDevice is not null)
             return;
-
-        NativeLibraryResolver.ConfigureForAssembly(typeof(SDL3).Assembly);
-
-        logger.ZLogInformation($"Initializing SDL video subsystem.");
-
-        if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO))
-            throw new InvalidOperationException($"SDL video initialization failed: {SDL_GetError()}");
-
-        initialized = true;
-        logger.ZLogInformation($"SDL video subsystem initialized.");
 
         logger.ZLogInformation($"Loading map {options.MapId}.");
         GameMap map = MapCatalog.LoadById(options.MapId);
@@ -254,18 +216,10 @@ public sealed unsafe class SdlApplication : IDisposable
         StaticMeshScene staticMeshScene = MapStaticMeshScene.CreateScene(map, mapAssets);
         logger.ZLogInformation($"Loaded map {map.Id} with {map.StaticBoxes.Count} static boxes and {map.StaticModels.Count} static models.");
 
-        logger.ZLogInformation($"Creating SDL window.");
-        Window = SdlWindow.Create(
-            "Royale",
-            DefaultWindowWidth,
-            DefaultWindowHeight,
-            SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY);
-        logger.ZLogInformation($"SDL window created.");
-
         logger.ZLogInformation($"Creating SDL GPU device.");
-        gpuDevice = SdlGpuDevice.Create(Window, staticMeshScene);
+        gpuDevice = SdlGpuDevice.Create(Window!, staticMeshScene);
         logger.ZLogInformation($"SDL GPU device created.");
-        imguiBackend = ImGuiBackend.Create(Window, gpuDevice);
+        imguiBackend = ImGuiBackend.Create(Window!, gpuDevice);
     }
 
     private void ApplyCameraLaunchOptions(ClientLaunchOptions launchOptions)
@@ -302,58 +256,40 @@ public sealed unsafe class SdlApplication : IDisposable
         cameraMode.HandleLocalPlayerAliveTransition(wasAlive, localPlayer.Alive);
     }
 
-    private void PollEvents(ImGuiCaptureState imguiCapture)
+    public void ProcessEvent(in SDL_Event sdlEvent)
     {
-        SDL_Event sdlEvent;
-
-        while (SDL_PollEvent(&sdlEvent))
-        {
-            imguiBackend?.ProcessEvent(&sdlEvent);
-            HandleEvent(sdlEvent, imguiCapture);
-        }
-    }
-
-    private void HandleEvent(SDL_Event sdlEvent, ImGuiCaptureState imguiCapture)
-    {
+        SDL_Event mutableEvent = sdlEvent;
+        imguiBackend?.ProcessEvent(&mutableEvent);
+        ImGuiCaptureState imguiCapture = imguiBackend?.Capture ?? default;
         var inputOwnership = new GameInputOwnership(
             Window?.RelativeMouseMode.Enabled == true,
             imguiCapture);
 
         switch (sdlEvent.Type)
         {
-            case SDL_EventType.SDL_EVENT_QUIT:
-            case SDL_EventType.SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-                running = false;
-                break;
-
-            case SDL_EventType.SDL_EVENT_WINDOW_RESIZED:
-            case SDL_EventType.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                Window?.RefreshSize();
-                break;
-
             case SDL_EventType.SDL_EVENT_KEY_DOWN:
                 if (!sdlEvent.key.repeat)
                     HandleKeyDown(sdlEvent.key.key, inputOwnership);
                 break;
 
             case SDL_EventType.SDL_EVENT_KEY_UP:
-                if (input.IsKeyDown((int)sdlEvent.key.key) || inputOwnership.ShouldApplyKeyboardToGame(IsGlobalControl(sdlEvent.key.key)))
-                    input.SetKeyUp((int)sdlEvent.key.key);
+                if (Input.IsKeyDown((int)sdlEvent.key.key) || inputOwnership.ShouldApplyKeyboardToGame(IsGlobalControl(sdlEvent.key.key)))
+                    Input.SetKeyUp((int)sdlEvent.key.key);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (inputOwnership.ShouldApplyMouseToGame())
-                    input.SetMouseButtonDown((int)sdlEvent.button.button);
+                    Input.SetMouseButtonDown((int)sdlEvent.button.button);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
-                if (input.IsMouseButtonDown((int)sdlEvent.button.button) || inputOwnership.ShouldApplyMouseToGame())
-                    input.SetMouseButtonUp((int)sdlEvent.button.button);
+                if (Input.IsMouseButtonDown((int)sdlEvent.button.button) || inputOwnership.ShouldApplyMouseToGame())
+                    Input.SetMouseButtonUp((int)sdlEvent.button.button);
                 break;
 
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
                 if (inputOwnership.ShouldApplyMouseToGame())
-                    input.AddMouseDelta(sdlEvent.motion.xrel, sdlEvent.motion.yrel);
+                    Input.AddMouseDelta(sdlEvent.motion.xrel, sdlEvent.motion.yrel);
                 break;
         }
     }
@@ -361,7 +297,7 @@ public sealed unsafe class SdlApplication : IDisposable
     private void HandleKeyDown(SDL_Keycode key, GameInputOwnership inputOwnership)
     {
         if (inputOwnership.ShouldApplyKeyboardToGame(IsGlobalControl(key)))
-            input.SetKeyDown((int)key);
+            Input.SetKeyDown((int)key);
 
         switch (key)
         {
@@ -389,7 +325,7 @@ public sealed unsafe class SdlApplication : IDisposable
                 break;
 
             case SDL_Keycode.SDLK_ESCAPE:
-                running = false;
+                host.RequestExit();
                 break;
         }
     }
@@ -404,7 +340,7 @@ public sealed unsafe class SdlApplication : IDisposable
             or SDL_Keycode.SDLK_F8
             or SDL_Keycode.SDLK_ESCAPE;
 
-    private ImGuiDebugOverlayState CreateTelemetryState(FrameTime frameTime)
+    private ImGuiDebugOverlayState CreateTelemetryState(SdlFrameTime frameTime)
     {
         bool mouseCaptured = Window?.RelativeMouseMode.Enabled == true;
         TelemetryRendererState? renderer = loadedMap is GameMap map && staticMeshAssetCache is StaticMeshAssetCache assetCache
@@ -430,7 +366,7 @@ public sealed unsafe class SdlApplication : IDisposable
             return ImGuiDebugOverlayState.CreateNetworked(
                 frameTime.DeltaSeconds,
                 lastFixedTicksThisFrame,
-                fixedTime.TotalFixedTicks,
+                host.TotalFixedTicks,
                 renderer,
                 networkClient);
         }
@@ -440,7 +376,7 @@ public sealed unsafe class SdlApplication : IDisposable
             return ImGuiDebugOverlayState.CreateOffline(
                 frameTime.DeltaSeconds,
                 lastFixedTicksThisFrame,
-                fixedTime.TotalFixedTicks,
+                host.TotalFixedTicks,
                 renderer,
                 localPlayer,
                 localPlayer.CollisionWorld.ColliderCount);
@@ -449,17 +385,17 @@ public sealed unsafe class SdlApplication : IDisposable
         return new ImGuiDebugOverlayState(
             frameTime.DeltaSeconds,
             lastFixedTicksThisFrame,
-            fixedTime.TotalFixedTicks)
+            host.TotalFixedTicks)
         {
             Renderer = renderer,
         };
     }
 
-    private void UpdateCamera(FrameTime frameTime)
+    public void Update(SdlFrameTime frameTime)
     {
         bool relativeMouseModeEnabled = Window?.RelativeMouseMode.Enabled == true;
         lastGameplayInput = gameplayInputMapper.FromInputState(
-            input,
+            Input,
             relativeMouseModeEnabled,
             ownsGameplayInput: !cameraMode.IsFreecam);
         networkClient?.Poll();
@@ -467,15 +403,15 @@ public sealed unsafe class SdlApplication : IDisposable
         if (cameraMode.IsFreecam)
         {
             freeCamera.Update(
-                DebugCameraInputMapper.FromInputState(input, relativeMouseModeEnabled),
+                DebugCameraInputMapper.FromInputState(Input, relativeMouseModeEnabled),
                 frameTime.DeltaSeconds);
-            return;
         }
-
-        if (localPlayer?.Alive == true)
+        else if (localPlayer?.Alive == true)
             localPlayer.UpdateLook(lastGameplayInput);
         else
             networkClient?.ApplyLook(lastGameplayInput);
+
+        imguiBackend?.NewFrame(frameTime.DeltaSeconds);
     }
 
     private RenderCamera CreateGameplayRenderCamera(PlayerSnapshotState? networkPresentationPlayer, double deltaSeconds)
@@ -516,7 +452,7 @@ public sealed unsafe class SdlApplication : IDisposable
         return gameplayView.ToRenderCamera(Vector3.Zero, new PlayerLookState(0.0f, 0.0f));
     }
 
-    private ServerSnapshot? CreateNetworkPresentationSnapshot(PlayerSnapshotState? networkPresentationPlayer, FrameTime time)
+    private ServerSnapshot? CreateNetworkPresentationSnapshot(PlayerSnapshotState? networkPresentationPlayer, SdlFrameTime time)
     {
         if (networkClient is null)
             return null;
@@ -529,7 +465,7 @@ public sealed unsafe class SdlApplication : IDisposable
             networkClient.RemoteSnapshotInterpolator);
     }
 
-    private PlayerSnapshotState? TryGetNetworkPresentationPlayer(FrameTime time)
+    private PlayerSnapshotState? TryGetNetworkPresentationPlayer(SdlFrameTime time)
     {
         if (networkClient is null)
             return null;
@@ -549,7 +485,7 @@ public sealed unsafe class SdlApplication : IDisposable
             time.DeltaSeconds);
     }
 
-    private void UpdateWindowTitle(FrameTime frameTime)
+    private void UpdateWindowTitle(SdlFrameTime frameTime)
     {
         framesSinceTitleUpdate++;
         secondsSinceTitleUpdate += frameTime.DeltaSeconds;
@@ -559,7 +495,7 @@ public sealed unsafe class SdlApplication : IDisposable
 
         double fps = framesSinceTitleUpdate / secondsSinceTitleUpdate;
         Window.SetTitle(
-            $"Royale - {fps:0} FPS - fixed {lastFixedTicksThisFrame} ticks/frame - tick {fixedTime.TotalFixedTicks} - mouse {(Window.RelativeMouseMode.Enabled ? "captured" : "free")} - view {renderViewMode.Mode}");
+            $"Royale - {fps:0} FPS - fixed {lastFixedTicksThisFrame} ticks/frame - tick {host.TotalFixedTicks} - mouse {(Window.RelativeMouseMode.Enabled ? "captured" : "free")} - view {renderViewMode.Mode}");
 
         framesSinceTitleUpdate = 0;
         secondsSinceTitleUpdate = 0;
@@ -581,14 +517,7 @@ public sealed unsafe class SdlApplication : IDisposable
         networkClient = null;
         loadedMap = null;
 
-        Window?.Dispose();
-        Window = null;
-
-        if (initialized)
-        {
-            SDL_Quit();
-            initialized = false;
-        }
+        host.Dispose();
 
         logger.ZLogInformation($"Client shutdown complete.");
     }

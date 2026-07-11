@@ -1,7 +1,7 @@
 using SDL;
 using static SDL.SDL3;
 
-namespace Royale.Client.Platform;
+namespace Royale.Platform.Desktop;
 
 public sealed unsafe class RelativeMouseMode
 {

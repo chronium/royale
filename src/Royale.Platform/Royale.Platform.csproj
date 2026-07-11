@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="ZLogger" />
+    <ProjectReference Include="..\Royale.Native\Royale.Native.csproj" />
+    <ProjectReference Include="..\..\thirdparty\repos\SDL3-CS\SDL3-CS\SDL3-CS.csproj" AdditionalProperties="CI_DONT_TARGET_ANDROID=1" SetTargetFramework="TargetFramework=net8.0" />
+  </ItemGroup>
+</Project>

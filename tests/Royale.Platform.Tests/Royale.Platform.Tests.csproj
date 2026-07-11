@@ -1,5 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -16,16 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Royale.Client\Royale.Client.csproj" />
-    <ProjectReference Include="..\..\src\Royale.Network\Royale.Network.csproj" />
     <ProjectReference Include="..\..\src\Royale.Platform\Royale.Platform.csproj" />
-    <ProjectReference Include="..\..\src\Royale.Server\Royale.Server.csproj" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <RoyaleAssetAudience>client</RoyaleAssetAudience>
-  </PropertyGroup>
-
-  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
-
 </Project>

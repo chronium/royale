@@ -1,6 +1,6 @@
-using Royale.Client.Timing;
+using Royale.Platform.Timing;
 
-namespace Royale.Client.Tests.Timing;
+namespace Royale.Platform.Tests.Timing;
 
 public sealed class FixedUpdateAccumulatorTests
 {
@@ -64,6 +64,17 @@ public sealed class FixedUpdateAccumulatorTests
         Assert.Equal(4, ticks);
         Assert.Equal(0, accumulator.AccumulatedSeconds, precision: 12);
         Assert.Equal(4UL, accumulator.TotalFixedTicks);
+    }
+
+    [Theory]
+    [InlineData(-1.0)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void RejectsInvalidFrameTime(double frameTime)
+    {
+        FixedUpdateAccumulator accumulator = CreateAccumulator();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => accumulator.AddFrameTime(frameTime));
     }
 
     private static FixedUpdateAccumulator CreateAccumulator() => new(FixedDeltaSeconds, maxFixedTicksPerFrame: 4);

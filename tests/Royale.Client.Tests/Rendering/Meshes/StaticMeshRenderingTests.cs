@@ -157,7 +157,7 @@ public sealed class StaticMeshRenderingTests
         ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(AppContext.BaseDirectory, "assets", ContentCatalog.ModelAssetManifestFileName));
 
-        Assert.Equal(10, manifest.Assets.Count);
+        Assert.Equal(11, manifest.Assets.Count);
         foreach (ModelAssetDefinition definition in manifest.Assets)
         {
             StaticMeshAsset asset = cache.GetRequired(definition.Id);
@@ -174,12 +174,16 @@ public sealed class StaticMeshRenderingTests
         string assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
         ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName));
-        Assert.Equal(10, manifest.Assets.Count);
+        Assert.Equal(11, manifest.Assets.Count);
         foreach (ModelAssetDefinition asset in manifest.Assets)
         {
             ModelRenderAssetDefinition render = Assert.IsType<ModelRenderAssetDefinition>(asset.Render);
             Assert.True(File.Exists(Path.Combine(assetRoot, render.Source.Replace('/', Path.DirectorySeparatorChar))));
-            Assert.Equal(["meshes/kenney-prototype-kit/Textures/colormap.png"], render.Resources);
+            Assert.Equal(
+                asset.Id == "courtyard-compound-environment"
+                    ? []
+                    : ["meshes/kenney-prototype-kit/Textures/colormap.png"],
+                render.Resources);
             Assert.True(File.Exists(Path.Combine(assetRoot, asset.Collision.Artifact!.Replace('/', Path.DirectorySeparatorChar))));
         }
     }

@@ -224,6 +224,26 @@ public sealed class MapSpawnSelectorTests
         Assert.Null(exhausted);
     }
 
+    [Fact]
+    public void CourtyardCompoundCanReserveEightDistinctSpawns()
+    {
+        GameMap map = MapCatalog.LoadById("courtyard-compound");
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        var reservations = new List<SpawnReservation>();
+        var selectedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int index = 0; index < 8; index++)
+        {
+            Assert.True(MapSpawnSelector.TrySelectSpawn(map, collisionWorld, reservations, out MapSpawnPoint? selected),
+                $"Could only reserve {index} courtyard spawns.");
+            Assert.NotNull(selected);
+            Assert.True(selectedIds.Add(selected.Id));
+            reservations.Add(MapSpawnSelector.CreateReservation(selected));
+        }
+
+        Assert.Equal(8, selectedIds.Count);
+    }
+
     private static GameMap CreateMap(IReadOnlyList<MapSpawnPoint> spawnPoints) =>
         CreateMap(spawnPoints, [Ground()]);
 

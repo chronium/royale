@@ -186,6 +186,31 @@ public sealed class MapContentTests
     }
 
     [Fact]
+    public void CourtyardCompoundLoadsWithAuthoredBoundsMarkersAndEnvironment()
+    {
+        GameMap map = MapCatalog.LoadById("courtyard-compound");
+
+        Assert.Equal("Courtyard Compound", map.Name);
+        Assert.Equal(new MapVector3(-50.0f, -2.0f, -50.0f), map.WorldBounds.Min);
+        Assert.Equal(new MapVector3(50.0f, 10.0f, 50.0f), map.WorldBounds.Max);
+        Assert.Equal(new MapVector3(0.0f, 0.0f, 0.0f), map.SafeZone.Center);
+        Assert.Equal(45.0f, map.SafeZone.Radius);
+        Assert.Equal(12, map.SpawnPoints.Count);
+        Assert.Equal(12, map.LootPoints.Count);
+        Assert.Empty(map.StaticBoxes);
+        StaticModelDefinition environment = Assert.Single(map.StaticModels);
+        Assert.Equal("courtyard-compound-environment", environment.AssetId);
+        Assert.Equal(new MapVector3(0.0f, 0.0f, 0.0f), environment.Position);
+        Assert.Equal(new MapVector3(1.0f, 1.0f, 1.0f), environment.Scale);
+        Assert.Equal(map.SpawnPoints.Count, map.SpawnPoints.Select(point => point.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(map.LootPoints.Count, map.LootPoints.Select(point => point.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(map.SpawnPoints, point =>
+            Assert.Contains(map.Navigation.Waypoints, waypoint => waypoint.Id.EndsWith(point.Id, StringComparison.Ordinal)));
+        Assert.All(map.LootPoints, point =>
+            Assert.Contains(map.Navigation.Waypoints, waypoint => waypoint.Id.EndsWith(point.Id, StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void PrototypeArenaUsesEveryEnvironmentAssetAndKeepsPrimitiveGroundHidden()
     {
         GameMap map = MapCatalog.LoadById("prototype-arena");

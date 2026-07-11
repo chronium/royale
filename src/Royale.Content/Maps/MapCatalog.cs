@@ -83,8 +83,8 @@ public static class MapCatalog
         if (string.IsNullOrWhiteSpace(map.Name))
             throw InvalidMap(path, "name is required.");
 
-        if (map.StaticBoxes.Count == 0)
-            throw InvalidMap(path, "at least one static box is required.");
+        if (map.StaticBoxes.Count == 0 && map.StaticModels.Count == 0)
+            throw InvalidMap(path, "at least one static box or static model is required.");
 
         var staticContentIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (StaticBoxDefinition box in map.StaticBoxes)

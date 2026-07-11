@@ -304,13 +304,14 @@ public sealed class AssetPipelineTests
 
         ModelAssetManifest serverCatalog = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(workspace.OutputRoot, ContentCatalog.ModelAssetManifestFileName));
-        Assert.Equal(10, serverCatalog.Assets.Count);
+        Assert.Equal(11, serverCatalog.Assets.Count);
         Assert.All(serverCatalog.Assets, asset => Assert.Null(asset.Render));
         Assert.DoesNotContain(firstServer.Keys, path => path.EndsWith(".glb", StringComparison.Ordinal));
         Assert.DoesNotContain(firstServer.Keys, path => path.EndsWith(".png", StringComparison.Ordinal));
 
         var expectedModes = new Dictionary<string, ModelCollisionMode>(StringComparer.Ordinal)
         {
+            ["courtyard-compound-environment"] = ModelCollisionMode.SeparateMesh,
             ["kenney-column"] = ModelCollisionMode.Convex,
             ["kenney-crate"] = ModelCollisionMode.Convex,
             ["kenney-floor-square"] = ModelCollisionMode.TriangleMesh,
@@ -352,9 +353,11 @@ public sealed class AssetPipelineTests
         ModelAssetManifest clientCatalog = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(workspace.OutputRoot, ContentCatalog.ModelAssetManifestFileName));
         const string sharedTexture = "meshes/kenney-prototype-kit/Textures/colormap.png";
-        Assert.Equal(10, clientCatalog.Assets.Count);
-        Assert.All(clientCatalog.Assets, asset => Assert.Equal([sharedTexture], asset.Render!.Resources));
-        Assert.Equal(10, firstClient.Keys.Count(path => path.EndsWith(".glb", StringComparison.Ordinal)));
+        Assert.Equal(11, clientCatalog.Assets.Count);
+        Assert.All(clientCatalog.Assets, asset => Assert.Equal(
+            asset.Id == "courtyard-compound-environment" ? [] : [sharedTexture],
+            asset.Render!.Resources));
+        Assert.Equal(11, firstClient.Keys.Count(path => path.EndsWith(".glb", StringComparison.Ordinal)));
         Assert.Single(firstClient.Keys, path => path == sharedTexture.Replace('/', Path.DirectorySeparatorChar));
     }
 

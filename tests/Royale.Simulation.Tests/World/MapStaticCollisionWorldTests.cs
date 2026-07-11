@@ -103,7 +103,7 @@ public sealed class MapStaticCollisionWorldTests
 
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
 
-        Assert.Equal(10, collisionWorld.ColliderCount);
+        Assert.Equal(11, collisionWorld.ColliderCount);
         foreach (MapStaticCollider collider in collisionWorld.Colliders)
         {
             Assert.True(Box3DBindingSurface.b3Body_IsValid(collider.BodyId));

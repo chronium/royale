@@ -2,6 +2,17 @@
   "version": 1,
   "assets": [
     {
+      "id": "courtyard-compound-environment",
+      "render": {
+        "source": "meshes/courtyard-compound/courtyard-compound-environment.glb",
+        "resources": []
+      },
+      "collision": {
+        "mode": "separateMesh",
+        "source": "meshes/courtyard-compound/courtyard-compound-environment-collision.glb"
+      }
+    },
+    {
       "id": "kenney-column",
       "render": {
         "source": "meshes/kenney-prototype-kit/column.glb",

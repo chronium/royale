@@ -38,7 +38,7 @@ public sealed class HeadlessServerSimulationTests
         string assetRoot = Path.Combine(AppContext.BaseDirectory, "assets");
         ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(
             Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName));
-        Assert.Equal(10, manifest.Assets.Count);
+        Assert.Equal(11, manifest.Assets.Count);
         Assert.All(manifest.Assets, asset =>
         {
             Assert.Null(asset.Render);

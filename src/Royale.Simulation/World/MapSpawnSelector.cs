@@ -2,6 +2,7 @@ using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;
 using Royale.Content.Weapons;
+using Royale.Simulation.Movement;
 
 namespace Royale.Simulation.World;
 
@@ -56,8 +57,21 @@ public static class MapSpawnSelector
         foreach (MapSpawnPoint candidate in orderedCandidates)
         {
             SpawnReservation candidateReservation = CreateReservation(candidate, settings);
+            var feet = new System.Numerics.Vector3(candidate.Position.X, candidate.Position.Y, candidate.Position.Z);
+            float minimumGroundNormalY = MathF.Cos(new KinematicCharacterSettings().SlopeLimitDegrees * MathF.PI / 180.0f);
+            IReadOnlyList<MapStaticCollisionPlane> planes = collisionWorld.CollectCapsuleCollisionPlanes(
+                feet,
+                settings.PlayerRadius,
+                settings.PlayerHeight);
+            if (planes.Any(plane => plane.Normal.Y < minimumGroundNormalY))
+                continue;
 
-            if (collisionWorld.OverlapAabb(candidateReservation.LowerBound, candidateReservation.UpperBound).Count > 0)
+            HashSet<MapStaticCollider> supports = planes
+                .Where(plane => plane.Collider is not null && plane.Normal.Y >= minimumGroundNormalY)
+                .Select(plane => plane.Collider!)
+                .ToHashSet();
+            if (collisionWorld.OverlapAabb(candidateReservation.LowerBound, candidateReservation.UpperBound)
+                .Any(collider => !supports.Contains(collider)))
                 continue;
 
             if (reservationArray.Any(reservation => reservation.Overlaps(candidateReservation)))

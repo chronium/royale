@@ -71,7 +71,7 @@ class SceneContract:
 
 
 def _finite_vector(value: Any, property_name: str) -> tuple[float, float, float]:
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 3:
+    if isinstance(value, (str, bytes)) or not hasattr(value, "__len__") or len(value) != 3:
         raise ExportError(f"scene property '{property_name}' must contain exactly three numbers")
     result = tuple(float(component) for component in value)
     if not all(math.isfinite(component) for component in result):
@@ -248,7 +248,7 @@ def _links(value: Any, object_name: str) -> tuple[str, ...]:
         return ()
     if isinstance(value, str):
         return tuple(part.strip() for part in value.split(",") if part.strip())
-    if isinstance(value, Sequence):
+    if hasattr(value, "__iter__"):
         return tuple(str(part) for part in value)
     raise ExportError(f"waypoint '{object_name}' custom property 'royale_links' must be a list or comma-separated string")
 

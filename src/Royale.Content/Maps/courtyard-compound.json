@@ -1,0 +1,963 @@
+{
+  "id": "courtyard-compound",
+  "name": "Courtyard Compound",
+  "worldBounds": {
+    "min": {
+      "x": -50,
+      "y": -2,
+      "z": -50
+    },
+    "max": {
+      "x": 50,
+      "y": 10,
+      "z": 50
+    }
+  },
+  "safeZone": {
+    "center": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "radius": 45
+  },
+  "spawnPoints": [
+    {
+      "id": "east-north",
+      "position": {
+        "x": 42,
+        "y": 0,
+        "z": -17
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": -67.96377,
+        "z": 0
+      }
+    },
+    {
+      "id": "east-south",
+      "position": {
+        "x": 42,
+        "y": 0,
+        "z": 17
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": -112.036228,
+        "z": 0
+      }
+    },
+    {
+      "id": "north",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": -42
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "id": "north-east",
+      "position": {
+        "x": 30,
+        "y": 0,
+        "z": -34
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": -41.423666,
+        "z": 0
+      }
+    },
+    {
+      "id": "north-inner-east",
+      "position": {
+        "x": 17,
+        "y": 0,
+        "z": -40
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": -23.025491,
+        "z": 0
+      }
+    },
+    {
+      "id": "north-inner-west",
+      "position": {
+        "x": -17,
+        "y": 0,
+        "z": -40
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 23.025491,
+        "z": 0
+      }
+    },
+    {
+      "id": "north-west",
+      "position": {
+        "x": -30,
+        "y": 0,
+        "z": -34
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 41.423666,
+        "z": 0
+      }
+    },
+    {
+      "id": "south",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 42
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": -179.999995,
+        "z": 0
+      }
+    },
+    {
+      "id": "south-east",
+      "position": {
+        "x": 30,
+        "y": 0,
+        "z": 40
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": -143.130097,
+        "z": 0
+      }
+    },
+    {
+      "id": "south-west",
+      "position": {
+        "x": -30,
+        "y": 0,
+        "z": 40
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 143.130097,
+        "z": 0
+      }
+    },
+    {
+      "id": "west-north",
+      "position": {
+        "x": -42,
+        "y": 0,
+        "z": -17
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 67.96377,
+        "z": 0
+      }
+    },
+    {
+      "id": "west-south",
+      "position": {
+        "x": -42,
+        "y": 0,
+        "z": 17
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 112.036228,
+        "z": 0
+      }
+    }
+  ],
+  "lootPoints": [
+    {
+      "id": "courtyard-east",
+      "position": {
+        "x": 15,
+        "y": 0.35,
+        "z": 14
+      }
+    },
+    {
+      "id": "courtyard-south",
+      "position": {
+        "x": 0,
+        "y": 0.35,
+        "z": 29
+      }
+    },
+    {
+      "id": "courtyard-west",
+      "position": {
+        "x": -15,
+        "y": 0.35,
+        "z": 16
+      }
+    },
+    {
+      "id": "east-approach",
+      "position": {
+        "x": 28,
+        "y": 0.35,
+        "z": 5
+      }
+    },
+    {
+      "id": "east-room-ground",
+      "position": {
+        "x": 9,
+        "y": 0.35,
+        "z": -12
+      }
+    },
+    {
+      "id": "hall-ground",
+      "position": {
+        "x": 0,
+        "y": 0.35,
+        "z": -5
+      }
+    },
+    {
+      "id": "north-approach",
+      "position": {
+        "x": 0,
+        "y": 0.35,
+        "z": -27
+      }
+    },
+    {
+      "id": "upper-east",
+      "position": {
+        "x": 9,
+        "y": 3.54,
+        "z": -11
+      }
+    },
+    {
+      "id": "upper-landing",
+      "position": {
+        "x": 1,
+        "y": 3.54,
+        "z": -4
+      }
+    },
+    {
+      "id": "upper-west",
+      "position": {
+        "x": -9,
+        "y": 3.54,
+        "z": -11
+      }
+    },
+    {
+      "id": "west-approach",
+      "position": {
+        "x": -27,
+        "y": 0.35,
+        "z": 10
+      }
+    },
+    {
+      "id": "west-room-ground",
+      "position": {
+        "x": -9,
+        "y": 0.35,
+        "z": -12
+      }
+    }
+  ],
+  "navigation": {
+    "waypoints": [
+      {
+        "id": "courtyard-center",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 16
+        }
+      },
+      {
+        "id": "courtyard-north",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 5
+        }
+      },
+      {
+        "id": "east-flank",
+        "position": {
+          "x": 34,
+          "y": -0.01,
+          "z": 0
+        }
+      },
+      {
+        "id": "east-gate-in",
+        "position": {
+          "x": 17,
+          "y": -0.01,
+          "z": 11.5
+        }
+      },
+      {
+        "id": "east-gate-out",
+        "position": {
+          "x": 23,
+          "y": -0.01,
+          "z": 11.5
+        }
+      },
+      {
+        "id": "entrance-center",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -1
+        }
+      },
+      {
+        "id": "entrance-east",
+        "position": {
+          "x": 7,
+          "y": -0.01,
+          "z": -1
+        }
+      },
+      {
+        "id": "entrance-west",
+        "position": {
+          "x": -7,
+          "y": -0.01,
+          "z": -1
+        }
+      },
+      {
+        "id": "exterior-stair-bottom",
+        "position": {
+          "x": 10,
+          "y": -0.01,
+          "z": -30.799999
+        }
+      },
+      {
+        "id": "exterior-stair-top",
+        "position": {
+          "x": 10,
+          "y": 3.19,
+          "z": -19
+        }
+      },
+      {
+        "id": "hall-center",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -7
+        }
+      },
+      {
+        "id": "interior-stair-bottom",
+        "position": {
+          "x": -2.4,
+          "y": -0.01,
+          "z": -6.2
+        }
+      },
+      {
+        "id": "interior-stair-landing-a",
+        "position": {
+          "x": -2.4,
+          "y": 1.59,
+          "z": -14.5
+        }
+      },
+      {
+        "id": "interior-stair-landing-b",
+        "position": {
+          "x": 2.4,
+          "y": 1.59,
+          "z": -14.5
+        }
+      },
+      {
+        "id": "interior-stair-ramp-top",
+        "position": {
+          "x": 2.4,
+          "y": 3.11,
+          "z": -7.3
+        }
+      },
+      {
+        "id": "interior-stair-top",
+        "position": {
+          "x": 4,
+          "y": 3.19,
+          "z": -7.3
+        }
+      },
+      {
+        "id": "loot-courtyard-east",
+        "position": {
+          "x": 15,
+          "y": -0.01,
+          "z": 14
+        }
+      },
+      {
+        "id": "loot-courtyard-south",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 29
+        }
+      },
+      {
+        "id": "loot-courtyard-west",
+        "position": {
+          "x": -15,
+          "y": -0.01,
+          "z": 16
+        }
+      },
+      {
+        "id": "loot-east-approach",
+        "position": {
+          "x": 28,
+          "y": -0.01,
+          "z": 5
+        }
+      },
+      {
+        "id": "loot-east-room-ground",
+        "position": {
+          "x": 9,
+          "y": -0.01,
+          "z": -12
+        }
+      },
+      {
+        "id": "loot-hall-ground",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -5
+        }
+      },
+      {
+        "id": "loot-north-approach",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -27
+        }
+      },
+      {
+        "id": "loot-upper-east",
+        "position": {
+          "x": 9,
+          "y": 3.19,
+          "z": -11
+        }
+      },
+      {
+        "id": "loot-upper-landing",
+        "position": {
+          "x": 1,
+          "y": 3.19,
+          "z": -4
+        }
+      },
+      {
+        "id": "loot-upper-west",
+        "position": {
+          "x": -9,
+          "y": 3.19,
+          "z": -11
+        }
+      },
+      {
+        "id": "loot-west-approach",
+        "position": {
+          "x": -27,
+          "y": -0.01,
+          "z": 10
+        }
+      },
+      {
+        "id": "loot-west-room-ground",
+        "position": {
+          "x": -9,
+          "y": -0.01,
+          "z": -12
+        }
+      },
+      {
+        "id": "north-building",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -23
+        }
+      },
+      {
+        "id": "north-flank",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -34
+        }
+      },
+      {
+        "id": "rear-upper-door",
+        "position": {
+          "x": 10,
+          "y": 3.19,
+          "z": -18
+        }
+      },
+      {
+        "id": "room-east-ground",
+        "position": {
+          "x": 9,
+          "y": -0.01,
+          "z": -12
+        }
+      },
+      {
+        "id": "room-east-upper",
+        "position": {
+          "x": 9,
+          "y": 3.19,
+          "z": -11
+        }
+      },
+      {
+        "id": "room-west-ground",
+        "position": {
+          "x": -9,
+          "y": -0.01,
+          "z": -12
+        }
+      },
+      {
+        "id": "room-west-upper",
+        "position": {
+          "x": -9,
+          "y": 3.19,
+          "z": -11
+        }
+      },
+      {
+        "id": "south-gate-in",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 29
+        }
+      },
+      {
+        "id": "south-gate-out",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 37
+        }
+      },
+      {
+        "id": "spawn-east-north",
+        "position": {
+          "x": 42,
+          "y": -0.01,
+          "z": -17
+        }
+      },
+      {
+        "id": "spawn-east-south",
+        "position": {
+          "x": 42,
+          "y": -0.01,
+          "z": 17
+        }
+      },
+      {
+        "id": "spawn-north",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": -42
+        }
+      },
+      {
+        "id": "spawn-north-east",
+        "position": {
+          "x": 30,
+          "y": -0.01,
+          "z": -34
+        }
+      },
+      {
+        "id": "spawn-north-inner-east",
+        "position": {
+          "x": 17,
+          "y": -0.01,
+          "z": -40
+        }
+      },
+      {
+        "id": "spawn-north-inner-west",
+        "position": {
+          "x": -17,
+          "y": -0.01,
+          "z": -40
+        }
+      },
+      {
+        "id": "spawn-north-west",
+        "position": {
+          "x": -30,
+          "y": -0.01,
+          "z": -34
+        }
+      },
+      {
+        "id": "spawn-south",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 42
+        }
+      },
+      {
+        "id": "spawn-south-east",
+        "position": {
+          "x": 30,
+          "y": -0.01,
+          "z": 40
+        }
+      },
+      {
+        "id": "spawn-south-west",
+        "position": {
+          "x": -30,
+          "y": -0.01,
+          "z": 40
+        }
+      },
+      {
+        "id": "spawn-west-north",
+        "position": {
+          "x": -42,
+          "y": -0.01,
+          "z": -17
+        }
+      },
+      {
+        "id": "spawn-west-south",
+        "position": {
+          "x": -42,
+          "y": -0.01,
+          "z": 17
+        }
+      },
+      {
+        "id": "upper-east-south",
+        "position": {
+          "x": 4,
+          "y": 3.19,
+          "z": -5
+        }
+      },
+      {
+        "id": "upper-landing",
+        "position": {
+          "x": 0,
+          "y": 3.19,
+          "z": -5
+        }
+      },
+      {
+        "id": "upper-west-south",
+        "position": {
+          "x": -4,
+          "y": 3.19,
+          "z": -5
+        }
+      },
+      {
+        "id": "west-flank",
+        "position": {
+          "x": -34,
+          "y": -0.01,
+          "z": 0
+        }
+      },
+      {
+        "id": "west-gate-in",
+        "position": {
+          "x": -17,
+          "y": -0.01,
+          "z": 11.5
+        }
+      },
+      {
+        "id": "west-gate-out",
+        "position": {
+          "x": -23,
+          "y": -0.01,
+          "z": 11.5
+        }
+      }
+    ],
+    "links": [
+      {
+        "from": "courtyard-center",
+        "to": "courtyard-north"
+      },
+      {
+        "from": "courtyard-center",
+        "to": "loot-courtyard-east"
+      },
+      {
+        "from": "courtyard-center",
+        "to": "loot-courtyard-south"
+      },
+      {
+        "from": "courtyard-center",
+        "to": "loot-courtyard-west"
+      },
+      {
+        "from": "courtyard-north",
+        "to": "entrance-center"
+      },
+      {
+        "from": "courtyard-north",
+        "to": "entrance-east"
+      },
+      {
+        "from": "courtyard-north",
+        "to": "entrance-west"
+      },
+      {
+        "from": "east-flank",
+        "to": "loot-east-approach"
+      },
+      {
+        "from": "east-flank",
+        "to": "spawn-east-north"
+      },
+      {
+        "from": "east-flank",
+        "to": "spawn-east-south"
+      },
+      {
+        "from": "east-gate-in",
+        "to": "east-gate-out"
+      },
+      {
+        "from": "east-gate-in",
+        "to": "loot-courtyard-east"
+      },
+      {
+        "from": "east-gate-out",
+        "to": "loot-east-approach"
+      },
+      {
+        "from": "entrance-center",
+        "to": "loot-hall-ground"
+      },
+      {
+        "from": "entrance-east",
+        "to": "room-east-ground"
+      },
+      {
+        "from": "entrance-west",
+        "to": "room-west-ground"
+      },
+      {
+        "from": "exterior-stair-bottom",
+        "to": "exterior-stair-top"
+      },
+      {
+        "from": "exterior-stair-bottom",
+        "to": "north-building"
+      },
+      {
+        "from": "exterior-stair-top",
+        "to": "rear-upper-door"
+      },
+      {
+        "from": "hall-center",
+        "to": "interior-stair-bottom"
+      },
+      {
+        "from": "hall-center",
+        "to": "loot-hall-ground"
+      },
+      {
+        "from": "interior-stair-bottom",
+        "to": "interior-stair-landing-a"
+      },
+      {
+        "from": "interior-stair-landing-a",
+        "to": "interior-stair-landing-b"
+      },
+      {
+        "from": "interior-stair-landing-b",
+        "to": "interior-stair-ramp-top"
+      },
+      {
+        "from": "interior-stair-ramp-top",
+        "to": "interior-stair-top"
+      },
+      {
+        "from": "interior-stair-top",
+        "to": "upper-east-south"
+      },
+      {
+        "from": "loot-courtyard-south",
+        "to": "south-gate-in"
+      },
+      {
+        "from": "loot-courtyard-west",
+        "to": "west-gate-in"
+      },
+      {
+        "from": "loot-east-room-ground",
+        "to": "room-east-ground"
+      },
+      {
+        "from": "loot-north-approach",
+        "to": "north-building"
+      },
+      {
+        "from": "loot-upper-east",
+        "to": "room-east-upper"
+      },
+      {
+        "from": "loot-upper-landing",
+        "to": "upper-landing"
+      },
+      {
+        "from": "loot-upper-west",
+        "to": "room-west-upper"
+      },
+      {
+        "from": "loot-west-approach",
+        "to": "west-flank"
+      },
+      {
+        "from": "loot-west-approach",
+        "to": "west-gate-out"
+      },
+      {
+        "from": "loot-west-room-ground",
+        "to": "room-west-ground"
+      },
+      {
+        "from": "north-building",
+        "to": "north-flank"
+      },
+      {
+        "from": "north-flank",
+        "to": "spawn-north"
+      },
+      {
+        "from": "north-flank",
+        "to": "spawn-north-inner-east"
+      },
+      {
+        "from": "north-flank",
+        "to": "spawn-north-inner-west"
+      },
+      {
+        "from": "rear-upper-door",
+        "to": "room-east-upper"
+      },
+      {
+        "from": "room-east-upper",
+        "to": "upper-east-south"
+      },
+      {
+        "from": "room-west-upper",
+        "to": "upper-west-south"
+      },
+      {
+        "from": "south-gate-in",
+        "to": "south-gate-out"
+      },
+      {
+        "from": "south-gate-out",
+        "to": "spawn-south"
+      },
+      {
+        "from": "south-gate-out",
+        "to": "spawn-south-east"
+      },
+      {
+        "from": "south-gate-out",
+        "to": "spawn-south-west"
+      },
+      {
+        "from": "spawn-north-east",
+        "to": "spawn-north-inner-east"
+      },
+      {
+        "from": "spawn-north-inner-west",
+        "to": "spawn-north-west"
+      },
+      {
+        "from": "spawn-west-north",
+        "to": "west-flank"
+      },
+      {
+        "from": "spawn-west-south",
+        "to": "west-flank"
+      },
+      {
+        "from": "upper-east-south",
+        "to": "upper-landing"
+      },
+      {
+        "from": "upper-landing",
+        "to": "upper-west-south"
+      },
+      {
+        "from": "west-gate-in",
+        "to": "west-gate-out"
+      }
+    ]
+  },
+  "staticModels": [
+    {
+      "id": "environment",
+      "assetId": "courtyard-compound-environment",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotationEuler": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    }
+  ]
+}

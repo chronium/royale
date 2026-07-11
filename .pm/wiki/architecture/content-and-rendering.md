@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-11T07:47:57.8925380Z
+modifiedAt: 2026-07-11T08:24:16.1443230Z
 ---
 
 ## Content and Map Data
@@ -160,6 +160,14 @@ Markers must belong to exactly their declared marker collection. IDs use ASCII l
 The scene properties are `royale_map_id`, `royale_map_name`, `royale_bounds_min`, `royale_bounds_max`, `royale_safe_zone_center`, `royale_safe_zone_radius`, and `royale_output_asset_id`. Bounds and safe-zone vectors are stored directly in Royale coordinates. Export emits one identity-transformed static model instance at the origin, deterministic sorted marker/link JSON, a material-bearing render GLB, and a material-free collision GLB. GLB export applies modifiers and normals with Y-up conversion and excludes animations, cameras, and lights.
 
 Run inside Blender with `--validate-only` to check the complete scene contract without writing outputs, or with `--output-root <repository>` to export committed deliverables. Failures include the collection, marker, property, or link context.
+
+### Courtyard Compound
+
+`GAME-017` adds `courtyard-compound` as an explicitly selected 100×100 m map (`--map courtyard-compound`); `graybox` remains the default. The map places one identity-transformed `courtyard-compound-environment` model with committed render and simplified collision GLBs using `separateMesh` collision.
+
+The Blender source defines a two-storey open compound, three courtyard gates, interior and exterior stair routes, solid window sills with shoot-through apertures, perimeter boundaries, exterior cover, 12 spawns, 12 loot points, and a connected waypoint graph. Server startup validates every navigation link in both directions with the standing controller. Static-content validation accepts maps containing at least one static box or static model.
+
+The editable source and reproducible generator live under `assets/meshes/courtyard-compound/`. Blender remains authoring-only; normal .NET builds consume the committed GLBs and generated map JSON.
 
 ## Rendering Architecture
 

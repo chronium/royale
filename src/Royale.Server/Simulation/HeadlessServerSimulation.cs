@@ -18,6 +18,7 @@ public sealed class HeadlessServerSimulation : IDisposable
 {
     private readonly GameMap map;
     private readonly MapStaticCollisionWorld collisionWorld;
+    private readonly MapNavigationGraph navigationGraph;
     private readonly KinematicCharacterController characterController = new();
     private readonly MatchStartSettings matchStartSettings;
     private readonly Random spawnRandom;
@@ -29,12 +30,14 @@ public sealed class HeadlessServerSimulation : IDisposable
     private HeadlessServerSimulation(
         GameMap map,
         MapStaticCollisionWorld collisionWorld,
+        MapNavigationGraph navigationGraph,
         MatchStartSettings matchStartSettings,
         int? spawnSeed)
     {
         this.map = map;
         MapId = map.Id;
         this.collisionWorld = collisionWorld;
+        this.navigationGraph = navigationGraph;
         this.matchStartSettings = matchStartSettings;
         spawnRandom = spawnSeed.HasValue ? new Random(spawnSeed.Value) : new Random();
         SafeZoneState = CreateSafeZoneState(map);
@@ -52,6 +55,8 @@ public sealed class HeadlessServerSimulation : IDisposable
     public int StaticColliderCount => collisionWorld.ColliderCount;
 
     public int StaticModelColliderCount => collisionWorld.StaticModelColliderCount;
+
+    public MapNavigationGraph NavigationGraph => navigationGraph;
 
     public KinematicCharacterSettings CharacterSettings => characterController.Settings;
 
@@ -96,7 +101,8 @@ public sealed class HeadlessServerSimulation : IDisposable
 
         try
         {
-            return new HeadlessServerSimulation(map, collisionWorld, matchStartSettings, spawnSeed);
+            MapNavigationGraph navigationGraph = MapNavigationGraph.Create(map, collisionWorld);
+            return new HeadlessServerSimulation(map, collisionWorld, navigationGraph, matchStartSettings, spawnSeed);
         }
         catch
         {

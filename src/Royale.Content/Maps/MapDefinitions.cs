@@ -40,6 +40,27 @@ public sealed record MapLootPoint
     public MapVector3 Position { get; init; } = new();
 }
 
+public sealed record MapNavigationDefinition
+{
+    public List<MapNavigationWaypoint> Waypoints { get; init; } = [];
+
+    public List<MapNavigationLink> Links { get; init; } = [];
+}
+
+public sealed record MapNavigationWaypoint
+{
+    public string Id { get; init; } = string.Empty;
+
+    public MapVector3 Position { get; init; } = new();
+}
+
+public sealed record MapNavigationLink
+{
+    public string From { get; init; } = string.Empty;
+
+    public string To { get; init; } = string.Empty;
+}
+
 public sealed record MapBounds
 {
     public MapVector3 Min { get; init; } = new();

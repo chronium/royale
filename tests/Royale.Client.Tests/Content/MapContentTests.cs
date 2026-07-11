@@ -3,6 +3,7 @@ using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;
 using Royale.Content.Weapons;
+using Royale.Simulation.Movement;
 
 namespace Royale.Client.Tests.Content;
 
@@ -146,7 +147,7 @@ public sealed class MapContentTests
     }
 
     [Fact]
-    public void GrayboxRampClusterKeepsInternalSpacingAfterExpansion()
+    public void GrayboxRampClusterUsesWalkableStepAndPlatformSeams()
     {
         GameMap map = MapCatalog.LoadDefault();
         StaticBoxDefinition step = Assert.Single(map.StaticBoxes, staticBox => staticBox.Id == "step-low");
@@ -156,8 +157,9 @@ public sealed class MapContentTests
         Assert.Equal(-6.1f, ramp.Position.X);
         Assert.Equal(ramp.Position.X, step.Position.X);
         Assert.Equal(ramp.Position.X, platform.Position.X);
-        Assert.Equal(-0.7f, step.Position.Z - ramp.Position.Z, precision: 5);
-        Assert.Equal(0.9f, platform.Position.Z - ramp.Position.Z, precision: 5);
+        Assert.Equal(-1.3f, step.Position.Z - ramp.Position.Z, precision: 5);
+        Assert.Equal(1.7f, platform.Position.Z - ramp.Position.Z, precision: 5);
+        Assert.True(step.Size.Y <= new KinematicCharacterSettings().MaxStepHeight);
     }
 
     [Fact]
@@ -285,6 +287,34 @@ public sealed class MapContentTests
         ArgumentException exception = Assert.Throws<ArgumentException>(() => MapCatalog.LoadById("../graybox"));
 
         Assert.Contains("must contain only ASCII letters", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("\"navigation\": null", "navigation is required")]
+    [InlineData("\"navigation\": { \"waypoints\": [], \"links\": [] }", "at least one waypoint")]
+    [InlineData("\"navigation\": { \"waypoints\": [{ \"id\": \"bad id\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }], \"links\": [{ \"from\": \"bad id\", \"to\": \"b\" }] }", "waypoint id 'bad id'")]
+    [InlineData("\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }, { \"id\": \"a\", \"position\": { \"x\": 1, \"y\": 0, \"z\": 0 } }], \"links\": [{ \"from\": \"a\", \"to\": \"a\" }] }", "waypoint id 'a' must be unique")]
+    [InlineData("\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }, { \"id\": \"b\", \"position\": { \"x\": 1, \"y\": 0, \"z\": 0 } }], \"links\": [{ \"from\": \"a\", \"to\": \"missing\" }] }", "unknown waypoint 'missing'")]
+    [InlineData("\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }], \"links\": [{ \"from\": \"a\", \"to\": \"a\" }] }", "cannot link a waypoint to itself")]
+    [InlineData("\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }, { \"id\": \"b\", \"position\": { \"x\": 1, \"y\": 0, \"z\": 0 } }], \"links\": [{ \"from\": \"a\", \"to\": \"b\" }, { \"from\": \"b\", \"to\": \"a\" }] }", "duplicates an undirected link")]
+    [InlineData("\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }, { \"id\": \"b\", \"position\": { \"x\": 1, \"y\": 0, \"z\": 0 } }, { \"id\": \"c\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 1 } }], \"links\": [{ \"from\": \"a\", \"to\": \"b\" }] }", "waypoint 'c' is disconnected")]
+    public void InvalidNavigationSchemaFailsWithContext(string navigationJson, string expected)
+    {
+        InvalidDataException exception = LoadInvalidMap("invalid-navigation", CreateNavigationMapJson(navigationJson));
+
+        Assert.Contains(expected, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NavigationRequiresFiniteInBoundsPositionsAndGameplayCoverage()
+    {
+        InvalidDataException outside = LoadInvalidMap("invalid-navigation", CreateNavigationMapJson(
+            "\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": 20, \"y\": 0, \"z\": 0 } }, { \"id\": \"b\", \"position\": { \"x\": 0, \"y\": 0, \"z\": 0 } }], \"links\": [{ \"from\": \"a\", \"to\": \"b\" }] }"));
+        Assert.Contains("position must be inside worldBounds", outside.Message, StringComparison.Ordinal);
+
+        InvalidDataException uncovered = LoadInvalidMap("invalid-navigation", CreateNavigationMapJson(
+            "\"navigation\": { \"waypoints\": [{ \"id\": \"a\", \"position\": { \"x\": -4, \"y\": 0, \"z\": -4 } }, { \"id\": \"b\", \"position\": { \"x\": -3, \"y\": 0, \"z\": -4 } }], \"links\": [{ \"from\": \"a\", \"to\": \"b\" }] }"));
+        Assert.Contains("spawn point 'spawn' must be within 2 metres", uncovered.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -433,6 +463,20 @@ public sealed class MapContentTests
                 "rotationEuler": { "x": 0, "y": 0, "z": 0 }
               }
             ]
+          }
+          """;
+
+    private static string CreateNavigationMapJson(string navigationJson) =>
+        $$"""
+          {
+            "id": "invalid-navigation",
+            "name": "Invalid Navigation",
+            "worldBounds": { "min": { "x": -5, "y": -1, "z": -5 }, "max": { "x": 5, "y": 3, "z": 5 } },
+            "safeZone": { "center": { "x": 0, "y": 0, "z": 0 }, "radius": 5 },
+            "spawnPoints": [{ "id": "spawn", "position": { "x": 0, "y": 0, "z": 0 } }],
+            "lootPoints": [{ "id": "loot", "position": { "x": 0, "y": 0, "z": 0 } }],
+            {{navigationJson}},
+            "staticBoxes": [{ "id": "ground", "position": { "x": 0, "y": -0.1, "z": 0 }, "size": { "x": 10, "y": 0.2, "z": 10 } }]
           }
           """;
 }

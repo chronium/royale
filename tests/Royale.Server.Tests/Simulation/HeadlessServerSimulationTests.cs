@@ -50,6 +50,23 @@ public sealed class HeadlessServerSimulationTests
     }
 
     [Fact]
+    public void CreateRetainsValidatedNavigationForBothAuthoredMaps()
+    {
+        foreach (string mapId in new[] { "graybox", "prototype-arena" })
+        {
+            GameMap map = MapCatalog.LoadById(mapId);
+
+            using HeadlessServerSimulation simulation = HeadlessServerSimulation.Create(mapId);
+
+            Assert.Equal(map.Navigation.Waypoints.Count, simulation.NavigationGraph.Waypoints.Count);
+            Assert.Equal(
+                map.Navigation.Waypoints.Select(waypoint => waypoint.Id).Order(StringComparer.Ordinal),
+                simulation.NavigationGraph.Waypoints.Select(waypoint => waypoint.Id));
+            Assert.Empty(simulation.Players);
+        }
+    }
+
+    [Fact]
     public void CreateCanUseProgrammaticMapForDeterministicTests()
     {
         GameMap map = new()

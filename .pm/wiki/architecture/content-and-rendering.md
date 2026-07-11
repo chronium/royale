@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-10T15:27:22.6833020Z
+modifiedAt: 2026-07-11T07:00:49.3606260Z
 ---
 
 ## Content and Map Data
@@ -63,6 +63,27 @@ Loot points and safe-zone fields are still placeholders at this stage and do not
 Rendering-only data may remain client-specific.
 
 The server should not need textures or shader assets.
+
+### Map-Authored Navigation
+
+`BOT-005` adds required `navigation` data to `GameMap`:
+
+```json
+"navigation": {
+  "waypoints": [
+    { "id": "center", "position": { "x": 0.0, "y": 0.0, "z": 0.0 } }
+  ],
+  "links": [
+    { "from": "center", "to": "east-route" }
+  ]
+}
+```
+
+Waypoint positions are standing-player feet anchors. IDs contain only ASCII letters, digits, `-`, or `_` and are unique using ordinal comparison. Links are undirected: endpoints must exist and differ, and duplicate or reversed-duplicate pairs are invalid. The graph must be non-empty and connected. Waypoints must be finite and inside `worldBounds`; every spawn and loot position must be finite, in bounds, and within 2 metres in 3D of a waypoint.
+
+After static collision is built, shared simulation checks clear grounded standing-capsule placement and walks each authored link in both directions with the real kinematic controller. This validation exposed and corrected two authored collision seams: graybox now has a controller-walkable lead-in and ramp/platform overlap, while prototype-arena's stairs are oriented toward and aligned with the raised platform. These are content corrections, not new movement rules.
+
+The validated `MapNavigationGraph` is retained only by authoritative server simulation for later bot work. Navigation does not affect rendering, protocol data, human/bot input, or authoritative transforms in `BOT-005`.
 
 ### Prototype Combat Arena
 

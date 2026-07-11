@@ -14,6 +14,8 @@ public sealed record GameMap
 
     public List<MapLootPoint> LootPoints { get; init; } = [];
 
+    public MapNavigationDefinition Navigation { get; init; } = new();
+
     public MapBounds WorldBounds { get; init; } = new();
 
     public SafeZoneDefinition SafeZone { get; init; } = new();

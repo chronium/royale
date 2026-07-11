@@ -1,7 +1,7 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-11T06:27:14.5916460Z
+modifiedAt: 2026-07-11T07:00:49.3377750Z
 ---
 
 ## Status
@@ -78,9 +78,15 @@ The concrete navigation representation, perception ranges, target-selection poli
 
 ### Navigation Direction
 
-For the MVP, maps own a small explicitly authored waypoint graph used by server-side bot navigation. This keeps navigation data inspectable and sufficient for the current compact arenas without introducing a general-purpose navigation subsystem.
+`BOT-005` implements a small map-owned undirected waypoint graph for both production arenas. Waypoints use unique portable string IDs and standing-player feet positions; links name two waypoint IDs and are traversable in both directions.
 
-Navmesh support remains a desired future capability for larger or more geometrically complex maps. Navmesh generation, baking, runtime queries, and migration from authored waypoint graphs are deferred beyond `BOT-005` and must be introduced through separately planned work.
+`MapCatalog` requires non-empty navigation data, finite in-bounds waypoint positions, valid unique IDs, valid non-self undirected links without reversed duplicates, one connected component, and a waypoint within 2 metres in 3D of every spawn and loot point.
+
+`MapNavigationGraph` lives in shared simulation, indexes waypoints by ordinal ID, exposes ordinal waypoint and neighbor ordering, and resolves nearest waypoints deterministically with ordinal ID tie-breaking. Server simulation constructs and retains this graph beside the authoritative static collision world.
+
+Runtime construction validates that every waypoint supports a clear grounded standing capsule and walks every link in both directions through the shared kinematic character controller at ordinary standing walk speed. Arrival tolerances are 0.35 metres horizontally and vertically; the deterministic budget is link travel time plus two seconds. Graybox explicitly covers its repaired step/ramp/platform chain, and prototype-arena covers its corrected stairs/platform route.
+
+`BOT-005` does not add pathfinding, decisions, movement generation, recovery behavior, rendering, protocol fields, or bot transform mutation. Navmesh generation and runtime queries remain deferred to `DEBT-007`.
 
 ## Lifecycle And Authority
 

@@ -4,6 +4,7 @@ namespace Royale.Content.Maps;
 
 public static class MapCatalog
 {
+    private const float NavigationCoverageDistance = 2.0f;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -133,14 +134,118 @@ public static class MapCatalog
             throw InvalidMap(path, "worldBounds min must be less than max on every axis.");
         }
 
+        if (!IsFinite(map.WorldBounds.Min) || !IsFinite(map.WorldBounds.Max))
+            throw InvalidMap(path, "worldBounds components must be finite.");
+
         foreach (MapSpawnPoint spawnPoint in map.SpawnPoints)
         {
+            if (!IsFinite(spawnPoint.Position))
+                throw InvalidMap(path, $"spawn point '{spawnPoint.Id}' position must be finite.");
             if (!Contains(map.WorldBounds, spawnPoint.Position))
                 throw InvalidMap(path, $"spawn point '{spawnPoint.Id}' position must be inside worldBounds.");
         }
 
+
+        ValidateNavigation(path, map);
+
         if (map.SafeZone.Radius <= 0.0f)
             throw InvalidMap(path, "safeZone radius must be positive.");
+    }
+
+    private static void ValidateNavigation(string path, GameMap map)
+    {
+        if (map.Navigation is null)
+            throw InvalidMap(path, "navigation is required.");
+        if (map.Navigation.Waypoints is null)
+            throw InvalidMap(path, "navigation waypoints are required.");
+        if (map.Navigation.Links is null)
+            throw InvalidMap(path, "navigation links are required.");
+        if (map.Navigation.Waypoints.Count == 0)
+            throw InvalidMap(path, "navigation must contain at least one waypoint.");
+        if (map.Navigation.Links.Count == 0)
+            throw InvalidMap(path, "navigation must contain at least one link.");
+
+        var waypointIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (MapNavigationWaypoint waypoint in map.Navigation.Waypoints)
+        {
+            if (!IsNavigationId(waypoint.Id))
+                throw InvalidMap(path, $"navigation waypoint id '{waypoint.Id}' must contain only ASCII letters, digits, '-' or '_'.");
+            if (!waypointIds.Add(waypoint.Id))
+                throw InvalidMap(path, $"navigation waypoint id '{waypoint.Id}' must be unique.");
+            if (!IsFinite(waypoint.Position))
+                throw InvalidMap(path, $"navigation waypoint '{waypoint.Id}' position must be finite.");
+            if (!Contains(map.WorldBounds, waypoint.Position))
+                throw InvalidMap(path, $"navigation waypoint '{waypoint.Id}' position must be inside worldBounds.");
+        }
+
+        var links = new HashSet<(string First, string Second)>();
+        var neighbors = waypointIds.ToDictionary(id => id, _ => new List<string>(), StringComparer.Ordinal);
+        foreach (MapNavigationLink link in map.Navigation.Links)
+        {
+            if (!waypointIds.Contains(link.From))
+                throw InvalidMap(path, $"navigation link '{link.From}'-'{link.To}' references unknown waypoint '{link.From}'.");
+            if (!waypointIds.Contains(link.To))
+                throw InvalidMap(path, $"navigation link '{link.From}'-'{link.To}' references unknown waypoint '{link.To}'.");
+            if (string.Equals(link.From, link.To, StringComparison.Ordinal))
+                throw InvalidMap(path, $"navigation link '{link.From}'-'{link.To}' cannot link a waypoint to itself.");
+
+            (string First, string Second) key = string.CompareOrdinal(link.From, link.To) < 0
+                ? (link.From, link.To)
+                : (link.To, link.From);
+            if (!links.Add(key))
+                throw InvalidMap(path, $"navigation link '{link.From}'-'{link.To}' duplicates an undirected link.");
+
+            neighbors[link.From].Add(link.To);
+            neighbors[link.To].Add(link.From);
+        }
+
+        string first = waypointIds.Order(StringComparer.Ordinal).First();
+        var visited = new HashSet<string>(StringComparer.Ordinal) { first };
+        var pending = new Queue<string>();
+        pending.Enqueue(first);
+        while (pending.TryDequeue(out string? current))
+        {
+            foreach (string neighbor in neighbors[current])
+            {
+                if (visited.Add(neighbor))
+                    pending.Enqueue(neighbor);
+            }
+        }
+        if (visited.Count != waypointIds.Count)
+        {
+            string disconnected = waypointIds.Except(visited, StringComparer.Ordinal).Order(StringComparer.Ordinal).First();
+            throw InvalidMap(path, $"navigation waypoint '{disconnected}' is disconnected from the graph.");
+        }
+
+        foreach ((string kind, string id, MapVector3 position) in map.SpawnPoints
+            .Select(point => ("spawn point", point.Id, point.Position))
+            .Concat(map.LootPoints.Select(point => ("loot point", point.Id, point.Position))))
+        {
+            if (!IsFinite(position) || !Contains(map.WorldBounds, position))
+                throw InvalidMap(path, $"{kind} '{id}' position must be finite and inside worldBounds.");
+            if (!map.Navigation.Waypoints.Any(waypoint => DistanceSquared(waypoint.Position, position) <= NavigationCoverageDistance * NavigationCoverageDistance))
+                throw InvalidMap(path, $"{kind} '{id}' must be within {NavigationCoverageDistance:0.#} metres of a navigation waypoint.");
+        }
+    }
+
+    private static bool IsNavigationId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return false;
+        foreach (char character in id)
+        {
+            if (!(character is >= 'a' and <= 'z' || character is >= 'A' and <= 'Z' || character is >= '0' and <= '9' || character is '-' or '_'))
+                return false;
+        }
+        return true;
+    }
+
+    private static float DistanceSquared(MapVector3 first, MapVector3 second)
+    {
+        float x = first.X - second.X;
+        float y = first.Y - second.Y;
+        float z = first.Z - second.Z;
+        return (x * x) + (y * y) + (z * z);
     }
 
     private static bool Contains(MapBounds bounds, MapVector3 position) =>

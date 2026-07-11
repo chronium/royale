@@ -148,7 +148,7 @@ public sealed class MapStaticCollisionWorldTests
             new MapVector3(0.0f, 4.0f, -12.0f),
             new MapVector3(0.0f, -5.0f, 0.0f),
             "north-platform",
-            expectedY: 1.0f);
+            expectedY: 0.8f);
         AssertRayHits(
             collisionWorld,
             new MapVector3(0.0f, 1.0f, 18.0f),

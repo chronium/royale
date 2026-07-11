@@ -9,7 +9,7 @@ dependsOn:
 - TEST-005
 - BOT-002
 createdAt: 2026-07-10T14:59:54.4880070Z
-modifiedAt: 2026-07-10T15:00:07.2557520Z
+modifiedAt: 2026-07-10T20:27:22.6622200Z
 ---
 
 Add hold-to-sprint on Left Shift with a 7.0 m/s speed and no stamina system. Sprint is eligible when the desired stance is standing and normalized local movement has any positive forward component (Move.Y > 0), so forward diagonals sprint while pure strafing and backward movement remain at 4.5 m/s walk speed. Reject sprint while crouched. Preserve sprint speed during a jump while Shift remains held and forward input remains eligible. Carry sprint intent through a new protocol input bit and apply the same shared movement rules in offline play, server authority, client prediction/replay, bot/script input validation, telemetry, and deterministic tests.
@@ -31,3 +31,7 @@ Validation passed:
 - `dotnet test Royale.slnx -m:1 --no-restore` — passed all 917 tests.
 
 Human validation remains required for offline and networked sprint feel: Left Shift hold/release, forward diagonals, strafe/backward rejection, crouch and blocked-stand rejection, and jumping while sprint remains held.
+
+## Notes
+
+- 2026-07-10 20:27 UTC - Human validation completed by the project owner. Hold/release behavior and overall sprint movement feel were verified and reported as very good.

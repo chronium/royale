@@ -245,6 +245,68 @@ public sealed class NetworkServerRuntimeTests
         Assert.Equal(1U, botState.LastProcessedInputClientTick);
     }
 
+    [Fact]
+    public void RuntimeAveragesUsableAcceptedHumanLatencyAndRoundsDelayUpToTicks()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(
+                ContentCatalog.DefaultMapId,
+                new MatchStartSettings(minimumPlayers: 4, targetPlayers: 4)));
+        ServerPlayerId bot = runtime.AddBot();
+        NetworkPeerId first = new(1);
+        NetworkPeerId second = new(2);
+        NetworkPeerId missing = new(3);
+        _ = ConnectClient(runtime, transport, first);
+        transport.SentPackets.Clear();
+        _ = ConnectClient(runtime, transport, second);
+        transport.SentPackets.Clear();
+        _ = ConnectClient(runtime, transport, missing);
+        transport.SentPackets.Clear();
+        transport.SetLatency(first, 16);
+        transport.SetLatency(second, 18);
+
+        Assert.True(runtime.TrySubmitBotInput(bot, BotIntent()));
+
+        Assert.Equal(new BotInputDelayDiagnostics(2, 17.0d, 2), runtime.BotInputDelayDiagnostics);
+        Assert.Equal(1, runtime.QueuedInputCommandCount);
+        runtime.Step();
+        runtime.Step();
+        Assert.Null(Assert.Single(
+            runtime.GetPlayerDebugStates(), player => player.PlayerId == bot.Value).LastProcessedInputSequence);
+        runtime.Step();
+        Assert.Equal(1U, Assert.Single(
+            runtime.GetPlayerDebugStates(), player => player.PlayerId == bot.Value).LastProcessedInputSequence);
+    }
+
+    [Fact]
+    public void RuntimeUsesZeroBotDelayWithoutUsableConnectedHumanSamples()
+    {
+        FakeNetworkTransport transport = new();
+        using var runtime = new NetworkServerRuntime(
+            transport,
+            InProcessServerSession.Create(ContentCatalog.DefaultMapId));
+        ServerPlayerId firstBot = runtime.AddBot();
+        ServerPlayerId secondBot = runtime.AddBot();
+        NetworkPeerId peer = new(1);
+        _ = ConnectClient(runtime, transport, peer);
+        transport.SentPackets.Clear();
+        transport.SetLatency(peer, -1);
+
+        Assert.True(runtime.TrySubmitBotInput(firstBot, BotIntent()));
+        Assert.Equal(default, runtime.BotInputDelayDiagnostics);
+
+        transport.QueueDisconnected(peer);
+        runtime.Step();
+
+        Assert.True(runtime.TrySubmitBotInput(secondBot, BotIntent()));
+        Assert.Equal(default, runtime.BotInputDelayDiagnostics);
+        runtime.Step();
+        Assert.Equal(1U, Assert.Single(
+            runtime.GetPlayerDebugStates(), player => player.PlayerId == secondBot.Value).LastProcessedInputSequence);
+    }
+
     private static ServerAccept ConnectClient(
         NetworkServerRuntime runtime,
         FakeNetworkTransport transport,
@@ -253,7 +315,9 @@ public sealed class NetworkServerRuntimeTests
         transport.QueueConnected(peer);
         transport.QueuePacket(peer, FrameClientHello(), NetworkDelivery.ReliableOrdered, channel: 0);
         runtime.Step();
-        return ReadAccept(Assert.Single(transport.SentPackets).Payload);
+        return ReadAccept(Assert.Single(
+            transport.SentPackets,
+            packet => ReadHeader(packet.Payload).MessageType == ProtocolMessageType.ServerAccept).Payload);
     }
 
     private static byte[] FrameClientHello()
@@ -389,9 +453,16 @@ public sealed class NetworkServerRuntimeTests
         },
     };
 
-    private sealed class FakeNetworkTransport : INetworkTransport
+    private static BotInputIntent BotIntent() => new(
+        Vector2.Zero,
+        YawRadians: 0.0f,
+        PitchRadians: 0.0f,
+        InputButtons.None);
+
+    private sealed class FakeNetworkTransport : INetworkTransport, INetworkTransportDiagnostics
     {
         private readonly Queue<Action<INetworkEventHandler>> events = [];
+        private readonly Dictionary<NetworkPeerId, NetworkPeerStatistics> statistics = [];
 
         public List<SentPacket> SentPackets { get; } = [];
 
@@ -430,6 +501,24 @@ public sealed class NetworkServerRuntimeTests
         {
             events.Enqueue(handler => handler.Disconnected(peerId, NetworkDisconnectReason.RemoteConnectionClose));
         }
+
+        public void SetLatency(NetworkPeerId peerId, int oneWayLatencyMilliseconds)
+        {
+            statistics[peerId] = new NetworkPeerStatistics(
+                oneWayLatencyMilliseconds,
+                RoundTripTimeMilliseconds: oneWayLatencyMilliseconds * 2,
+                MaximumTransmissionUnitBytes: 1200,
+                TimeSinceLastPacketMilliseconds: 0.0f,
+                PacketsSent: 0,
+                PacketsReceived: 0,
+                BytesSent: 0,
+                BytesReceived: 0,
+                PacketsLost: 0,
+                PacketLossPercent: 0);
+        }
+
+        public bool TryGetPeerStatistics(NetworkPeerId peerId, out NetworkPeerStatistics peerStatistics) =>
+            statistics.TryGetValue(peerId, out peerStatistics);
 
         public void QueuePacket(
             NetworkPeerId peerId,

@@ -832,6 +832,67 @@ public sealed class InProcessServerSessionTests
     }
 
     [Fact]
+    public void DelayedBotInputsQueueOncePerDecisionTickAndProcessOneDueCommandPerStep()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        ServerPlayerId bot = session.AddBot();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => session.TrySubmitBotInput(bot, BotIntent(), delayTicks: -1));
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent(), delayTicks: 2));
+        Assert.False(session.TrySubmitBotInput(bot, BotIntent(), delayTicks: 2));
+        session.Step();
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent(), delayTicks: 2));
+        session.Step();
+
+        ServerPlayerDebugState state = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Null(state.LastProcessedInputSequence);
+        Assert.Equal(2, state.QueuedInputCount);
+
+        session.Step();
+        state = Assert.Single(session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(1U, state.LastProcessedInputSequence);
+        Assert.Equal(1, state.QueuedInputCount);
+
+        session.Step();
+        state = Assert.Single(session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(2U, state.LastProcessedInputSequence);
+        Assert.Equal(0, state.QueuedInputCount);
+    }
+
+    [Fact]
+    public void FallingDelayDoesNotRescheduleQueuedBotInputsOrReverseSequenceOrder()
+    {
+        using InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
+        ServerPlayerId bot = session.AddBot();
+
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent(), delayTicks: 3));
+        session.Step();
+        Assert.True(session.TrySubmitBotInput(
+            bot,
+            BotIntent() with { YawRadians = 0.5f },
+            delayTicks: 0));
+
+        session.Step();
+        session.Step();
+        Assert.Null(Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value).LastProcessedInputSequence);
+
+        session.Step();
+        ServerPlayerDebugState first = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(1U, first.LastProcessedInputSequence);
+        Assert.Equal(1, first.QueuedInputCount);
+
+        session.Step();
+        ServerPlayerDebugState second = Assert.Single(
+            session.GetPlayerDebugStates(), player => player.PlayerId == bot.Value);
+        Assert.Equal(2U, second.LastProcessedInputSequence);
+        Assert.Equal(0, second.QueuedInputCount);
+    }
+
+    [Fact]
     public void MissingBotInputNeutralizesMovementAndButtonsWithoutResettingLook()
     {
         using InProcessServerSession session = InProcessServerSession.Create(CreateOpenArenaMap(), spawnSeed: 0);
@@ -872,7 +933,7 @@ public sealed class InProcessServerSessionTests
 
         Assert.True(session.TryEnqueueInputCommand(human, ValidCommand(sequence: 1)));
         Assert.True(session.TryEnqueueInputCommand(human, ValidCommand(sequence: 2)));
-        Assert.True(session.TrySubmitBotInput(bot, BotIntent()));
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent(), delayTicks: 10));
 
         Assert.Equal(3, session.QueuedInputCommandCount);
         Assert.Equal(2, Assert.Single(
@@ -899,11 +960,15 @@ public sealed class InProcessServerSessionTests
     {
         InProcessServerSession session = InProcessServerSession.Create(ContentCatalog.DefaultMapId);
         InProcessClientConnection client = session.ConnectClient();
+        ServerPlayerId bot = session.AddBot();
+        Assert.True(session.TrySubmitBotInput(bot, BotIntent(), delayTicks: 10));
+        Assert.Equal(1, session.QueuedInputCommandCount);
 
         session.Dispose();
 
         Assert.True(session.IsDisposed);
         Assert.True(session.IsSimulationDisposed);
+        Assert.Equal(0, session.QueuedInputCommandCount);
         Assert.Throws<ObjectDisposedException>(() => session.ConnectClient());
         Assert.Throws<ObjectDisposedException>(() => session.AddBot());
         Assert.Throws<ObjectDisposedException>(() => session.TryRemoveBot(new ServerPlayerId(1)));

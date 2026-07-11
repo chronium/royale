@@ -1,7 +1,7 @@
 ---
 title: Networking Architecture
 createdAt: 2026-07-05T16:10:17.3761740Z
-modifiedAt: 2026-07-10T18:49:40.4089080Z
+modifiedAt: 2026-07-11T06:22:27.6361480Z
 ---
 
 ## Networking Layers
@@ -263,6 +263,10 @@ The in-process session remains authoritative for local/synthetic clients: queued
 
 ### Internal Bot Commands
 
-`BOT-002` extends the authoritative in-process boundary without adding a transport path. `InProcessServerSession.TrySubmitBotInput` and `NetworkServerRuntime.TrySubmitBotInput` accept server-internal `BotInputIntent`; they do not serialize inputs, create fake peers, or bypass gameplay. The session validates intent, assigns sequence and authoritative decision-tick metadata, and holds at most one command per bot for the upcoming step.
+`BOT-002` and `BOT-014` extend the authoritative in-process boundary without adding a bot transport path or changing the network protocol. `InProcessServerSession.TrySubmitBotInput` validates ordinary input intent, assigns server-owned sequence and decision-tick metadata, and schedules it in a per-bot FIFO. Transport-independent callers may pass a non-negative delay in ticks; the default is zero.
 
-During `Step`, pending bots are consumed in ascending player-ID order and joined with the human commands dequeued for that tick. The resulting single player-ID command map enters `HeadlessServerSimulation.Step`. Immediate next-step consumption is temporary; `BOT-014` will introduce scheduled latency delay without changing the simulation input contract.
+`NetworkServerRuntime.TrySubmitBotInput` derives that delay from the arithmetic mean of usable one-way-latency samples for its currently accepted human peer connections. Missing, negative, disconnected, and unaccepted peer samples are excluded. The mean is rounded up to 60 Hz ticks, with zero delay when no valid sample exists. Each generated command keeps its initial scheduled tick, while per-bot monotonic scheduling prevents a newer lower-latency command from overtaking existing work.
+
+The session accepts at most one generated command per bot per decision tick and consumes at most one due command per bot per simulation step in ascending player-ID order. Queue-depth diagnostics count the complete delayed backlog. Runtime diagnostics and aggregate OpenTelemetry gauges expose the latest sampled latency and effective tick delay without per-peer or per-player metric labels.
+
+Bots remain server-owned participants without peer IDs, connection IDs, packet serialization, handshake state, or snapshot-send queues. The v1 wire layout and compatibility behavior are unchanged.

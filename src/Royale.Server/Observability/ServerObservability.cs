@@ -13,6 +13,7 @@ using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;
 using Royale.Protocol.Snapshots;
 using Royale.Server.Match;
+using Royale.Server.Networking;
 using Royale.Server.Sessions;
 using Royale.Server.Simulation;
 using Royale.Simulation.World;
@@ -56,6 +57,18 @@ public sealed class ServerObservability : IDisposable
             "royale.server.inputs.queue_depth",
             ObserveInputQueueDepth,
             description: "Queued input commands waiting for authoritative simulation.");
+    private static readonly ObservableGauge<double> BotInputLatencyGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.bots.input_delay.latency",
+            ObserveBotInputLatency,
+            unit: "ms",
+            description: "Average sampled one-way latency used to schedule newly generated bot input.");
+    private static readonly ObservableGauge<int> BotInputDelayTicksGauge =
+        RoyaleTelemetry.ServerMeter.CreateObservableGauge(
+            "royale.server.bots.input_delay.ticks",
+            ObserveBotInputDelayTicks,
+            unit: "ticks",
+            description: "Effective delay ticks used to schedule newly generated bot input.");
     private static readonly Histogram<double> TickDuration =
         RoyaleTelemetry.ServerMeter.CreateHistogram<double>(
             "royale.server.tick.duration",
@@ -93,6 +106,9 @@ public sealed class ServerObservability : IDisposable
     private int botPlayers;
     private int livingPlayers;
     private int queuedInputCommands;
+    private double botInputLatencyMilliseconds;
+    private int botInputDelayTicks;
+    private BotInputDelayDiagnostics? lastLoggedBotInputDelay;
     private MatchPhase matchPhase;
     private MatchPhase? lastObservedMatchPhase;
     private bool disposed;
@@ -148,6 +164,22 @@ public sealed class ServerObservability : IDisposable
             addedBots,
             totalBots,
             FormatMatchStartReason(reason));
+    }
+
+    public void BotInputDelaySampled(BotInputDelayDiagnostics diagnostics)
+    {
+        botInputLatencyMilliseconds = diagnostics.AverageOneWayLatencyMilliseconds;
+        botInputDelayTicks = diagnostics.EffectiveDelayTicks;
+
+        if (lastLoggedBotInputDelay == diagnostics)
+            return;
+
+        lastLoggedBotInputDelay = diagnostics;
+        logger.LogInformation(
+            "Bot input delay sampled: sampled_humans {SampledHumanCount}, average_one_way_latency_ms {AverageOneWayLatencyMilliseconds}, effective_delay_ticks {EffectiveDelayTicks}.",
+            diagnostics.SampledHumanCount,
+            diagnostics.AverageOneWayLatencyMilliseconds,
+            diagnostics.EffectiveDelayTicks);
     }
 
     public void PeerConnected(NetworkPeerId peerId, NetworkEndpoint endpoint)
@@ -339,6 +371,18 @@ public sealed class ServerObservability : IDisposable
     {
         lock (InstancesLock)
             return new Measurement<int>(Instances.Sum(instance => instance.queuedInputCommands));
+    }
+
+    private static Measurement<double> ObserveBotInputLatency()
+    {
+        lock (InstancesLock)
+            return new Measurement<double>(Instances.Sum(instance => instance.botInputLatencyMilliseconds));
+    }
+
+    private static Measurement<int> ObserveBotInputDelayTicks()
+    {
+        lock (InstancesLock)
+            return new Measurement<int>(Instances.Sum(instance => instance.botInputDelayTicks));
     }
 
     private static IEnumerable<Measurement<int>> ObserveMatchPhase()

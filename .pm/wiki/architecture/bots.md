@@ -1,24 +1,22 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-10T08:11:16.3141320Z
+modifiedAt: 2026-07-11T06:22:47.5374900Z
 ---
 
 ## Status
 
 `BOT-001` implements explicit server-owned bot participant identity. Human and bot participants share the authoritative player ID allocator, spawn selection and reservations, movement/combat state, health, weapons, match lifecycle storage, snapshots, and living-player accounting.
 
-`BOT-002` implements the deterministic server-owned bot input boundary. A future controller submits `BotInputIntent` movement, yaw, pitch, and button intent through `InProcessServerSession.TrySubmitBotInput` or `NetworkServerRuntime.TrySubmitBotInput`. The session validates intent with `PlayerInputCommandValidation`, assigns a per-bot sequence beginning at `1`, stamps the current authoritative decision tick saturated to `uint.MaxValue`, and retains at most one pending command for the next step.
+`BOT-002` implements the deterministic server-owned bot input boundary. Controllers submit `BotInputIntent` movement, yaw, pitch, and button intent through `InProcessServerSession.TrySubmitBotInput` or `NetworkServerRuntime.TrySubmitBotInput`. The session validates intent with `PlayerInputCommandValidation`, assigns a per-bot sequence beginning at `1`, and stamps the authoritative generation tick saturated to `uint.MaxValue`.
 
-Each authoritative step consumes bot pending commands in ascending player-ID order and combines them with at most one queued human command per client before calling `HeadlessServerSimulation.Step`. Bots therefore use the same movement, look, jump, combat, health, ammunition, and match-phase gates as humans. Missing bot input produces no command, which means neutral movement and released buttons while the existing look orientation remains unchanged.
+`BOT-014` schedules those commands in per-bot delayed FIFOs. Network runtimes derive the delay from current usable human one-way-latency samples; transport-independent callers default to zero. Each authoritative step consumes at most one due bot command in ascending player-ID order and combines it with at most one queued human command per client before calling `HeadlessServerSimulation.Step`. Bots therefore use the same movement, look, jump, combat, health, ammunition, and match-phase gates as humans.
 
-Bots still have no connection ID, network peer, client connection, human input queue, or per-client snapshot queue. Removing a bot clears its pending command and sequencing state. Total and per-player queued-input diagnostics include pending bot commands. Player snapshots expose nullable last-processed input sequence and client/decision tick metadata for every participant, allowing a human recipient to inspect bot processing alongside authoritative transform and combat state.
+Bots still have no connection ID, network peer, client connection, human input queue, or per-client snapshot queue. Removing a bot clears its delayed commands and sequencing state. Total and per-player queued-input diagnostics include the complete delayed backlog. Player snapshots expose nullable last-processed input sequence and decision-tick metadata for every participant.
 
-The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. WattleScript does not expose bot creation or bot input controls. Lobby filling, autonomous decisions, navigation, combat policy, delayed input scheduling, rendering differences, names, UI, and admin commands remain later BOT-track work.
+The automatic BR-002 minimum-player threshold counts humans only. The explicit development/test `ForceStart()` hook accepts any non-empty participant roster, including bot-only matches. WattleScript does not expose bot creation or bot input controls. Autonomous decisions, navigation, combat policy, rendering differences, names, UI, and admin commands remain later BOT-track work.
 
-`BOT-004` implements preparation-period participant takeover. During `Countdown`, each successful human admission converts the lowest-player-ID bot slot in place, preserving player ID, spawn reservation, transform, velocity, look, health, and weapon state while clearing bot input, processed-sequence acknowledgement, and decision-tick metadata. The accepted client receives that preserved player ID and snapshots immediately identify the slot as human.
-
-If that human disconnects during `Countdown`, the same slot converts back to a bot with no connection and fresh bot input sequencing beginning at `1`. During `WaitingForPlayers`, humans are admitted only below the configured target. A full-human `Countdown` and every phase from `Playing` through `Resetting` reject new connections; no replacement bot is introduced after `Playing` begins.
+`BOT-004` implements preparation-period participant takeover. During `Countdown`, each successful human admission converts the lowest-player-ID bot slot in place, preserving player ID, spawn reservation, transform, velocity, look, health, and weapon state while clearing delayed bot input, processed-sequence acknowledgement, and decision-tick metadata. If that human disconnects during `Countdown`, the same slot converts back to a bot with fresh sequencing beginning at `1`. During `WaitingForPlayers`, humans are admitted only below the configured target. A full-human `Countdown` and every phase from `Playing` through `Resetting` reject new connections; no replacement bot is introduced after `Playing` begins.
 
 ## Purpose
 
@@ -51,11 +49,15 @@ A bot-only match is valid when no humans connect before the waiting timeout.
 
 ## Input Delay Fairness
 
-Bots should not receive a zero-latency reaction advantage merely because their controllers run inside the authoritative server.
+Bots do not receive a zero-latency reaction advantage merely because their controllers run inside the authoritative server.
 
-`BOT-002` intentionally processes one validated pending bot command on the next authoritative step without added delay. It establishes the sequence and decision-tick metadata that delayed scheduling will build on; it does not sample latency or create fake network peers.
+`BOT-014` samples `INetworkTransportDiagnostics` whenever `NetworkServerRuntime.TrySubmitBotInput` generates a command. The sample includes only currently accepted, connected human peers with available non-negative one-way latency. It uses the arithmetic mean of those samples and rounds up to 60 Hz simulation ticks. A bot-only session, a transport without diagnostics, or a set with no usable samples produces zero added delay. `BotInputDelayDiagnostics` exposes the latest sampled-human count, average one-way latency in milliseconds, and effective delay ticks through the runtime.
 
-`BOT-014` will replace this immediate pending slot with scheduled delayed processing. For each newly generated bot input command, the planned scheduler computes the arithmetic mean of the latest one-way latency samples for currently connected human peers, rounds that duration up to whole 60 Hz simulation ticks, and retains the command until its scheduled authoritative processing tick. Bots and disconnected peers are excluded, and a bot-only match uses zero added delay. Changes in population or samples affect newly generated commands only.
+`InProcessServerSession.TrySubmitBotInput` accepts an explicit non-negative delay in ticks and defaults it to zero for transport-independent callers. Each bot may add at most one validated command per authoritative decision tick. The command retains its generation tick as `ClientTick`, receives the normal per-bot sequence, and enters a per-bot FIFO with a fixed scheduled processing tick. Zero delay retains next-step processing. Already queued commands are never rescheduled when latency or peer membership changes.
+
+Scheduled ticks are monotonic within each bot FIFO, so a newer command cannot pass an older command when sampled latency falls. Each authoritative simulation step visits bots in ascending player-ID order and consumes at most one due command per bot. Full delayed queue depth is included in aggregate and per-player diagnostics; bot removal, preparation-period human takeover, disconnect conversion, and session disposal clear or recreate the relevant queue and sequencing state.
+
+OpenTelemetry exposes aggregate `royale.server.bots.input_delay.latency` and `royale.server.bots.input_delay.ticks` gauges without per-player labels. Structured diagnostics emit the same sampled-human count, latency, and delay-tick values only when the aggregate sample changes.
 
 ## Bot Gameplay Scope
 

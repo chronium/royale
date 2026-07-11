@@ -139,6 +139,36 @@ public sealed class ServerObservabilityTests
         Assert.Equal(1, metrics.Latest("royale.server.inputs.queue_depth"));
     }
 
+    [Fact]
+    public void BotInputDelayGaugesAndStructuredLogExposeAggregateSample()
+    {
+        using MetricRecorder metrics = new(
+            "royale.server.bots.input_delay.latency",
+            "royale.server.bots.input_delay.ticks");
+        CapturingLoggerProvider provider = new();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        using ServerObservability observability = new(loggerFactory);
+        var diagnostics = new BotInputDelayDiagnostics(
+            SampledHumanCount: 2,
+            AverageOneWayLatencyMilliseconds: 17.5d,
+            EffectiveDelayTicks: 2);
+
+        observability.BotInputDelaySampled(diagnostics);
+        observability.BotInputDelaySampled(diagnostics);
+        metrics.CollectObservable();
+
+        Assert.Equal(17.5d, metrics.Latest("royale.server.bots.input_delay.latency"));
+        Assert.Equal(2, metrics.Latest("royale.server.bots.input_delay.ticks"));
+        LogEntry entry = Assert.Single(
+            provider.Entries,
+            candidate => candidate.Message.StartsWith("Bot input delay sampled", StringComparison.Ordinal));
+        Assert.Equal(2, entry.Properties["SampledHumanCount"]);
+        Assert.Equal(17.5d, entry.Properties["AverageOneWayLatencyMilliseconds"]);
+        Assert.Equal(2, entry.Properties["EffectiveDelayTicks"]);
+        Assert.DoesNotContain("PlayerId", entry.Properties.Keys);
+        Assert.DoesNotContain("PeerId", entry.Properties.Keys);
+    }
+
     [Theory]
     [InlineData(MatchPhase.WaitingForPlayers, "waiting_for_players")]
     [InlineData(MatchPhase.Countdown, "countdown")]

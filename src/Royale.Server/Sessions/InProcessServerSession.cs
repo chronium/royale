@@ -47,7 +47,7 @@ public sealed class InProcessServerSession : IDisposable
 
     public int QueuedInputCommandCount =>
         clients.Values.Sum(client => client.InputCommands.Count) +
-        botInputs.Values.Count(input => input.PendingCommand.HasValue);
+        botInputs.Values.Sum(input => input.Commands.Count);
 
     public bool IsDisposed => disposed;
 
@@ -79,9 +79,8 @@ public sealed class InProcessServerSession : IDisposable
                     player.ConnectionId ?? default,
                     out InProcessClientState? client)
                     ? client.InputCommands.Count
-                    : botInputs.TryGetValue(player.PlayerId, out BotInputState? botInput) &&
-                        botInput.PendingCommand.HasValue
-                        ? 1
+                    : botInputs.TryGetValue(player.PlayerId, out BotInputState? botInput)
+                        ? botInput.Commands.Count
                         : 0))
             .ToArray();
     }
@@ -175,15 +174,21 @@ public sealed class InProcessServerSession : IDisposable
         return removed;
     }
 
-    public bool TrySubmitBotInput(ServerPlayerId playerId, BotInputIntent intent)
+    public bool TrySubmitBotInput(
+        ServerPlayerId playerId,
+        BotInputIntent intent,
+        int delayTicks = 0)
     {
         ThrowIfDisposed();
+
+        if (delayTicks < 0)
+            throw new ArgumentOutOfRangeException(nameof(delayTicks), delayTicks, "Bot input delay must be non-negative.");
 
         if (!simulation.TryGetPlayer(playerId, out AuthoritativePlayerState? player) ||
             player is null ||
             player.Kind != ServerPlayerKind.Bot ||
             !botInputs.TryGetValue(playerId, out BotInputState? inputState) ||
-            inputState.PendingCommand.HasValue)
+            inputState.LastGenerationTick == CurrentTick)
         {
             return false;
         }
@@ -199,11 +204,20 @@ public sealed class InProcessServerSession : IDisposable
         if (!PlayerInputCommandValidation.IsValid(validationCommand))
             return false;
 
-        inputState.PendingCommand = validationCommand with
+        PlayerInputCommand command = validationCommand with
         {
             Sequence = inputState.NextSequence,
             ClientTick = CurrentTick >= uint.MaxValue ? uint.MaxValue : (uint)CurrentTick,
         };
+        ulong nominalScheduledTick = (ulong)delayTicks > ulong.MaxValue - CurrentTick
+            ? ulong.MaxValue
+            : CurrentTick + (ulong)delayTicks;
+        ulong scheduledTick = inputState.Commands.Count > 0
+            ? Math.Max(nominalScheduledTick, inputState.LastScheduledTick)
+            : nominalScheduledTick;
+        inputState.Commands.Enqueue(new ScheduledBotInput(command, scheduledTick));
+        inputState.LastGenerationTick = CurrentTick;
+        inputState.LastScheduledTick = scheduledTick;
         inputState.NextSequence = unchecked(inputState.NextSequence + 1);
         return true;
     }
@@ -265,10 +279,11 @@ public sealed class InProcessServerSession : IDisposable
         foreach ((ServerPlayerId playerId, BotInputState inputState) in
             botInputs.OrderBy(pair => pair.Key.Value))
         {
-            if (inputState.PendingCommand is PlayerInputCommand command)
+            if (inputState.Commands.TryPeek(out ScheduledBotInput scheduled) &&
+                scheduled.ScheduledTick <= CurrentTick)
             {
-                inputCommands[playerId] = command;
-                inputState.PendingCommand = null;
+                inputCommands[playerId] = scheduled.Command;
+                inputState.Commands.Dequeue();
             }
         }
 
@@ -395,8 +410,16 @@ public sealed class InProcessServerSession : IDisposable
     {
         public uint NextSequence { get; set; } = 1;
 
-        public PlayerInputCommand? PendingCommand { get; set; }
+        public ulong? LastGenerationTick { get; set; }
+
+        public ulong LastScheduledTick { get; set; }
+
+        public Queue<ScheduledBotInput> Commands { get; } = [];
     }
+
+    private readonly record struct ScheduledBotInput(
+        PlayerInputCommand Command,
+        ulong ScheduledTick);
 }
 
 public readonly record struct InProcessClientConnection(

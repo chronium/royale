@@ -14,6 +14,7 @@ using Royale.Server.Match;
 using Royale.Server.Observability;
 using Royale.Server.Sessions;
 using Royale.Server.Simulation;
+using Royale.Simulation.World;
 
 namespace Royale.Server.Networking;
 
@@ -26,6 +27,7 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
     private readonly ServerSnapshotSender snapshotSender;
     private readonly ServerObservability? observability;
     private readonly Dictionary<NetworkPeerId, InProcessClientConnection> peerConnections = [];
+    private BotInputDelayDiagnostics botInputDelayDiagnostics;
     private bool disposed;
 
     public NetworkServerRuntime(
@@ -61,6 +63,8 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
     public MatchStartSettings MatchStartSettings => session.MatchStartSettings;
 
     public IReadOnlyDictionary<NetworkPeerId, ServerAccept> AcceptedPeers => handshakeServer.AcceptedPeers;
+
+    public BotInputDelayDiagnostics BotInputDelayDiagnostics => botInputDelayDiagnostics;
 
     public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates()
     {
@@ -139,7 +143,12 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
     public bool TrySubmitBotInput(ServerPlayerId playerId, BotInputIntent intent)
     {
         ThrowIfDisposed();
-        bool submitted = session.TrySubmitBotInput(playerId, intent);
+        botInputDelayDiagnostics = SampleBotInputDelay();
+        observability?.BotInputDelaySampled(botInputDelayDiagnostics);
+        bool submitted = session.TrySubmitBotInput(
+            playerId,
+            intent,
+            botInputDelayDiagnostics.EffectiveDelayTicks);
         UpdateObservabilityState();
         return submitted;
     }
@@ -273,6 +282,35 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
         int addedBots = session.BotPlayerCount - previousBotCount;
         if (addedBots > 0 && session.LastMatchStartReason is MatchStartReason reason)
             observability?.LobbyFilledWithBots(addedBots, session.BotPlayerCount, reason);
+    }
+
+    private BotInputDelayDiagnostics SampleBotInputDelay()
+    {
+        if (transport is not INetworkTransportDiagnostics diagnostics)
+            return default;
+
+        long latencyTotalMilliseconds = 0;
+        int sampledHumanCount = 0;
+        foreach (NetworkPeerId peerId in peerConnections.Keys.OrderBy(peer => peer.Value))
+        {
+            if (!handshakeServer.AcceptedPeers.ContainsKey(peerId) ||
+                !diagnostics.TryGetPeerStatistics(peerId, out NetworkPeerStatistics statistics) ||
+                statistics.OneWayLatencyMilliseconds < 0)
+            {
+                continue;
+            }
+
+            latencyTotalMilliseconds += statistics.OneWayLatencyMilliseconds;
+            sampledHumanCount++;
+        }
+
+        if (sampledHumanCount == 0)
+            return default;
+
+        double averageMilliseconds = latencyTotalMilliseconds / (double)sampledHumanCount;
+        int delayTicks = (int)Math.Ceiling(
+            averageMilliseconds * SimulationSettings.TickRateHz / 1000.0d);
+        return new BotInputDelayDiagnostics(sampledHumanCount, averageMilliseconds, delayTicks);
     }
 
     private Dictionary<ServerPlayerId, int> CreatePeerIdsByPlayerId() =>

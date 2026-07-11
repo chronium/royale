@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-11T08:24:16.1443230Z
+modifiedAt: 2026-07-11T13:09:10.8997730Z
 ---
 
 ## Content and Map Data
@@ -168,6 +168,12 @@ Run inside Blender with `--validate-only` to check the complete scene contract w
 The Blender source defines a two-storey open compound, three courtyard gates, interior and exterior stair routes, solid window sills with shoot-through apertures, perimeter boundaries, exterior cover, 12 spawns, 12 loot points, and a connected waypoint graph. Server startup validates every navigation link in both directions with the standing controller. Static-content validation accepts maps containing at least one static box or static model.
 
 The editable source and reproducible generator live under `assets/meshes/courtyard-compound/`. Blender remains authoring-only; normal .NET builds consume the committed GLBs and generated map JSON.
+
+#### Validation Status
+
+Owner validation found that `courtyard-compound` does not meet the quality bar for a finished gameplay arena. The reusable export path, committed assets, map loading, collision cooking, spawn handling, and navigation validation remain technically useful, but repeated Blender MCP-driven geometry correction left clipping and broader level-quality problems while requiring excessive iteration.
+
+Treat this map as an experimental pipeline and automated-validation fixture. `graybox` remains the default and `prototype-arena` remains the established authored combat arena. Any future courtyard redesign or replacement is tracked by `DEBT-008` and must use human-led level design; Blender MCP procedural generation is not the primary map-authoring workflow.
 
 ## Rendering Architecture
 

@@ -3,8 +3,15 @@ using Evergine.Bindings.Imgui;
 using Evergine.Mathematics;
 using Royale.Client.Gameplay;
 using Royale.Client.Platform;
-using Royale.Network;
-using Royale.Protocol;
+using Royale.Network.Handshake;
+using Royale.Network.Input;
+using Royale.Network.Simulation;
+using Royale.Network.Snapshots;
+using Royale.Network.Transport;
+using Royale.Protocol.Framing;
+using Royale.Protocol.Handshake;
+using Royale.Protocol.Input;
+using Royale.Protocol.Snapshots;
 using SDL;
 
 namespace Royale.Client.UI;

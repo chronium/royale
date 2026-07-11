@@ -1,5 +1,9 @@
 using System.Net.Sockets;
-using Royale.Network;
+using Royale.Network.Handshake;
+using Royale.Network.Input;
+using Royale.Network.Simulation;
+using Royale.Network.Snapshots;
+using Royale.Network.Transport;
 
 namespace Royale.Client.Networking;
 

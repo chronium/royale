@@ -1,4 +1,7 @@
 using Royale.Content;
+using Royale.Content.Maps;
+using Royale.Content.Models;
+using Royale.Content.Weapons;
 using Royale.Simulation.World;
 
 namespace Royale.Simulation.Combat;

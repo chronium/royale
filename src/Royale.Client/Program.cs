@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Royale.Client.Launch;
 using Royale.Client.Platform;
-using Royale.Diagnostics;
+using Royale.Diagnostics.Logging;
+using Royale.Diagnostics.Telemetry;
 using ZLogger;
 
 using ILoggerFactory loggerFactory = RoyaleLogging.CreateConsoleLoggerFactory(LogLevel.Information);

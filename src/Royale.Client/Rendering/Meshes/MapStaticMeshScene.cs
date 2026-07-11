@@ -1,5 +1,8 @@
 using System.Numerics;
 using Royale.Content;
+using Royale.Content.Maps;
+using Royale.Content.Models;
+using Royale.Content.Weapons;
 
 namespace Royale.Client.Rendering.Meshes;
 

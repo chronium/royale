@@ -1,5 +1,5 @@
 using System.Numerics;
-using Royale.Box3D.Bindings;
+using Royale.Box3D.Bindings.Interop;
 
 namespace Royale.Simulation.World;
 

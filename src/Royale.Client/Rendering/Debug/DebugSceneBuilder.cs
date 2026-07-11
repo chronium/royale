@@ -1,7 +1,13 @@
 using System.Numerics;
 using Royale.Client.Gameplay;
 using Royale.Content;
-using Royale.Protocol;
+using Royale.Content.Maps;
+using Royale.Content.Models;
+using Royale.Content.Weapons;
+using Royale.Protocol.Framing;
+using Royale.Protocol.Handshake;
+using Royale.Protocol.Input;
+using Royale.Protocol.Snapshots;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;

@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Royale.Box3D.Bindings;
+using Royale.Box3D.Bindings.Interop;
 using Royale.Simulation.Combat;
 using Royale.Simulation.Debug;
 using Royale.Simulation.Movement;

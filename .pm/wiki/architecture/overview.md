@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 createdAt: 2026-07-05T07:34:45.0706070Z
-modifiedAt: 2026-07-06T17:38:18.2417530Z
+modifiedAt: 2026-07-11T05:36:30.3934170Z
 ---
 
 ## Overview
@@ -41,62 +41,51 @@ The architecture should not optimize for arbitrary games, editor extensibility, 
 
 ## Solution Structure
 
-The current solution layout is:
+The source tree uses project boundaries for deployment/dependency ownership and domain folders with matching namespaces inside projects. Folder names and namespace suffixes should remain aligned. Cross-domain references use explicit file-level `using` directives; project-wide global usings are intentionally avoided.
 
 ```text
 src/
   Royale.Client/
-    Gameplay/        client-owned offline gameplay fixtures and feedback
-    Input/           input state and input-to-game command mapping
-    Launch/          client command-line options
-    Platform/        SDL application, window, GPU device, and mouse-mode glue
-    Presentation/    client camera mode and render-view mode controllers
+    Gameplay/ Input/ Launch/ Networking/ Platform/ Presentation/
     Rendering/
-      Cameras/       render cameras, free camera, and gameplay camera view math
-      Debug/         debug primitive lists, debug scene building, and line rendering
-      Meshes/        static mesh geometry, instances, draw constants, and renderer
-      Screenshots/   BMP screenshot writing
-      Shaders/       shader asset selection helpers
-      Text/          Blurg text rendering, screen text, and world text billboards
-    Shaders/         HLSL shader sources compiled by the client build
-    Timing/          fixed-update accumulator
-    UI/              ImGui backend and diagnostics state
+      Cameras/ Debug/ Meshes/ Screenshots/ Shaders/ Text/
+    Timing/ UI/
   Royale.Server/
+    Bots/ Launch/ Match/ Networking/ Observability/ Sessions/ Simulation/
   Royale.Simulation/
-    Combat/          health, damage, weapon fire, hitscan rays, and hit resolution
-    Debug/           simulation-side debug geometry descriptions
-    Movement/        player input samples, look state, view settings, and character controller
-    World/           simulation settings, map collision, spawn selection, and static world queries
+    Combat/ Debug/ Movement/ World/
   Royale.Protocol/
+    Framing/ Handshake/ Input/ Snapshots/
+  Royale.Network/
+    Handshake/ Input/ Simulation/ Snapshots/ Transport/
   Royale.Content/
+    Maps/ Models/ Weapons/
   Royale.Diagnostics/
-  Royale.Native/
+    Logging/ Telemetry/
   Royale.Box3D.Bindings/
+    Interop/
   Royale.Box3D/
+    Bodies/ Geometry/ Runtime/ Worlds/
+  Royale.Native/
+
+tools/
+  Royale.AssetPipeline/
+    Collision/ Processing/
 
 tests/
-  Royale.Client.Tests/
-  Royale.Server.Tests/
-  Royale.Simulation.Tests/
-  Royale.Protocol.Tests/
-  Royale.Content.Tests/
-  Royale.Diagnostics.Tests/
-  Royale.Native.Tests/
-  Royale.Box3D.Tests/
+  <Project>.Tests/
+    domain folders mirroring the production project
+    Infrastructure/ for shared native fixtures where required
 
 thirdparty/
-  repos/             ignored fetched source dependencies
-  patches/           committed project-specific dependency patches
-  artifacts/         ignored generated native artifacts
+  repos/ patches/ artifacts/
 ```
 
-`Royale.Client.Platform` should stay focused on SDL/platform boundaries. Client presentation concerns such as input mapping, launch parsing, fixed timing, camera/render mode control, ImGui diagnostics, rendering, and screenshots live in their own folders and namespaces.
+Executable `Program.cs` files remain at project roots. A small root-level facade such as `ContentCatalog` may remain when it genuinely spans multiple content domains. Single-purpose projects are not split into arbitrary one-file folders.
 
-`Royale.Client.Rendering` is split by rendering responsibility. Shared mode enums can remain at the rendering root, while cameras, debug drawing, meshes, shader helpers, screenshots, and text rendering stay in focused subnamespaces.
+The client and simulation retain their established responsibility splits. Protocol separates wire framing, handshake messages, player input, and snapshots. Network separates transport concerns from handshake, input, snapshots, and impairment simulation. Server separates runtime authority, sessions, networking, match rules, bots, launch policy, and observability. Tests mirror these domains so feature tests and shared infrastructure are not accumulated in project roots.
 
-`Royale.Simulation` is split by gameplay domain. Combat, movement, world/collision, and simulation debug helpers should remain independent of client presentation code.
-
-Projects should be split when there is a meaningful dependency, testing, or deployment boundary, not merely to create a theoretically clean hierarchy.
+Projects should still be split only for meaningful dependency, testing, or deployment boundaries. Domain folders are an internal navigation tool and must not be used to introduce new assembly dependencies or weaken server authority.
 
 ## Dependency Direction
 

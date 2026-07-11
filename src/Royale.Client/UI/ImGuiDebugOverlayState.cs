@@ -6,8 +6,15 @@ using Royale.Client.Rendering.Screenshots;
 using Royale.Client.Rendering.Text;
 using Royale.Client.Gameplay;
 using Royale.Client.Networking;
-using Royale.Network;
-using Royale.Protocol;
+using Royale.Network.Handshake;
+using Royale.Network.Input;
+using Royale.Network.Simulation;
+using Royale.Network.Snapshots;
+using Royale.Network.Transport;
+using Royale.Protocol.Framing;
+using Royale.Protocol.Handshake;
+using Royale.Protocol.Input;
+using Royale.Protocol.Snapshots;
 
 namespace Royale.Client.UI;
 

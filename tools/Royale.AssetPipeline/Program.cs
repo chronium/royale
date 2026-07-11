@@ -1,4 +1,4 @@
-using Royale.AssetPipeline;
+using Royale.AssetPipeline.Processing;
 
 try
 {

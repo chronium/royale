@@ -1,4 +1,7 @@
-using Royale.Protocol;
+using Royale.Protocol.Framing;
+using Royale.Protocol.Handshake;
+using Royale.Protocol.Input;
+using Royale.Protocol.Snapshots;
 
 namespace Royale.Client.Networking;
 

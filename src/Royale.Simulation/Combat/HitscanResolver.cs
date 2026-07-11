@@ -1,6 +1,9 @@
 using System.Numerics;
-using Royale.Box3D.Bindings;
+using Royale.Box3D.Bindings.Interop;
 using Royale.Content;
+using Royale.Content.Maps;
+using Royale.Content.Models;
+using Royale.Content.Weapons;
 using Royale.Simulation.Movement;
 using Royale.Simulation.World;
 

@@ -1,7 +1,10 @@
 using System.Numerics;
 using Royale.Client.Networking;
 using Royale.Client.Rendering.Cameras;
-using Royale.Protocol;
+using Royale.Protocol.Framing;
+using Royale.Protocol.Handshake;
+using Royale.Protocol.Input;
+using Royale.Protocol.Snapshots;
 using Royale.Simulation.Movement;
 
 namespace Royale.Client.Presentation;

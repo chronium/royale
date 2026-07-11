@@ -5,7 +5,13 @@ using System.Text.Json.Serialization;
 using Royale.Client.Presentation;
 using Royale.Client.Rendering;
 using Royale.Content;
-using Royale.Protocol;
+using Royale.Content.Maps;
+using Royale.Content.Models;
+using Royale.Content.Weapons;
+using Royale.Protocol.Framing;
+using Royale.Protocol.Handshake;
+using Royale.Protocol.Input;
+using Royale.Protocol.Snapshots;
 
 namespace Royale.Client.Launch;
 

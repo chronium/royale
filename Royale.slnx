@@ -24,6 +24,7 @@
     <Project Path="tests/Royale.Network.Tests/Royale.Network.Tests.csproj" />
     <Project Path="tests/Royale.Platform.Tests/Royale.Platform.Tests.csproj" />
     <Project Path="tests/Royale.Protocol.Tests/Royale.Protocol.Tests.csproj" />
+    <Project Path="tests/Royale.Rendering.GpuHarness/Royale.Rendering.GpuHarness.csproj" />
     <Project Path="tests/Royale.Rendering.Tests/Royale.Rendering.Tests.csproj" />
     <Project Path="tests/Royale.Server.Tests/Royale.Server.Tests.csproj" />
     <Project Path="tests/Royale.Simulation.Tests/Royale.Simulation.Tests.csproj" />

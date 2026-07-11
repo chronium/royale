@@ -1,74 +1,52 @@
-using System.Numerics;
-using Royale.Platform.Desktop;
-using Royale.Rendering.Cameras;
-using Royale.Rendering.Meshes;
-using Royale.Rendering.Platform;
-using SDL;
+using System.Diagnostics;
 
 namespace Royale.Rendering.Tests.Platform;
 
 public sealed class SdlGpuIntegrationTests
 {
     [Fact]
-    public void HiddenWindowRendersAndResizesOffscreenTargetWhenEnabled()
+    public async Task StandaloneHarnessRendersAndResizesOffscreenTargetWhenEnabled()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("ROYALE_GPU_TESTS"), "1", StringComparison.Ordinal))
             return;
 
-        using var host = new SdlDesktopHost(
-            new SdlWindowSettings("Royale GPU test", 64, 64, SDL_WindowFlags.SDL_WINDOW_HIDDEN),
-            new SdlLoopSettings(1.0 / 60.0, 1, 0));
-        var application = new OffscreenTestApplication();
-        host.Run(application);
-        application.Dispose();
-    }
-
-    private sealed class OffscreenTestApplication : ISdlDesktopApplication, IDisposable
-    {
-        private SdlDesktopHost? host;
-        private SdlGpuDevice? device;
-        private SdlGpuOffscreenTarget? target;
-        private int frame;
-
-        public void Initialize(SdlDesktopHost initializedHost)
+        string harnessPath = Path.Combine(AppContext.BaseDirectory, "gpu-harness", "Royale.Rendering.GpuHarness.dll");
+        Assert.True(File.Exists(harnessPath), $"GPU harness was not packaged at '{harnessPath}'.");
+        using var process = new Process
         {
-            host = initializedHost;
-            device = SdlGpuDevice.Create(initializedHost.Window!);
-            target = device.CreateOffscreenTarget(32, 24);
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                ArgumentList = { harnessPath },
+                WorkingDirectory = Path.GetDirectoryName(harnessPath)!,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+
+        Assert.True(process.Start(), "GPU harness process did not start.");
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            string timedOutStdout = await stdoutTask;
+            string timedOutStderr = await stderrTask;
+            Assert.Fail($"GPU harness exceeded 30 seconds.\nstdout:\n{timedOutStdout}\nstderr:\n{timedOutStderr}");
         }
 
-        public void Render(SdlFrameTime time)
-        {
-            int expectedWidth = frame == 0 ? 32 : 17;
-            int expectedHeight = frame == 0 ? 24 : 13;
-            if (frame == 1)
-                target!.Resize(expectedWidth, expectedHeight);
-
-            var scene = new StaticMeshScene([new StaticMeshInstance(Matrix4x4.Identity)], []);
-            var renderFrame = new RenderFrame(
-                new RenderCamera(new Vector3(0.0f, 0.0f, 3.0f), MathF.PI, 0.0f),
-                scene,
-                RenderViewMode.Normal,
-                ClearColor: new SDL_FColor { r = 0.2f, g = 0.1f, b = 0.05f, a = 1.0f });
-            GpuImageReadback image = device!.RenderOffscreen(target!, renderFrame, readback: true)!;
-
-            Assert.Equal(expectedWidth, image.Width);
-            Assert.Equal(expectedHeight, image.Height);
-            Assert.Contains(image.RgbaBytes, value => value != 0);
-
-            frame++;
-            if (frame == 2)
-                host!.RequestExit();
-        }
-
-        public void ProcessEvent(in SDL_Event sdlEvent) { }
-        public void Update(SdlFrameTime time) { }
-        public void FixedUpdate(SdlFixedTickTime time) { }
-
-        public void Dispose()
-        {
-            target?.Dispose();
-            device?.Dispose();
-        }
+        string stdout = await stdoutTask;
+        string stderr = await stderrTask;
+        Assert.True(process.ExitCode == 0, $"GPU harness exited with code {process.ExitCode}.\nstdout:\n{stdout}\nstderr:\n{stderr}");
+        Assert.Contains("GPU_HARNESS_SUCCESS", stdout, StringComparison.Ordinal);
     }
 }

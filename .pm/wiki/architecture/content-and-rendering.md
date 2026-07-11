@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-11T13:09:10.8997730Z
+modifiedAt: 2026-07-11T20:07:29.5530310Z
 ---
 
 ## Content and Map Data
@@ -266,6 +266,14 @@ Client shader sources live under `src/Royale.Client/Shaders/` as HLSL files usin
 The client build requires `shadercross` to be available on `PATH`. After `Royale.Client` builds, MSBuild compiles each shader source to SPIR-V (`.spv`) and Metal (`.msl`) under the client output `shaders/` directory, preserving recursive shader folders. The original HLSL source is also copied to the same output tree for Direct3D/DXIL-facing development until a specific DXIL output flow is chosen.
 
 `SDL_shadercross` is not vendored through `thirdparty`; it is treated as an external local build tool dependency.
+
+## macOS SDL GPU Integration Validation
+
+`tests/Royale.Rendering.GpuHarness` is the supported macOS ARM64 integration path for SDL GPU lifecycle and offscreen rendering. Cocoa video initialization, the hidden SDL window, GPU device, targets, rendering, readback, and disposal all execute in a standalone process whose entry thread runs `SdlDesktopHost`; xUnit worker threads must not initialize the Cocoa backend and must not use `SDL_RunOnMainThread` as a substitute for an SDL main-thread event loop.
+
+The harness renders an indexed unit box to a 128×96 offscreen target, validates normalized opaque RGBA readback against a distinctive clear color, resizes the same target to 79×61, and repeats. Its output packages the macOS ARM64 SDL, ImGui, and Blurg native libraries plus Rendering-owned HLSL, MSL, and SPIR-V shaders in the same runtime layout as graphical consumers.
+
+Run the built harness directly with `dotnet tests/Royale.Rendering.GpuHarness/bin/Debug/net10.0/Royale.Rendering.GpuHarness.dll`. The environment-gated `SdlGpuIntegrationTests` wrapper executes the packaged DLL from the Rendering test output when `ROYALE_GPU_TESTS=1`, captures both output streams, enforces a 30-second timeout, kills the process tree on timeout, and requires both exit code zero and `GPU_HARNESS_SUCCESS`. Without the environment variable, the wrapper does not touch SDL.
 
 ## Render Sequence
 

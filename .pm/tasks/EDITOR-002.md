@@ -7,7 +7,7 @@ priority: high
 dependsOn:
 - EDITOR-001
 createdAt: 2026-07-11T18:46:38.2166210Z
-modifiedAt: 2026-07-11T19:50:51.4867370Z
+modifiedAt: 2026-07-11T19:52:26.5301100Z
 ---
 
 Share SDL GPU device management, swapchain and offscreen render targets, cameras, mesh and material resources, debug primitives, ImGui SDL3_GPU integration, GPU readback, and screenshots without introducing a general-purpose scene engine.
@@ -22,3 +22,4 @@ Share SDL GPU device management, swapchain and offscreen render targets, cameras
 
   Owner validation is still required for world rendering, debug modes, ImGui interaction/capture, text, resizing, screenshot behavior, and overall visual parity. Task remains doing until that validation and the gated offscreen native evidence are resolved.
 - 2026-07-11 19:50 UTC - Final post-packaging full solution test run passed: `dotnet test Royale.slnx -m:1 --no-restore --no-build` completed with every project green, including Royale.Client.Tests 244/244 and Royale.Rendering.Tests 73/73.
+- 2026-07-11 19:52 UTC - Owner visually validated the spawned development client on 2026-07-11 and reported that it looks fine. This satisfies the requested human validation for the current world rendering, debug presentation, ImGui, text, and overall visual parity. The remaining completion item is native execution of the environment-gated offscreen resize/readback test in a main-thread graphical host; xUnit testhost cannot initialize Cocoa in the current environment.

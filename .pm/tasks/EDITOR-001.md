@@ -5,7 +5,7 @@ track: EDITOR
 milestone: M6
 priority: high
 createdAt: 2026-07-11T18:46:37.9511440Z
-modifiedAt: 2026-07-11T19:04:20.0794980Z
+modifiedAt: 2026-07-11T19:09:23.1313490Z
 ---
 
 Move reusable SDL window, event, timing, input plumbing, and desktop application lifecycle behavior out of Royale.Client while preserving client behavior and keeping graphical dependencies out of the server.
@@ -19,3 +19,4 @@ Move reusable SDL window, event, timing, input plumbing, and desktop application
   Wiki: updated architecture/editor with the implemented callback lifecycle and architecture/overview with solution/dependency boundaries.
 
   Owner validation remains required for hands-on window resizing, relative-mouse/input behavior, and platform feel. Task remains doing until that validation is confirmed.
+- 2026-07-11 19:09 UTC - Owner validation completed on 2026-07-11. The owner confirmed the client checks out after hands-on use, covering the required SDL windowing, input, timing, lifecycle, rendering, and shutdown validation. They specifically noted that running around in wireframe mode was fun. No remaining EDITOR-001 blocker.

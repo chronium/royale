@@ -157,16 +157,17 @@ for level_y in (1.55, 4.75):
     for x in (-13.825, 13.825):
         for z, length in ((-18.0, 4.0), (-13.0, 3.2), (-8.0, 3.2), (-3.0, 2.0)):
             cube(f"building.wall.{x}.{level_y}.{z}", (x, level_y, z), (wall_t, 3.1, length), plaster)
-        for z in (-15.4, -10.4, -5.4):
-            cube(f"building.sill.{x}.{level_y}.{z}", (x, level_y - 1.1, z), (wall_t, 0.9, 1.2), red)
-            cube(f"building.window-head.{x}.{level_y}.{z}", (x, level_y + 1.25, z), (wall_t, 0.6, 1.2), plaster)
+        for z, length in ((-15.3, 1.4), (-10.5, 1.8), (-5.2, 2.4)):
+            cube(f"building.sill.{x}.{level_y}.{z}", (x, level_y - 1.1, z), (wall_t, 0.9, length), red)
+            cube(f"building.window-head.{x}.{level_y}.{z}", (x, level_y + 1.25, z), (wall_t, 0.6, length), plaster)
     # North wall with windows and an exterior-stair upper doorway at east.
     north_segments = ((-11.0, 6.0), (-4.5, 3.0), (1.0, 6.0), (9.5, 5.0)) if level_y < 3 else ((-11.0, 6.0), (-4.5, 3.0), (1.0, 6.0))
     for x, width in north_segments:
         cube(f"building.north.{level_y}.{x}", (x, level_y, -19.825), (width, 3.1, wall_t), plaster)
-    for x in (-7.0, 5.0):
-        cube(f"building.north-sill.{level_y}.{x}", (x, level_y - 1.1, -19.825), (2.0, 0.9, wall_t), red)
-        cube(f"building.north-head.{level_y}.{x}", (x, level_y + 1.25, -19.825), (2.0, 0.6, wall_t), plaster)
+    north_windows = ((-7.0, 2.0), (5.5, 3.0)) if level_y < 3 else ((-7.0, 2.0),)
+    for x, width in north_windows:
+        cube(f"building.north-sill.{level_y}.{x}", (x, level_y - 1.1, -19.825), (width, 0.9, wall_t), red)
+        cube(f"building.north-head.{level_y}.{x}", (x, level_y + 1.25, -19.825), (width, 0.6, wall_t), plaster)
     # South facade: three wide, permanently open entrances on ground; windows above.
     if level_y < 3:
         for x, width in ((-11.0, 6.0), (-4.0, 4.0), (4.0, 4.0), (11.0, 6.0)):
@@ -176,9 +177,9 @@ for level_y in (1.55, 4.75):
     else:
         for x, width in ((-11.0, 5.0), (-5.0, 3.0), (0.0, 5.0), (6.0, 3.0), (11.5, 5.0)):
             cube(f"building.south-upper.{x}", (x, level_y, -2.175), (width, 3.1, wall_t), plaster)
-        for x in (-7.0, 3.5):
-            cube(f"building.south-upper-sill.{x}", (x, level_y - 1.1, -2.175), (2.0, 0.9, wall_t), red)
-            cube(f"building.south-upper-head.{x}", (x, level_y + 1.25, -2.175), (2.0, 0.6, wall_t), plaster)
+        for x, width in ((-7.5, 2.0), (3.5, 2.0), (8.25, 1.5)):
+            cube(f"building.south-upper-sill.{x}", (x, level_y - 1.1, -2.175), (width, 0.9, wall_t), red)
+            cube(f"building.south-upper-head.{x}", (x, level_y + 1.25, -2.175), (width, 0.6, wall_t), plaster)
 
 # Interior hall/rooms with open doorway gaps and standing clearance.
 for x in (-5.0, 5.0):

@@ -1,7 +1,7 @@
 ---
 title: Bot Architecture
 createdAt: 2026-07-10T05:21:34.8623220Z
-modifiedAt: 2026-07-11T06:22:47.5374900Z
+modifiedAt: 2026-07-11T06:27:14.5916460Z
 ---
 
 ## Status
@@ -75,6 +75,12 @@ The full MVP bot path includes:
 * Deterministic WattleScript scenarios
 
 The concrete navigation representation, perception ranges, target-selection policy, reaction timing, and accuracy tuning are intentionally undecided. Agents must ask the project owner before making those gameplay contracts.
+
+### Navigation Direction
+
+For the MVP, maps own a small explicitly authored waypoint graph used by server-side bot navigation. This keeps navigation data inspectable and sufficient for the current compact arenas without introducing a general-purpose navigation subsystem.
+
+Navmesh support remains a desired future capability for larger or more geometrically complex maps. Navmesh generation, baking, runtime queries, and migration from authored waypoint graphs are deferred beyond `BOT-005` and must be introduced through separately planned work.
 
 ## Lifecycle And Authority
 

@@ -188,7 +188,7 @@ for x in (-5.0, 5.0):
         for z in (-16.0, -7.0):
             cube(f"room-wall.{x}.{level_y}.{z}.a", (x, level_y, z - 1.5), (0.25, 3.1, 3.0), concrete)
             cube(f"room-wall.{x}.{level_y}.{z}.b", (x, level_y, z + 2.0), (0.25, 3.1, 2.0), concrete)
-            cube(f"room-door-head.{x}.{level_y}.{z}", (x, level_y + 1.25, z + 0.25), (0.25, 0.6, 1.5), red)
+            cube(f"room-door-head.{x}.{level_y}.{z}", (x, level_y + 1.25, z + 0.5), (0.25, 0.6, 1.0), red)
 
 # Interior U route: two gentle collision ramps with a broad landing; visible 0.32 m risers.
 steps("interior-stairs-a", (-2.4, 0, -7.5), (0, -1), 6, 2.2, 1.04, 1.6 / 6, concrete)

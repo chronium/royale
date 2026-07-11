@@ -1,135 +1,62 @@
 ---
 name: royale-build-validation
-description: Royale build, restore, test, CI, packaging, validation, .NET 10, shadercross, SDL_shadercross, native package validation, or commands for checking completed work.
+description: Build, test, restore, run, package, or validate Royale. Use for .NET 10 commands, launch profiles, OTLP-enabled server runs, shadercross, CI, native packaging, platform validation, or completion evidence.
 ---
 
-# Royale Build and Validation
+# Royale Build And Validation
 
-Use this skill for restore/build/test commands, CI, packaging, validation selection, .NET SDK issues, shader compilation, native package validation, and completion checks.
+## .NET Commands
 
-## .NET CLI usage
-
-The project targets .NET 10.
-
-In Codex or sandboxed sessions, run .NET commands in single-node mode and without restore once dependencies have already been restored:
+Dependencies already restored:
 
 ```bash
-dotnet build <solution>.slnx -m:1 --no-restore
-dotnet test <solution>.slnx -m:1 --no-restore
+dotnet build Royale.slnx -m:1 --no-restore
+dotnet test Royale.slnx -m:1 --no-restore
 ```
 
-After fetching SDL3-CS from source, restore with the desktop target property so the fetched binding does not require Android workloads:
+Restore, including fetched SDL3-CS without Android workloads:
 
 ```bash
-dotnet restore <solution>.slnx -p:CI_DONT_TARGET_ANDROID=1
+dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
 ```
 
-Any command that requires NuGet package access or restore may require an elevated or network-enabled shell in sandboxed environments.
+Restore or commands requiring package/network access may need an elevated shell. Do not invent lint, formatting, or test commands that the repository does not configure.
 
-Server smoke tests with `OTEL_EXPORTER_OTLP_ENDPOINT` set may hang inside the Codex sandbox even when the same command succeeds normally outside it. If an OTLP-enabled `dotnet run` smoke appears stuck with no server output, treat it as likely sandbox networking/exporter behavior: stop the stuck process, rerun the same command with an elevated shell, and record whether the elevated run passes before diagnosing application code.
+Optional helpers under this skill discover the solution and apply the same rules:
 
-Do not invent build, lint, format, or test commands. If no command exists yet, say so. Once commands are introduced, document them in `AGENTS.md`/skills and in the wiki when appropriate.
+- `scripts/validate-dotnet.sh`
+- `scripts/restore-desktop.sh`
 
-## Optional helper scripts
+## Runtime Validation
 
-This skill includes optional helpers:
+Use explicit profiles:
 
-```text
-.agents/skills/royale-build-validation/scripts/validate-dotnet.sh
-.agents/skills/royale-build-validation/scripts/restore-desktop.sh
-```
+- Server: `--config config/server.development.json`
+- Client: `--config config/client.development.json`
+- Explicit CLI arguments override profile values.
 
-Use them only when shell scripts are appropriate for the environment.
-
-- `validate-dotnet.sh` discovers a single `.slnx` or `.sln` and runs build/test with `-m:1 --no-restore`.
-- `restore-desktop.sh` discovers a single `.slnx` or `.sln` and runs restore with `-p:CI_DONT_TARGET_ANDROID=1`.
-- They intentionally fail when multiple solution files exist so the agent does not guess.
-
-## Launch configuration profiles
-
-The client and dedicated server support explicit JSON launch profiles under `config/`.
-
-- Use `--config config/server.development.json` for short local server validation.
-- Use `--config config/client.development.json` for a client that connects to `127.0.0.1:7777` without repeating endpoint arguments.
-- Explicit CLI arguments override selected profile values regardless of where `--config` appears.
-- Do not assume implicit profile discovery or environment detection.
-- Server build and publish output must contain only `server.production.json` and `server.development.json` under `config/`.
-- Client build and publish output must contain only `client.production.json` and `client.development.json` under `config/`.
-
-For a finite OTLP-enabled smoke that advances past the development waiting period without real-time delay, run outside the sandbox:
+When starting a server for owner validation, enable OTLP and use an elevated shell from the start; sandboxed OTLP runs are known to hang:
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore --no-build -- --config config/server.development.json --run-ticks 302
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317 dotnet run --project src/Royale.Server/Royale.Server.csproj --no-restore --no-build -- --config config/server.development.json
 ```
 
-## Shadercross
+For a finite smoke, add `--run-ticks 302`.
 
-Client shader builds require the `shadercross` executable to be available on `PATH`.
+## Validation Selection
 
-The client project compiles HLSL sources under `src/Royale.Client/Shaders/` to:
+- Pure documentation/instruction changes: syntax/metadata checks, PM validation, and relevant repository checks; a full game test run is optional unless code changed.
+- Managed code: build plus tests for the affected area; use the full solution when shared contracts or multiple projects changed.
+- Protocol/simulation/shared state: serialization/unit tests plus client/server or in-process integration coverage.
+- Native bindings: layout/lifecycle tests and the supported local runtime.
+- Rendering/input/game feel: automated tests plus explicit owner validation.
+- Packaging/platform work: inspect artifact contents and record each platform actually verified.
 
-- SPIR-V outputs (`.spv`).
-- Metal outputs (`.msl`).
+Report exact commands and outcomes. Distinguish a product failure from a sandbox, missing dependency, unsupported platform, or unavailable GUI limitation.
 
-The client also copies the original HLSL files for Direct3D/DXIL-facing development until a DXIL flow is explicitly chosen.
+## Native And Shader Constraints
 
-`SDL_shadercross` is a local build tool dependency and is not vendored through `thirdparty`.
-
-Do not invent a DXIL flow unless the project owner explicitly chooses it.
-
-## Native dependency validation
-
-The project uses SDL3, SDL GPU, Box3D, and ImGui-related bindings or integration.
-
-For native/build work:
-
-- Keep native dependency layout explicit and consistent across supported runtime identifiers.
-- Pin native dependency versions once they are chosen.
-- Keep Box3D bindings focused on the API surface needed by the game.
-- Verify native memory layouts for C# bindings with tests.
-- Package only the native libraries required by each artifact.
-- The Linux server package must not depend on SDL GPU, ImGui, textures, client shaders, or graphics initialization.
-- If a native dependency decision is unclear, ask before assuming.
-
-## Test expectations
-
-Add tests at the level where behavior lives.
-
-Expected test areas include:
-
-- Protocol serialization and version handling.
-- Input buffering and sequence comparisons.
-- Match-state transitions.
-- Safe-zone interpolation and damage.
-- Weapon fire cadence and damage rules.
-- Box3D structure layouts and binding behavior.
-- Player movement collision cases.
-- Headless server simulation.
-- In-process client/server integration.
-- Consecutive match reset behavior.
-
-For cross-platform or native work, document what was verified locally and what remains to be verified on other platforms.
-
-## Validation checklist
-
-Before marking a task complete, verify:
-
-- The selected PM task is the work that was actually completed.
-- The implementation follows the documented architecture.
-- Ambiguous behavior was clarified with the user instead of assumed.
-- Relevant tests were added or updated.
-- Relevant build and test commands were run, or unavailable commands were explicitly noted.
-- The wiki was updated if source-of-truth documentation changed.
-- No direct `.pm/` storage edits were made.
-- Native and cross-platform implications were considered.
-- The server remains free of client rendering and UI dependencies.
-- No unrelated changes or generated artifacts were introduced.
-
-## Reporting
-
-In the final response or task note, report:
-
-- Exactly which validation commands ran.
-- Whether they passed or failed.
-- Any environment reason validation could not run.
-- Any human validation still needed for rendering, game feel, platform-specific behavior, audio/visual feedback, or UI/debug tooling.
+- `shadercross` is a required executable on `PATH`; `SDL_shadercross` is not vendored.
+- Client shader outputs include SPIR-V and Metal; do not invent a DXIL pipeline without an owner decision.
+- Keep native versions pinned and validate C# ABI layouts.
+- Server artifacts must exclude SDL GPU, ImGui, textures, client shaders, and graphics initialization.

@@ -1,104 +1,39 @@
 ---
 name: royale-client-rendering-native
-description: Royale client rendering, native platform, SDL3, SDL GPU, ImGui, shaders, debug UI, frame timing, visual validation, Box3D bindings, or native dependency layout work.
+description: Implement or review Royale client platform, rendering, and native integration. Use for SDL3, SDL GPU, ImGui SDL3_GPU backend, shaders, cameras, meshes, text, debug drawing, screenshots, input capture, native bindings, or visual validation.
 ---
 
-# Royale Client Rendering and Native Platform
+# Royale Client Rendering And Native Integration
 
-Use this skill for client rendering, SDL3/SDL GPU, ImGui, shader handling, debug UI, frame timing, visual validation, native dependency layout, and C# native binding work.
+## Boundaries
 
-## Rendering and UI principles
+- Rendering and platform code are client-only.
+- Keep renderer abstractions thin and game-specific.
+- Do not introduce render graphs, material graphs, generalized scene systems, or editors without a concrete task.
+- ImGui is development tooling, not the final player-facing UI.
+- Rendering may smooth presentation but must not hide authoritative/prediction divergence from diagnostics.
 
-The renderer should remain thin and game-specific.
+## Established Stack
 
-Initial rendering needs are:
+- SDL3 owns windowing, events, relative mouse mode, high-DPI behavior, and SDL GPU device lifecycle.
+- ImGui must use the SDL3 event path and SDL3_GPU renderer backend.
+- `shadercross` on `PATH` compiles HLSL for current backends; do not create an unapproved DXIL workflow.
+- Blurg handles non-ImGui game/world text.
+- SimpleMesh handles model loading and build-time mesh/collision asset work.
+- Box3D debug geometry should flow through the actual debug adapter where supported.
 
-- Static meshes.
-- Depth testing.
-- Camera matrices.
-- Basic lighting.
-- Debug geometry.
-- ImGui.
+Keep native calls narrow, validate return/error paths, preserve ownership/disposal, and test C# memory layouts at ABI boundaries.
 
-There is no initial requirement for:
+## Input And Frame Rules
 
-- Deferred rendering.
-- Render graphs.
-- Material graphs.
-- Dynamic global illumination.
-- Streaming terrain.
-- Generalized scene editing.
+- Separate event polling, fixed simulation/prediction, variable rendering, and presentation.
+- Respect ImGui input capture, gameplay input ownership, and free-camera/gameplay mode separation.
+- Use SDL timing APIs in the SDL client path; do not add unrelated server graphics/platform dependencies.
 
-ImGui is development tooling, not the final player-facing interface.
+## Validation
 
-Rendering, SDL windowing, SDL GPU, ImGui, and client UI must not become server dependencies.
+Add deterministic tests for transforms, selection/routing, serialization, input ownership, and resource lifecycle where possible. Native or packaging work also requires artifact/runtime validation.
 
-## Diagnostics to expose
+Rendering appearance, camera/input feel, UI behavior, platform integration, and audiovisual feedback require owner validation after automated checks. Use screenshot tooling for agent-side visual evidence when available, but do not treat it as a substitute for requested human feel checks.
 
-Diagnostics should expose:
-
-- Frame and simulation timing.
-- Client and server ticks.
-- Snapshot buffering.
-- Prediction corrections.
-- Input queue depth.
-- Physics step timing.
-- Player state.
-- Weapon state.
-- Safe-zone and match state.
-- Packet counts, loss, latency, jitter, and invalid packets.
-
-## Shader workflow
-
-Client shader builds require `shadercross` on `PATH`.
-
-The client compiles HLSL sources under `src/Royale.Client/Shaders/` to SPIR-V (`.spv`) and Metal (`.msl`) outputs after build.
-
-The original HLSL files are copied for Direct3D/DXIL-facing development until a DXIL flow is explicitly chosen.
-
-`SDL_shadercross` is a local build tool dependency and is not vendored through `thirdparty`.
-
-Do not invent a DXIL flow unless explicitly chosen.
-
-## Native dependencies
-
-The project uses SDL3, SDL GPU, Box3D, and ImGui-related bindings or integration.
-
-- Keep native dependency layout explicit and consistent across supported runtime identifiers.
-- Pin native dependency versions once they are chosen.
-- Keep Box3D bindings focused on the API surface needed by the game.
-- Verify native memory layouts for C# bindings with tests.
-- Package only the native libraries required by each artifact.
-- The Linux server package must not depend on SDL GPU, ImGui, textures, client shaders, or graphics initialization.
-- If a native dependency decision is unclear, ask before assuming.
-
-## Frame and simulation separation
-
-- Keep render rate separate from simulation rate.
-- Client rendering may interpolate and display reconciliation corrections.
-- Client rendering must not become authoritative gameplay state.
-- Avoid hiding simulation problems behind rendering smoothing unless diagnostics still expose the correction.
-
-## Implementation workflow
-
-Before changing client/native/rendering code:
-
-- Use `royale-pm-workflow` to confirm the selected PM task.
-- Use `royale-architecture-boundaries` when dependency direction or project structure changes.
-- Inspect nearby rendering/native code and existing tests.
-- Identify whether the work is rendering-only, platform/native, input, prediction display, diagnostic UI, or packaging.
-
-While implementing:
-
-- Keep rendering abstractions game-specific and inspectable.
-- Avoid broad engine systems unless they directly serve the selected task.
-- Do not add server references to client UI/rendering packages.
-- Keep unsafe/native interop narrow and tested.
-- Keep user-controlled data escaped in any UI or generated HTML.
-
-After implementation:
-
-- Use `royale-build-validation` to run relevant build/tests.
-- Add or update tests for native layouts, packaging expectations, or deterministic logic where possible.
-- Update wiki pages if rendering architecture, debug workflow, native dependency layout, shader workflow, build/packaging, or platform support changed.
-- Request human validation for visual appearance, input feel, camera feel, combat feel, platform-specific behavior, audio/visual feedback, or UI/debug tooling.
+Update the wiki when rendering architecture, shader/native workflow, debug controls, keybindings, asset handling, or platform behavior changes.

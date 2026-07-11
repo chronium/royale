@@ -1,54 +1,63 @@
 # Repository Instructions
 
-## Core Rule: Ask Before Assuming
+## Operating Model
 
-When requirements, behavior, platform support, architecture, or implementation details are unclear, ask the project owner before proceeding.
+Work autonomously after grounding yourself in the repository. Inspect code, tests, PM data, and wiki pages before asking questions.
 
-Do not invent gameplay rules, protocol behavior, file formats, rendering architecture, physics behavior, or platform policy from preference alone. If a decision would become part of the project contract, ask first and record the answer in the relevant task or wiki page.
+Ask the project owner when a decision would create or change a project contract and the answer cannot be discovered locally. Contract decisions include gameplay rules, protocol compatibility, file formats, rendering or physics behavior, platform policy, dependency selection, and authority ownership.
 
-## Always-On Project Contract
+Do not ask about discoverable facts, routine implementation details, or choices already established by nearby code or the wiki. When several implementations satisfy an established contract, choose the smallest one consistent with current patterns.
 
-This is an experimental cross-platform, server-authoritative battle royale built from the ground up in .NET.
+## Project Contract
 
-The goal is a small complete multiplayer game loop, not a general-purpose engine. Prefer concrete, inspectable systems that serve the MVP over speculative abstractions.
-
-All feature work must be driven from the PM board through the PM MCP tool:
-
-- Choose an existing PM task before implementation.
-- Move the task to `doing` before changing code.
-- Work only on the selected task unless the user explicitly expands the scope.
-- Move the task to `done` only after implementation, validation, and documentation are complete.
-- If work is blocked, leave the task in `doing` and document the blocker.
-
-The `.pm/` directory is PM storage, not a hand-edited project area. Direct `.pm/` reads are allowed for inspection; direct `.pm/` writes are forbidden. Use PM MCP tools for PM task, metadata, state, milestone, priority, wiki, and project metadata changes.
-
-At the start of implementation work, check the git worktree. If it is dirty, notify the user before changing files. If existing changes are obvious, coherent, and safe to preserve, commit them before starting new work; if they are complex, mixed, surprising, or not obviously safe, stop and ask how to proceed. Never overwrite, revert, or discard existing work unless explicitly instructed.
-
-Keep commits focused on completed PM tasks. Prefix task commits with the PM task ID in square brackets, for example `[COMBAT-001] Add default rifle definition`.
-
-Preserve server authority:
+Royale is a small cross-platform, server-authoritative battle royale built in .NET 10. The goal is a complete, inspectable multiplayer game loop, not a general-purpose engine.
 
 - The server owns authoritative simulation, movement validation, combat, health, ammunition, safe-zone state, match phases, eliminations, winners, and reset.
-- The client owns windowing, input devices, rendering, audio or visual feedback, local prediction, interpolation, reconciliation display, and development UI.
-- Shared simulation code may exist so server and client prediction use the same rules, but sharing code must not weaken server authority.
+- The client owns windowing, input devices, rendering, audiovisual feedback, prediction, interpolation, reconciliation presentation, and development UI.
+- Shared simulation code may support client prediction, but sharing code must not weaken server authority.
+- Client input expresses intent. It never declares authoritative position, damage, death, pickup ownership, or match results.
 - Rendering, SDL windowing, SDL GPU, ImGui, and client UI must not become server dependencies.
-- Client input represents intent, not authoritative state.
+- Keep project folders and namespace suffixes aligned. Use explicit file-level `using` directives; do not introduce project-wide global usings.
+- Add abstractions only for a concrete game, deployment, testing, or dependency need.
 
-The PM wiki is a source of truth. Update it when behavior, architecture, setup, protocols, data formats, workflow, or constraints change.
+## PM And Wiki
 
-Before marking a task complete, run relevant validation or clearly explain why validation could not be run. If the change needs human validation for rendering, game feel, platform behavior, audio/visual feedback, or UI, call that out explicitly.
+All implementation work must have a PM task managed through PM MCP.
+
+- Planning and review may inspect tasks without changing their state.
+- Before editing implementation files, select or create the task and move it to `doing`.
+- Stay within the selected task unless the owner explicitly expands scope.
+- Move a task to `done` only after implementation, validation, task notes, and required wiki updates are complete.
+- Leave blocked work in `doing` and record the blocker.
+
+The PM wiki is a source of truth for behavior, architecture, setup, protocols, formats, workflows, and constraints. Keep it current as part of the feature, not as follow-up work.
+
+Never write under `.pm/` directly. Reads are allowed for inspection; all task, state, metadata, milestone, priority, ordering, project, and wiki mutations must use PM MCP. If PM MCP lacks a required mutation, stop and report the missing capability.
+
+## Git And Completion
+
+Check the worktree before implementation.
+
+- Clean tree: proceed.
+- Dirty tree with one obvious coherent change: notify the owner and commit it before new work.
+- Dirty tree with mixed, surprising, or ambiguous changes: stop and ask how to proceed.
+- Never discard or overwrite existing work without explicit instruction.
+
+Keep commits task-focused and prefix them with the task ID, for example `[COMBAT-001] Add default rifle definition`. Create branches only when they materially reduce risk; do not create one per task by default.
+
+Before completion, run the relevant documented validation or state exactly why it could not run. Update PM notes and the wiki, then commit. Explicitly request owner validation for rendering, UI, platform behavior, audiovisual feedback, camera feel, movement feel, or combat feel.
 
 ## Skill Routing
 
-Use repo skills for detailed task workflows:
+Load the smallest set of repository skills that covers the work:
 
-- `royale-pm-workflow` — PM board work, task selection, dependencies, milestones, priorities, task notes, wiki edits, or `.pm/` protection.
-- `royale-architecture-boundaries` — architecture changes, project layout, dependency direction, authority ownership, server/client/shared boundaries, or source-of-truth architecture docs.
-- `royale-build-validation` — restore/build/test commands, CI, packaging, shadercross, .NET SDK, native package validation, or validation command selection.
-- `royale-client-rendering-native` — SDL, SDL GPU, ImGui, shader outputs, rendering/UI, debug overlays, native dependency layout, or C# native binding concerns.
-- `royale-networking-protocol` — UDP transport, snapshots, protocol messages, identity, sequencing, acknowledgements, versioning, compatibility, or in-process transport behavior.
-- `royale-simulation-gameplay` — fixed tick simulation, movement, combat, weapons, safe zone, match phases, eliminations, prediction, reconciliation, or gameplay tests.
-- `royale-source-control-implementation` — dirty worktree handling, commits, implementation discipline, generated artifact decisions, documentation completion, and final validation summaries.
-- `royale-review` — reviewing diffs, PR-style changes, regressions, authority leaks, missing tests, missing wiki updates, or unsafe native/protocol changes.
+- `royale-pm-workflow`: task selection/lifecycle, dependencies, priorities, milestones, PM mutations, and wiki operations.
+- `royale-source-control-implementation`: dirty-tree handling, implementation discipline, commits, and completion reporting.
+- `royale-build-validation`: restore/build/test, launch profiles, OTLP validation, shader builds, packaging, and native validation.
+- `royale-architecture-boundaries`: project structure, dependency direction, authority ownership, and MVP scope.
+- `royale-client-rendering-native`: SDL3, SDL GPU, ImGui, shaders, client rendering, debug UI, native bindings, and visual validation.
+- `royale-networking-protocol`: transports, framing, handshake, input commands, snapshots, sequencing, acknowledgements, and compatibility.
+- `royale-simulation-gameplay`: fixed-tick simulation, movement, combat, match rules, prediction, reconciliation, and gameplay tests.
+- `royale-review`: review-only passes for defects, regressions, authority leaks, protocol/native risk, and missing tests or documentation.
 
-When multiple skills match, load the smallest set that covers the current task. For feature work, `royale-pm-workflow` usually comes first.
+For implementation, PM workflow and source-control discipline apply even when only a domain skill is loaded. Do not load unrelated domain skills preemptively.

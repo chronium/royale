@@ -1,102 +1,39 @@
 ---
 name: royale-networking-protocol
-description: Royale networking and protocol discipline. Use for UDP transport, in-process transport, test/simulated-loss transport, snapshots, input commands, protocol messages, sequencing, ACKs, identity, versioning, or compatibility.
+description: Implement or review Royale networking and protocol behavior. Use for LiteNetLib/UDP, transport abstractions, in-process or simulated transport, framing, handshake, sessions, input redundancy, snapshots, sequencing, acknowledgements, prediction transport data, versioning, or compatibility.
 ---
 
-# Royale Networking and Protocol Discipline
+# Royale Networking And Protocol
 
-Use this skill for networking, protocol messages, transport behavior, snapshots, input command flow, sequencing, acknowledgement data, versioning, compatibility, and in-process transport boundaries.
+## Invariants
 
-## Network ownership
+- Clients send connection messages and input intent; servers send authoritative snapshots/events.
+- Real UDP, in-process, scripted, and impairment transports preserve the same conceptual message flow.
+- In-process mode must not call arbitrary gameplay methods from the client path.
+- Transport-specific types stay behind game-owned abstractions.
+- Full, inspectable snapshots are preferred until profiling justifies compression.
 
-Keep networking boundaries explicit.
+## Protocol Changes
 
-- Clients send input commands and connection messages.
-- Servers send authoritative snapshots and events.
-- Client input represents intent, not authoritative state.
-- Do not let the client call arbitrary server gameplay methods directly in in-process mode.
-- Protocol-incompatible clients and servers should fail clearly.
+Before changing a wire contract, inspect serializers, bounds, framing, handshake admission, compatibility tests, and the networking wiki.
 
-## Transport discipline
+Ask the owner when compatibility policy is not already recorded. A wire-layout change must explicitly choose and document version behavior, lockstep deployment expectations, malformed-input handling, and old/new client-server failure behavior. Do not silently accept unknown fields/bits or hide breaking changes behind permissive parsing.
 
-Real UDP transport, in-process transport, test transport, and simulated-loss transport should preserve the same message flow.
+Keep IDs, sequence ordering, acknowledgements, channels, delivery mode, and redundancy behavior explicit. Avoid defining reliability or wraparound semantics that the task does not require.
 
-In-process transport is for development/testing convenience, not a gameplay authority shortcut.
+## Prediction Boundary
 
-When adding or changing a transport:
+Client prediction and reconciliation may consume authoritative snapshot metadata, but they do not mutate authoritative snapshots or server state. Remote entities use buffered authoritative presentation. Network impairment controls must remain deterministic in tests when seeded.
 
-- Preserve client input command flow.
-- Preserve server authoritative snapshot/event flow.
-- Preserve protocol validation and identity handling.
-- Preserve sequencing/acknowledgement behavior where the real transport would require it.
-- Keep simulated-loss behavior useful for reproducing network issues.
+## Required Coverage
 
-## Protocol messages
+Test the changed layer:
 
-Protocol messages should include versioning and enough identity, sequencing, and acknowledgement data to debug behavior.
+- byte-level serialization, bounds, malformed payloads, and version handling;
+- handshake acceptance/rejection and identity/session ownership;
+- sequence, acknowledgement, redundancy, duplicate/stale handling, and channels;
+- parity across real/in-process/test transports;
+- prediction/reconciliation or interpolation behavior when transport data changes;
+- latency/loss/jitter/reordering behavior for impairment changes.
 
-Favor simple full snapshots early. Optimize only after behavior is correct and measured.
-
-When changing protocol messages:
-
-- Ask before defining new gameplay or compatibility contracts if unclear.
-- Update protocol serialization tests.
-- Update version handling tests.
-- Update wiki documentation for protocol messages and compatibility rules.
-- Make incompatible client/server combinations fail clearly.
-- Avoid hiding breaking changes behind permissive parsing.
-
-## Snapshot and input expectations
-
-For early MVP behavior:
-
-- Clients send input commands.
-- Server validates movement and gameplay.
-- Server emits authoritative snapshots and events.
-- Clients display interpolation, prediction, and reconciliation corrections.
-- Snapshot buffering and correction metrics should be diagnosable.
-
-Protocol tests should cover:
-
-- Serialization/deserialization.
-- Version handling.
-- Input buffering.
-- Sequence comparisons.
-- Acknowledgement behavior.
-- Invalid packet behavior.
-- Compatibility failure modes.
-
-## Debuggability
-
-Network diagnostics should make these visible where practical:
-
-- Client and server ticks.
-- Snapshot buffering.
-- Prediction corrections.
-- Input queue depth.
-- Packet counts.
-- Packet loss.
-- Latency.
-- Jitter.
-- Invalid packets.
-
-## Workflow
-
-Before implementation:
-
-- Use `royale-pm-workflow` to confirm the selected task.
-- Use `royale-architecture-boundaries` if authority or dependency boundaries are touched.
-- Inspect protocol tests and wiki pages before changing protocol contracts.
-
-While implementing:
-
-- Keep message flow consistent across real, in-process, test, and simulated-loss transports.
-- Do not directly call server gameplay methods from the client path.
-- Do not move authoritative state into client code.
-- Favor clear, inspectable packet formats and error paths over premature bandwidth optimization.
-
-After implementation:
-
-- Add/update protocol tests.
-- Run relevant build/test validation through `royale-build-validation`.
-- Update wiki documentation for protocol, compatibility rules, message flow, diagnostics, or transport behavior changes.
+Expose diagnostics for ticks, queues, packets, bytes, loss, latency, jitter, snapshot buffering, and correction behavior where relevant. Update networking/protocol wiki pages in the same task.

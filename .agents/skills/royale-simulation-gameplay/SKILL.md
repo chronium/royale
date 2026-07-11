@@ -1,112 +1,41 @@
 ---
 name: royale-simulation-gameplay
-description: Royale simulation and gameplay rules. Use for fixed tick, movement, player controller, combat, hitscan rifle, damage, health, ammo, safe zone, match phases, eliminations, winner, reset, prediction, reconciliation, or gameplay tests.
+description: Implement or review Royale simulation and gameplay. Use for fixed ticks, player movement, crouch/sprint/jump, kinematic collision, combat, hitscan, health/ammo, pickups, safe zone, match phases, bots' gameplay input, prediction, reconciliation, or gameplay scenarios.
 ---
 
-# Royale Simulation and Gameplay Discipline
+# Royale Simulation And Gameplay
 
-Use this skill for simulation timing, movement, combat, weapons, damage, health, ammo, safe-zone behavior, match phases, eliminations, winner selection, reset, prediction, reconciliation, and gameplay tests.
+## Simulation Contract
 
-## Simulation principles
+- Authoritative simulation runs at a fixed tick independent of rendering and snapshot cadence.
+- The server owns gameplay outcomes; clients may predict only for responsiveness.
+- Shared movement rules should serve server authority and client prediction without importing presentation concerns.
+- The player controller is a kinematic capsule using casts/overlaps and explicit movement rules.
+- Initial combat is a server-authoritative hitscan rifle.
+- Keep synchronized gameplay focused on players, static map collision, pickups, safe zone, and match state.
 
-Simulation should be deterministic enough for prediction and reconciliation to stay understandable, but do not overbuild determinism before the MVP needs it.
+## Decision Gates
 
-- Use a fixed simulation tick for server authority.
-- Keep render rate separate from simulation rate.
-- Bound catch-up ticks so stalls do not create uncontrolled simulation spirals.
-- Keep the player controller shared between server and client prediction where practical.
-- The initial player controller is a kinematic capsule, not a freely simulated dynamic rigid body.
-- The initial weapon is a server-authoritative hitscan rifle.
-- The initial synchronized gameplay objects are players, static map collision, weapon pickups, and safe-zone state.
+Inspect the task, wiki, content definitions, simulation order, and existing tests first. Ask before choosing a new gameplay rule, balance value, collision policy, tick ordering, bot behavior, damage model, match transition, or prediction correction contract.
 
-Gameplay behavior changes must be reflected in tests and wiki documentation.
+Do not ask when implementing a rule already fixed by PM/wiki or extending an established state/input path mechanically.
 
-## Authority and ownership
+## Implementation Rules
 
-The server owns authoritative gameplay state:
+- Apply input as intent and validate it at the authority boundary.
+- Keep offline play, authority, prediction, reconciliation replay, bot input, and scripted input on shared rules where the task requires parity.
+- Make simulation order explicit when outcomes depend on it.
+- Preserve deterministic ordering and seeded randomness where practical and observable.
+- Do not introduce generalized ECS, scripting, scene, or ability frameworks for a narrow feature.
 
-- Simulation.
-- Movement validation.
-- Combat.
-- Health.
-- Ammunition.
-- Safe-zone state.
-- Match phases.
-- Eliminations.
-- Winners.
-- Match reset.
+## Coverage
 
-The client may predict and render, but server snapshots/events correct the client.
+Test behavior where it lives:
 
-Shared simulation code may exist so server and client prediction use the same rules, but sharing code must not weaken server authority.
+- movement speed/stance, ground/air transitions, slopes, steps, walls, ceilings, and high-speed cases;
+- weapon cadence, ammo, raycast ordering, damage, health, death, and elimination;
+- match transitions, safe-zone timing/damage, winner selection, and reset;
+- server authority plus prediction/reconciliation parity;
+- in-process and WattleScript scenarios for multi-system flows.
 
-When ownership is unclear, default gameplay-relevant state to the server.
-
-## Gameplay scope for MVP
-
-Prefer small, complete gameplay loops over generalized systems.
-
-Early synchronized gameplay objects:
-
-- Players.
-- Static map collision.
-- Weapon pickups.
-- Safe-zone state.
-
-Early combat:
-
-- Server-authoritative hitscan rifle.
-- Fire cadence enforced by server rules.
-- Damage rules tested where they live.
-- Client can show feedback, but cannot authoritatively apply damage.
-
-Early match flow:
-
-- Players connect.
-- Players move.
-- Players fight.
-- Players can be eliminated.
-- Players can spectate after elimination.
-- A winner can be produced.
-- The match can reset into another match.
-
-## Tests to add or update
-
-Add tests at the level where gameplay behavior lives.
-
-Expected gameplay/simulation test areas:
-
-- Player movement collision cases.
-- Fixed tick and bounded catch-up behavior.
-- Input buffering and sequence comparisons.
-- Weapon fire cadence and damage rules.
-- Health and elimination rules.
-- Match-state transitions.
-- Safe-zone interpolation and damage.
-- Headless server simulation.
-- In-process client/server integration.
-- Consecutive match reset behavior.
-
-## Workflow
-
-Before implementation:
-
-- Use `royale-pm-workflow` to confirm the selected task.
-- Read relevant wiki pages before changing gameplay rules.
-- Ask the project owner before inventing new gameplay rules, physics behavior, or combat contracts.
-- Identify whether behavior belongs in server, shared simulation, protocol, client prediction, or rendering feedback.
-
-While implementing:
-
-- Keep gameplay-relevant state server-authoritative.
-- Keep prediction/reconciliation understandable and diagnosable.
-- Keep simulation rate independent from rendering rate.
-- Avoid generalized engine systems unless the selected task has a concrete gameplay need.
-- Avoid unrelated refactoring.
-
-After implementation:
-
-- Add/update behavior tests.
-- Run relevant validation through `royale-build-validation`.
-- Update wiki documentation if gameplay rules, simulation tick order/timing, authority boundaries, diagnostics, or content formats changed.
-- Request human validation when game feel, movement feel, camera feel, or combat feel cannot be fully validated by automated tests.
+Update gameplay/simulation wiki pages when rules, timing/order, diagnostics, content formats, or authority behavior change. Request owner validation for movement, camera, combat, or other game feel after automated checks.

@@ -1,116 +1,41 @@
 ---
 name: royale-architecture-boundaries
-description: Royale architecture and authority boundaries. Use for project layout, server/client/shared dependency direction, MVP scope, source-of-truth architecture docs, gameplay ownership, or avoiding engine overbuilding.
+description: Apply Royale architecture and authority boundaries. Use for project or namespace layout, dependency direction, server/client/shared ownership, MVP scope, engine abstraction decisions, or architecture wiki changes.
 ---
 
 # Royale Architecture Boundaries
 
-Use this skill when a task changes architecture, dependency direction, project structure, authority ownership, source-of-truth architecture docs, or MVP scope.
+## Goal
 
-## Project philosophy
+Build the smallest complete cross-platform, server-authoritative battle-royale loop. Do not optimize the architecture for arbitrary games, editors, plugins, scripting, or hypothetical scale.
 
-Royale is an experimental cross-platform, server-authoritative battle royale built from the ground up in .NET.
+## Ownership
 
-The goal is a small complete multiplayer game loop, not a general-purpose engine. Prefer concrete, inspectable systems that serve the MVP over speculative abstractions.
+Server-owned gameplay state includes simulation, validated movement, combat, health, ammunition, pickups, safe zone, match phases, eliminations, winner, and reset.
 
-The first complete version should prove:
+Client-owned state includes platform/input devices, rendering, audiovisual feedback, prediction, interpolation, presentation smoothing, camera, player UI, and development tooling.
 
-- A Linux dedicated server can run headlessly.
-- macOS and Linux clients can connect to the same server.
-- Windows client support can be added later without changing core gameplay contracts.
-- Players can move, fight, be eliminated, spectate, produce a winner, and reset into another match.
-- The server remains authoritative over gameplay state.
+Shared simulation may define rules used by both authority and prediction. It must not let the client authoritatively mutate gameplay. In-process development paths must preserve the same command/snapshot boundary as real networking.
 
-## Authority boundaries
+## Dependency Direction
 
-Preserve separation between authority and presentation.
+- Client may depend on simulation, protocol, network, content, diagnostics, Box3D, and native/platform libraries.
+- Server may depend on simulation, protocol, network, content, diagnostics, and Box3D, but never client rendering/UI or graphics initialization.
+- Simulation may depend on content and Box3D, not client presentation.
+- Box3D wrappers depend on focused bindings; bindings depend on native resolution.
+- Split projects only for a real dependency, deployment, or testing boundary.
 
-The server owns:
+Within projects, use domain folders with matching namespace suffixes. Keep executable entry points and true cross-domain facades at project roots. Use explicit file-level imports rather than project-wide global usings.
 
-- Authoritative simulation.
-- Movement validation.
-- Combat.
-- Health.
-- Ammunition.
-- Safe-zone state.
-- Match phases.
-- Eliminations.
-- Winners.
-- Match reset.
+## Decision Gates
 
-The client owns:
+Inspect the wiki and nearby code first. Ask the owner before choosing a new:
 
-- Windowing.
-- Input devices.
-- Rendering.
-- Audio and visual feedback.
-- Local prediction.
-- Interpolation.
-- Reconciliation display.
-- Development UI.
+- authority owner or cross-process responsibility;
+- project/deployment boundary;
+- gameplay, protocol, file-format, physics, rendering, or platform contract;
+- dependency that changes the architecture or distribution model.
 
-Shared simulation code may exist so server and client prediction use the same rules, but sharing code must not weaken server authority.
+Routine placement inside an established domain is discoverable and should not trigger a question.
 
-Rendering, SDL windowing, SDL GPU, ImGui, and client UI must not become server dependencies.
-
-Client input represents intent, not authoritative state.
-
-When ownership is unclear, default gameplay-relevant state to the server.
-
-## Expected solution shape
-
-The planned solution may include projects similar to:
-
-```text
-src/
-  Game.Client/
-  Game.Server/
-  Game.Simulation/
-  Game.Protocol/
-  Game.Content/
-  Game.Platform/
-  Game.Rendering/
-  Game.Debugging/
-  Box3D.Bindings/
-  Box3D/
-
-tests/
-  Game.Simulation.Tests/
-  Game.Protocol.Tests/
-  Game.Server.Tests/
-  Box3D.Tests/
-
-native/
-  box3d/
-
-assets/
-  shaders/
-  meshes/
-  textures/
-  maps/
-```
-
-Split projects only when there is a meaningful dependency, testing, or deployment boundary. Do not create a theoretical hierarchy that makes the code harder to move through.
-
-## Architecture-change workflow
-
-Before changing architecture:
-
-- Use `royale-pm-workflow` to identify the selected PM task and relevant wiki page.
-- Read the relevant code and wiki source of truth before modifying behavior.
-- Identify which side owns the behavior: server, client, shared simulation, protocol, content, rendering, or tooling.
-- Ask the project owner before locking in new gameplay rules, protocol contracts, file formats, physics behavior, platform policy, or rendering architecture.
-
-While implementing:
-
-- Keep dependency direction explicit.
-- Do not introduce client rendering/UI dependencies into the server.
-- Do not let in-process development shortcuts bypass the real client/server ownership model.
-- Avoid speculative engine abstractions unless the selected PM task has a concrete gameplay need.
-- Prefer the smallest coherent architecture change that satisfies the task.
-
-After implementation:
-
-- Update the `architecture` wiki page if runtime architecture, authority boundaries, data flow, networking, physics, testing, deployment shape, or dependency direction changed.
-- Document significant architectural deviations in task notes and wiki.
-- Use `royale-build-validation` for relevant build/test commands.
+Update the architecture wiki when runtime processes, dependency direction, ownership, data flow, deployment shape, testing boundaries, or source-layout policy changes.

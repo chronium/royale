@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-11T19:49:19.8182830Z
+modifiedAt: 2026-07-12T07:49:51.5784360Z
 ---
 
 ## Purpose
@@ -55,11 +55,15 @@ Shader HLSL sources and compilation now belong to `Royale.Rendering`; generated 
 
 ## Editor Workspace
 
-The editor uses ImGui docking with a central viewport and dockable hierarchy, inspector, asset browser, validation, and log panels. ImGui multi-viewport support is deferred.
+`EDITOR-003` provides the first standalone macOS ARM64 `Royale.Editor` executable. It depends on Platform, Rendering, Content, and Diagnostics, but not Client, Server, Protocol, Network, Simulation, or Box3D. It opens `graybox` by default and accepts `--map <id>`, `--screenshot <path>`, `--screenshot-after-frames <count>`, and `--reset-layout`.
 
-The first version supports one selected entity at a time. Selection works through viewport picking and the hierarchy. Multi-selection and group transforms are deferred.
+The editor enables ImGui docking while leaving multi-viewport disabled. Its first-run or reset layout places Hierarchy on the left, Inspector on the right, Asset Browser/Validation/Log as bottom tabs, and Viewport in the center. File contains Exit while document commands are disabled. View toggles panels; Window resets the default layout. ImGui persists docking state at the per-user application-data path `Royale/Editor/imgui.ini`; no layout state is written into the repository.
 
-ImGuizmo provides translate, rotate, and scale controls. Transform operations support local and world orientation and configurable position, angle, and scale increments. One completed drag produces one undo command.
+The shell is read-only. Hierarchy lists static boxes, static models, spawn points, loot points, and navigation nodes. Inspector summarizes map identity, bounds, safe zone, and counts. Asset Browser lists manifest IDs and render availability. Validation reports successful runtime content loading. Log keeps a bounded editor message stream while console logging remains active.
+
+The central viewport displays the selected map through a resizable SDL GPU offscreen target. Logical ImGui size is converted to framebuffer pixels using the high-DPI scale and target recreation is suppressed unless pixel dimensions change. The camera is initially framed from map bounds with a far plane derived from map extent. Hold right mouse over the viewport for relative-mouse look; while captured, use WASD horizontally and Q/E down/up. Release right mouse or press Escape to release capture. Full editor screenshots capture the composed docked UI and exit after completion.
+
+Map mutation, persistence, selection/picking, asset thumbnails, drag-and-drop placement, ImGuizmo transforms, undo/redo, and Save/Save As remain deferred to later editor tasks.
 
 ## Map Documents
 

@@ -16,6 +16,7 @@ public sealed unsafe class SdlGpuImGuiBackend : IDisposable
     private IntPtr context;
     private bool sdl3Initialized;
     private bool sdlGpuInitialized;
+    private IntPtr iniPathStorage;
 
     private SdlGpuImGuiBackend(SdlWindow window, SdlGpuDevice gpuDevice)
     {
@@ -60,6 +61,11 @@ public sealed unsafe class SdlGpuImGuiBackend : IDisposable
                 throw new InvalidOperationException("ImGui IO was not available.");
             if (settings.EnableDocking)
                 io->ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+            if (!string.IsNullOrWhiteSpace(settings.IniPath))
+            {
+                backend.iniPathStorage = Marshal.StringToCoTaskMemUTF8(settings.IniPath);
+                io->IniFilename = (byte*)backend.iniPathStorage;
+            }
 
             if (!royale_imgui_sdl3_init_for_sdlgpu((SDL_Window*)window.NativeHandle))
                 throw new InvalidOperationException("ImGui SDL3 platform backend initialization failed.");
@@ -154,6 +160,11 @@ public sealed unsafe class SdlGpuImGuiBackend : IDisposable
         {
             ImguiNative.igDestroyContext(context);
             context = IntPtr.Zero;
+        }
+        if (iniPathStorage != IntPtr.Zero)
+        {
+            Marshal.FreeCoTaskMem(iniPathStorage);
+            iniPathStorage = IntPtr.Zero;
         }
     }
 

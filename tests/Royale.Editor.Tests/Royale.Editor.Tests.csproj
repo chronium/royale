@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup><PackageReference Include="coverlet.collector" PrivateAssets="all" /><PackageReference Include="Microsoft.NET.Test.Sdk" /><PackageReference Include="xunit" /><PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" /></ItemGroup>
+  <ItemGroup><Using Include="Xunit" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="..\..\src\Royale.Editor\Royale.Editor.csproj" /><ProjectReference Include="..\..\src\Royale.Content\Royale.Content.csproj" /></ItemGroup>
+  <PropertyGroup><RoyaleAssetAudience>client</RoyaleAssetAudience></PropertyGroup><Import Project="..\..\build\Royale.AssetPipeline.targets" />
+</Project>

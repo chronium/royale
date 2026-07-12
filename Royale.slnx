@@ -5,6 +5,7 @@
     <Project Path="src/Royale.Client/Royale.Client.csproj" />
     <Project Path="src/Royale.Content/Royale.Content.csproj" />
     <Project Path="src/Royale.Diagnostics/Royale.Diagnostics.csproj" />
+    <Project Path="src/Royale.Editor/Royale.Editor.csproj" />
     <Project Path="src/Royale.Native/Royale.Native.csproj" />
     <Project Path="src/Royale.Network/Royale.Network.csproj" />
     <Project Path="src/Royale.Platform/Royale.Platform.csproj" />
@@ -19,6 +20,7 @@
     <Project Path="tests/Royale.Client.Tests/Royale.Client.Tests.csproj" />
     <Project Path="tests/Royale.Content.Tests/Royale.Content.Tests.csproj" />
     <Project Path="tests/Royale.Diagnostics.Tests/Royale.Diagnostics.Tests.csproj" />
+    <Project Path="tests/Royale.Editor.Tests/Royale.Editor.Tests.csproj" />
     <Project Path="tests/Royale.Gameplay.Tests/Royale.Gameplay.Tests.csproj" />
     <Project Path="tests/Royale.Native.Tests/Royale.Native.Tests.csproj" />
     <Project Path="tests/Royale.Network.Tests/Royale.Network.Tests.csproj" />

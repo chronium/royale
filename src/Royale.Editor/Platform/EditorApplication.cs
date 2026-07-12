@@ -10,6 +10,7 @@ using Royale.Editor.Documents;
 using Royale.Editor.Persistence;
 using Royale.Editor.Viewport;
 using Royale.Editor.Workspace;
+using Royale.Editor.Workspace.Assets;
 using Royale.Platform.Desktop;
 using Royale.Rendering;
 using Royale.Rendering.Cameras;
@@ -46,6 +47,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private EditorMapDocument? document;
     private StaticMeshScene? scene;
     private ModelAssetManifest? manifest;
+    private AssetBrowserModel? assetBrowser;
+    private AssetBrowserRenderer? assetBrowserRenderer;
     private StaticMeshAssetCache? meshCache;
     private int frames;
     private ViewportPixelSize requestedSize = new(1, 1);
@@ -95,6 +98,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 "assets",
                 ContentCatalog.ModelAssetManifestFileName);
             manifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
+            assetBrowser = new AssetBrowserModel(manifest);
+            assetBrowserRenderer = new AssetBrowserRenderer(assetBrowser);
             meshCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
             RebuildScene();
 
@@ -226,14 +231,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Render(SdlFrameTime time)
     {
-        if (gpu is null || imgui is null || target is null || scene is null || document is null || manifest is null)
+        if (gpu is null || imgui is null || target is null || scene is null || document is null || manifest is null || assetBrowserRenderer is null)
             return;
 
         if (target.Width != requestedSize.Width || target.Height != requestedSize.Height)
             target.Resize(requestedSize.Width, requestedSize.Height);
 
         gpu.RenderOffscreen(target, new RenderFrame(camera.ToRenderCamera(), scene, RenderViewMode.Normal));
-        BuildWorkspace(target, document.Map, manifest);
+        BuildWorkspace(target, document.Map);
 
         frames++;
         bool capture = options.ScreenshotPath is not null && frames == options.ScreenshotAfterFrames;
@@ -254,7 +259,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         }
     }
 
-    private void BuildWorkspace(SdlGpuOffscreenTarget viewport, GameMap loadedMap, ModelAssetManifest loadedManifest)
+    private void BuildWorkspace(SdlGpuOffscreenTarget viewport, GameMap loadedMap)
     {
         BuildMenu();
         ImGuiViewport* main = ImguiNative.igGetMainViewport();
@@ -269,7 +274,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (workspace.InspectorVisible)
             Window(InspectorName, () => BuildInspector(loadedMap));
         if (workspace.AssetBrowserVisible)
-            Window(AssetsName, () => BuildAssetBrowser(loadedManifest));
+            Window(AssetsName, assetBrowserRenderer!.Render);
         if (workspace.ValidationVisible)
             Window(ValidationName, () => BuildValidation(loadedMap));
         if (workspace.LogVisible)
@@ -318,12 +323,6 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         EditorMapSummary summary = EditorMapSummary.Create(map);
         Text($"Boxes {summary.StaticBoxes}; models {summary.StaticModels}");
         Text($"Spawns {summary.SpawnPoints}; loot {summary.LootPoints}; nav {summary.NavigationNodes}");
-    }
-
-    private static void BuildAssetBrowser(ModelAssetManifest loadedManifest)
-    {
-        foreach (ModelAssetDefinition asset in loadedManifest.Assets)
-            Text($"{asset.Id}  [{(asset.Render is null ? "no render" : "render ready")}]");
     }
 
     private void BuildValidation(GameMap map)

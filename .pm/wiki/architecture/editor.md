@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T08:55:18.3458170Z
+modifiedAt: 2026-07-12T09:17:11.7923570Z
 ---
 
 ## Purpose
@@ -72,6 +72,14 @@ Map mutation, persistence, selection/picking, asset thumbnails, drag-and-drop pl
 Owner feel testing reduced the final wheel-dolly tuning to 10% of the initial scale: each vertical notch adds a signed 3.6 m/s impulse and accumulated dolly velocity is clamped to 7.2 m/s. The 0.12-second half-life is unchanged.
 
 A second owner feel pass superseded the 10% trial: final candidate tuning is 10.8 m/s per wheel notch with a 21.6 m/s accumulated cap. Damping remains unchanged.
+
+### Asset Browser
+
+`EDITOR-022` replaces the manifest name list with a read-only icon grid. The browser builds deterministic model entries from the generated `ModelAssetManifest`, orders them by stable asset ID, and retains their render and collision classification. A compact case-insensitive search filters IDs without reordering them. One render-capable asset may be selected by ID; selection survives filtering and panel resizing and is cleared only when a reloaded manifest no longer contains that ID. Collision-only entries remain visible but disabled.
+
+Tiles are 112 logical pixels wide with a 96×96 preview area. The grid derives its column count from the available panel width, keeps tile dimensions fixed while resizing, and always provides at least one column. Labels are clipped within the tile and expose the full ID in a tooltip. Selected, hovered, keyboard-focused, and disabled entries use distinct ImGui states.
+
+The browser accepts a narrow preview provider that resolves an asset ID to an SDL GPU texture handle. Missing previews, collision-only assets, and unsupported future entry kinds use a neutral empty surface; no temporary file-type artwork is part of this contract. `EDITOR-023` owns lazy offscreen model rendering, image encoding, cache invalidation, asynchronous generation, and GPU preview lifetime. Filesystem navigation, import, drag-and-drop placement, and asset mutation remain outside `EDITOR-022`.
 
 ## Map Documents
 

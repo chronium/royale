@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T08:03:38.9682150Z
+modifiedAt: 2026-07-12T08:05:52.6337220Z
 ---
 
 ## Purpose
@@ -66,6 +66,8 @@ The central viewport displays the selected map through a resizable SDL GPU offsc
 Map mutation, persistence, selection/picking, asset thumbnails, drag-and-drop placement, ImGuizmo transforms, undo/redo, and Save/Save As remain deferred to later editor tasks.
 
 `EDITOR-017` gives captured viewport camera input exclusive pointer ownership. Capture begins only while the visible, focused viewport is hovered with right mouse held. During capture, ImGui's global mouse input is suppressed while SDL events continue to reach its backend; relative mouse mode hides the cursor. Right-mouse release, Escape, viewport closure, focus loss, and editor disposal immediately restore normal cursor and ImGui interaction.
+
+`EDITOR-018` makes viewport navigation editor-specific. While right-mouse capture is active, W/S fly along the full pitched view direction, A/D strafe camera-relative, and Q/E move along world down/up. Combined movement is normalized at 6 m/s; either Shift key boosts it to 18 m/s. While the visible, focused viewport is hovered, wheel input is consumed from ImGui and adds a signed 36 m/s view-direction dolly impulse, clamped to 72 m/s and exponentially damped with a 0.12-second half-life. SDL flipped-wheel direction is normalized. Dolly momentum may finish after hover or visibility ends, but focus loss cancels it.
 
 ## Map Documents
 

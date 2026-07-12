@@ -50,18 +50,34 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     {
         imgui?.NewFrame(time.DeltaSeconds);
         bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE); bool right = host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
-        inputOwnership.Update(viewportHovered, workspace.ViewportVisible, windowFocused, right, escape);
+        ViewportInputState viewportState =
+            (viewportHovered ? ViewportInputState.Hovered : 0) |
+            (workspace.ViewportVisible ? ViewportInputState.Visible : 0) |
+            (windowFocused ? ViewportInputState.WindowFocused : 0) |
+            (right ? ViewportInputState.RightMouseDown : 0) |
+            (escape ? ViewportInputState.EscapePressed : 0);
+        inputOwnership.Update(viewportState);
         camera.SetCaptured(inputOwnership.Captured);
         imgui?.SetMouseInputEnabled(inputOwnership.ImGuiMouseInputEnabled);
         host.Window?.RelativeMouseMode.SetEnabled(inputOwnership.Captured);
-        camera.Move(new DebugCameraInput(Down(SDL_Keycode.SDLK_W), Down(SDL_Keycode.SDLK_S), Down(SDL_Keycode.SDLK_A), Down(SDL_Keycode.SDLK_D), Down(SDL_Keycode.SDLK_E), Down(SDL_Keycode.SDLK_Q), host.Input.MouseDeltaX, host.Input.MouseDeltaY, camera.Captured), time.DeltaSeconds);
+        EditorCameraActions actions =
+            (Down(SDL_Keycode.SDLK_W) ? EditorCameraActions.MoveForward : 0) |
+            (Down(SDL_Keycode.SDLK_S) ? EditorCameraActions.MoveBackward : 0) |
+            (Down(SDL_Keycode.SDLK_A) ? EditorCameraActions.MoveLeft : 0) |
+            (Down(SDL_Keycode.SDLK_D) ? EditorCameraActions.MoveRight : 0) |
+            (Down(SDL_Keycode.SDLK_E) ? EditorCameraActions.MoveUp : 0) |
+            (Down(SDL_Keycode.SDLK_Q) ? EditorCameraActions.MoveDown : 0) |
+            (Down(SDL_Keycode.SDLK_LSHIFT) ? EditorCameraActions.LeftBoost : 0) |
+            (Down(SDL_Keycode.SDLK_RSHIFT) ? EditorCameraActions.RightBoost : 0);
+        camera.Update(new EditorCameraInput(actions, host.Input.MouseDeltaX, host.Input.MouseDeltaY, host.Input.MouseWheelY, viewportHovered && workspace.ViewportVisible && windowFocused), time.DeltaSeconds);
     }
     private bool Down(SDL_Keycode key) => host.Input.IsKeyDown((int)key);
     public void FixedUpdate(SdlFixedTickTime time) { }
     public void ProcessEvent(in SDL_Event e)
     {
-        SDL_Event value = e; imgui?.ProcessEvent(&value);
-        switch (e.Type) { case SDL_EventType.SDL_EVENT_KEY_DOWN: if (!e.key.repeat) host.Input.SetKeyDown((int)e.key.key); break; case SDL_EventType.SDL_EVENT_KEY_UP: host.Input.SetKeyUp((int)e.key.key); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN: host.Input.SetMouseButtonDown(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP: host.Input.SetMouseButtonUp(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_MOTION: host.Input.AddMouseDelta(e.motion.xrel, e.motion.yrel); break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED: windowFocused = true; break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST: windowFocused = false; ReleaseViewportInput(); break; }
+        bool consumeViewportWheel = e.Type == SDL_EventType.SDL_EVENT_MOUSE_WHEEL && viewportHovered && workspace.ViewportVisible && windowFocused;
+        if (!consumeViewportWheel) { SDL_Event value = e; imgui?.ProcessEvent(&value); }
+        switch (e.Type) { case SDL_EventType.SDL_EVENT_KEY_DOWN: if (!e.key.repeat) host.Input.SetKeyDown((int)e.key.key); break; case SDL_EventType.SDL_EVENT_KEY_UP: host.Input.SetKeyUp((int)e.key.key); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN: host.Input.SetMouseButtonDown(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP: host.Input.SetMouseButtonUp(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_MOTION: host.Input.AddMouseDelta(e.motion.xrel, e.motion.yrel); break; case SDL_EventType.SDL_EVENT_MOUSE_WHEEL when consumeViewportWheel: bool flipped = e.wheel.direction == SDL_MouseWheelDirection.SDL_MOUSEWHEEL_FLIPPED; host.Input.AddMouseWheel(EditorMouseWheel.Normalize(e.wheel.x, flipped), EditorMouseWheel.Normalize(e.wheel.y, flipped)); break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED: windowFocused = true; break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST: windowFocused = false; camera.CancelDolly(); ReleaseViewportInput(); break; }
     }
     public void Render(SdlFrameTime time)
     {

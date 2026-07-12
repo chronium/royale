@@ -1,5 +1,16 @@
 namespace Royale.Editor.Viewport;
 
+[Flags]
+public enum ViewportInputState
+{
+    None = 0,
+    Hovered = 1 << 0,
+    Visible = 1 << 1,
+    WindowFocused = 1 << 2,
+    RightMouseDown = 1 << 3,
+    EscapePressed = 1 << 4,
+}
+
 public sealed class ViewportInputOwnership
 {
     public bool Hovered { get; private set; }
@@ -8,19 +19,22 @@ public sealed class ViewportInputOwnership
     public bool Captured { get; private set; }
     public bool ImGuiMouseInputEnabled => !Captured;
 
-    public void Update(bool hovered, bool visible, bool windowFocused, bool rightMouseDown, bool escapePressed)
+    public void Update(ViewportInputState state)
     {
-        Hovered = hovered;
-        Visible = visible;
-        WindowFocused = windowFocused;
+        Hovered = state.HasFlag(ViewportInputState.Hovered);
+        Visible = state.HasFlag(ViewportInputState.Visible);
+        WindowFocused = state.HasFlag(ViewportInputState.WindowFocused);
 
-        if (escapePressed || !rightMouseDown || !visible || !windowFocused)
+        if (state.HasFlag(ViewportInputState.EscapePressed) ||
+            !state.HasFlag(ViewportInputState.RightMouseDown) ||
+            !Visible ||
+            !WindowFocused)
         {
             Captured = false;
             return;
         }
 
-        if (hovered)
+        if (Hovered)
             Captured = true;
     }
 

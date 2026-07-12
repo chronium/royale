@@ -11,6 +11,8 @@ public sealed class InputState
 
     public float MouseDeltaX { get; private set; }
     public float MouseDeltaY { get; private set; }
+    public float MouseWheelX { get; private set; }
+    public float MouseWheelY { get; private set; }
 
     public bool IsKeyDown(int key) => downKeys.Contains(key);
 
@@ -66,6 +68,12 @@ public sealed class InputState
         MouseDeltaY += y;
     }
 
+    public void AddMouseWheel(float x, float y)
+    {
+        MouseWheelX += x;
+        MouseWheelY += y;
+    }
+
     public void BeginFrame()
     {
         pressedKeys.Clear();
@@ -74,5 +82,7 @@ public sealed class InputState
         releasedMouseButtons.Clear();
         MouseDeltaX = 0;
         MouseDeltaY = 0;
+        MouseWheelX = 0;
+        MouseWheelY = 0;
     }
 }

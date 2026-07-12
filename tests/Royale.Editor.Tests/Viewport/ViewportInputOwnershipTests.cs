@@ -9,26 +9,26 @@ public sealed class ViewportInputOwnershipTests
     {
         var ownership = new ViewportInputOwnership();
 
-        ownership.Update(false, true, true, true, false);
+        ownership.Update(ViewportInputState.Visible | ViewportInputState.WindowFocused | ViewportInputState.RightMouseDown);
         Assert.False(ownership.Captured);
-        ownership.Update(true, false, true, true, false);
+        ownership.Update(ViewportInputState.Hovered | ViewportInputState.WindowFocused | ViewportInputState.RightMouseDown);
         Assert.False(ownership.Captured);
-        ownership.Update(true, true, false, true, false);
+        ownership.Update(ViewportInputState.Hovered | ViewportInputState.Visible | ViewportInputState.RightMouseDown);
         Assert.False(ownership.Captured);
-        ownership.Update(true, true, true, true, false);
+        ownership.Update(CaptureState);
         Assert.True(ownership.Captured);
     }
 
     [Theory]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, true, false, false)]
-    [InlineData(true, true, true, true)]
-    public void CaptureReleasesImmediately(bool rightDown, bool visible, bool focused, bool escape)
+    [InlineData(ViewportInputState.Hovered | ViewportInputState.Visible | ViewportInputState.WindowFocused)]
+    [InlineData(ViewportInputState.Hovered | ViewportInputState.WindowFocused | ViewportInputState.RightMouseDown)]
+    [InlineData(ViewportInputState.Hovered | ViewportInputState.Visible | ViewportInputState.RightMouseDown)]
+    [InlineData(CaptureState | ViewportInputState.EscapePressed)]
+    public void CaptureReleasesImmediately(ViewportInputState state)
     {
         var ownership = CapturedOwnership();
 
-        ownership.Update(true, visible, focused, rightDown, escape);
+        ownership.Update(state);
 
         Assert.False(ownership.Captured);
         Assert.True(ownership.ImGuiMouseInputEnabled);
@@ -40,7 +40,7 @@ public sealed class ViewportInputOwnershipTests
         var ownership = new ViewportInputOwnership();
         Assert.True(ownership.ImGuiMouseInputEnabled);
 
-        ownership.Update(true, true, true, true, false);
+        ownership.Update(CaptureState);
         Assert.False(ownership.ImGuiMouseInputEnabled);
 
         ownership.Release();
@@ -50,7 +50,9 @@ public sealed class ViewportInputOwnershipTests
     private static ViewportInputOwnership CapturedOwnership()
     {
         var ownership = new ViewportInputOwnership();
-        ownership.Update(true, true, true, true, false);
+        ownership.Update(CaptureState);
         return ownership;
     }
+
+    private const ViewportInputState CaptureState = ViewportInputState.Hovered | ViewportInputState.Visible | ViewportInputState.WindowFocused | ViewportInputState.RightMouseDown;
 }

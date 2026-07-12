@@ -81,4 +81,21 @@ public sealed class InputStateTests
         Assert.Equal(0, input.MouseDeltaX);
         Assert.Equal(0, input.MouseDeltaY);
     }
+
+    [Fact]
+    public void AccumulatesMouseWheelUntilFrameReset()
+    {
+        var input = new InputState();
+
+        input.AddMouseWheel(1.5f, -2.0f);
+        input.AddMouseWheel(-0.5f, 3.0f);
+
+        Assert.Equal(1.0f, input.MouseWheelX);
+        Assert.Equal(1.0f, input.MouseWheelY);
+
+        input.BeginFrame();
+
+        Assert.Equal(0, input.MouseWheelX);
+        Assert.Equal(0, input.MouseWheelY);
+    }
 }

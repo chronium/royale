@@ -39,6 +39,19 @@ public sealed class ModelThumbnailFramingTests
         Assert.Empty(scene.UnitBoxInstances);
     }
 
+    [Fact]
+    public void CameraUsesElevatedNegativeDiagonalToShowModelFronts()
+    {
+        ModelBounds bounds = new(new Vector3(-1), new Vector3(1));
+        var camera = ModelThumbnailFraming.CreateCamera(bounds);
+        Vector3 offset = camera.Position - bounds.Center;
+
+        Assert.True(offset.X < 0);
+        Assert.True(offset.Y > 0);
+        Assert.True(offset.Z < 0);
+        Assert.Equal(MathF.Abs(offset.X), MathF.Abs(offset.Z), 5);
+    }
+
     public static TheoryData<Vector3[], Vector3, Vector3> BoundsCases => new()
     {
         { [new Vector3(5, 2, -3), new Vector3(7, 4, -1)], new Vector3(5, 2, -3), new Vector3(7, 4, -1) },

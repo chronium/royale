@@ -43,7 +43,7 @@ public sealed class ModelThumbnailFingerprintTests
         var render = new ModelRenderAssetDefinition { Source = "model.glb", Resources = ["a.png"] };
         string baseline = ModelThumbnailFingerprint.Calculate("crate", render, files.Root);
 
-        Assert.NotEqual(baseline, ModelThumbnailFingerprint.Calculate("crate", render, files.Root, "model-thumbnail-v2"));
+        Assert.NotEqual(baseline, ModelThumbnailFingerprint.Calculate("crate", render, files.Root, "model-thumbnail-v3"));
         Assert.NotEqual(baseline, ModelThumbnailFingerprint.Calculate("crate", render, files.Root, settingsSignature: "different-settings"));
     }
 

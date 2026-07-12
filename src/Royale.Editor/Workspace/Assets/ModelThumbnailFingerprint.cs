@@ -7,7 +7,7 @@ namespace Royale.Editor.Workspace.Assets;
 
 public static class ModelThumbnailFingerprint
 {
-    public const string RendererVersion = "model-thumbnail-v1";
+    public const string RendererVersion = "model-thumbnail-v2";
 
     public static string Calculate(
         string assetId,
@@ -31,7 +31,7 @@ public static class ModelThumbnailFingerprint
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
-    private static string RenderCameraSettings() => "fov:60|view:1,0.75,1|bounds-near-far";
+    private static string RenderCameraSettings() => "fov:60|view:-1,0.75,-1|bounds-near-far";
 
     private static void AddFile(IncrementalHash hash, string root, string relativePath)
     {

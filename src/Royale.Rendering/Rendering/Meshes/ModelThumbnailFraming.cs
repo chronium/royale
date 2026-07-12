@@ -7,7 +7,7 @@ public static class ModelThumbnailFraming
 {
     public const int Resolution = 256;
     public const float Padding = 0.15f;
-    private static readonly Vector3 ViewDirection = Vector3.Normalize(new Vector3(1.0f, 0.75f, 1.0f));
+    private static readonly Vector3 ViewDirection = Vector3.Normalize(new Vector3(-1.0f, 0.75f, -1.0f));
 
     public static ModelBounds CalculateBounds(StaticMeshAsset asset)
     {

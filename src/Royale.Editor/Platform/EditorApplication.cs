@@ -22,7 +22,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 {
     private const string ViewportName = "Viewport"; private const string HierarchyName = "Hierarchy"; private const string InspectorName = "Inspector"; private const string AssetsName = "Asset Browser"; private const string ValidationName = "Validation"; private const string LogName = "Log";
     private readonly EditorLaunchOptions options; private readonly ILogger logger; private readonly SdlDesktopHost host; private readonly EditorWorkspaceState workspace = new(); private readonly EditorLog log = new(); private readonly EditorCameraController camera = new();
-    private SdlGpuDevice? gpu; private SdlGpuImGuiBackend? imgui; private SdlGpuOffscreenTarget? target; private GameMap? map; private StaticMeshScene? scene; private ModelAssetManifest? manifest; private int frames; private ViewportPixelSize requestedSize = new(1, 1); private bool viewportHovered;
+    private readonly ViewportInputOwnership inputOwnership = new();
+    private SdlGpuDevice? gpu; private SdlGpuImGuiBackend? imgui; private SdlGpuOffscreenTarget? target; private GameMap? map; private StaticMeshScene? scene; private ModelAssetManifest? manifest; private int frames; private ViewportPixelSize requestedSize = new(1, 1); private bool viewportHovered; private bool windowFocused = true;
 
     public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger)
     {
@@ -49,7 +50,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     {
         imgui?.NewFrame(time.DeltaSeconds);
         bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE); bool right = host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
-        camera.UpdateCapture(viewportHovered, right, escape); host.Window?.RelativeMouseMode.SetEnabled(camera.Captured);
+        inputOwnership.Update(viewportHovered, workspace.ViewportVisible, windowFocused, right, escape);
+        camera.SetCaptured(inputOwnership.Captured);
+        imgui?.SetMouseInputEnabled(inputOwnership.ImGuiMouseInputEnabled);
+        host.Window?.RelativeMouseMode.SetEnabled(inputOwnership.Captured);
         camera.Move(new DebugCameraInput(Down(SDL_Keycode.SDLK_W), Down(SDL_Keycode.SDLK_S), Down(SDL_Keycode.SDLK_A), Down(SDL_Keycode.SDLK_D), Down(SDL_Keycode.SDLK_E), Down(SDL_Keycode.SDLK_Q), host.Input.MouseDeltaX, host.Input.MouseDeltaY, camera.Captured), time.DeltaSeconds);
     }
     private bool Down(SDL_Keycode key) => host.Input.IsKeyDown((int)key);
@@ -57,7 +61,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     public void ProcessEvent(in SDL_Event e)
     {
         SDL_Event value = e; imgui?.ProcessEvent(&value);
-        switch (e.Type) { case SDL_EventType.SDL_EVENT_KEY_DOWN: if (!e.key.repeat) host.Input.SetKeyDown((int)e.key.key); break; case SDL_EventType.SDL_EVENT_KEY_UP: host.Input.SetKeyUp((int)e.key.key); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN: host.Input.SetMouseButtonDown(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP: host.Input.SetMouseButtonUp(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_MOTION: host.Input.AddMouseDelta(e.motion.xrel, e.motion.yrel); break; }
+        switch (e.Type) { case SDL_EventType.SDL_EVENT_KEY_DOWN: if (!e.key.repeat) host.Input.SetKeyDown((int)e.key.key); break; case SDL_EventType.SDL_EVENT_KEY_UP: host.Input.SetKeyUp((int)e.key.key); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN: host.Input.SetMouseButtonDown(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP: host.Input.SetMouseButtonUp(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_MOTION: host.Input.AddMouseDelta(e.motion.xrel, e.motion.yrel); break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED: windowFocused = true; break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST: windowFocused = false; ReleaseViewportInput(); break; }
     }
     public void Render(SdlFrameTime time)
     {
@@ -97,5 +101,13 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         ImGuiDockBuilder.RemoveNode(root); ImGuiDockBuilder.AddDockSpace(root); ImGuiDockBuilder.SetNodeSize(root, size); uint left = ImGuiDockBuilder.Split(root, ImGuiDir.Left, .20f, out uint rest); uint right = ImGuiDockBuilder.Split(rest, ImGuiDir.Right, .25f, out uint center); uint bottom = ImGuiDockBuilder.Split(center, ImGuiDir.Down, .25f, out uint viewport);
         ImGuiDockBuilder.DockWindow(HierarchyName, left); ImGuiDockBuilder.DockWindow(InspectorName, right); ImGuiDockBuilder.DockWindow(AssetsName, bottom); ImGuiDockBuilder.DockWindow(ValidationName, bottom); ImGuiDockBuilder.DockWindow(LogName, bottom); ImGuiDockBuilder.DockWindow(ViewportName, viewport); ImGuiDockBuilder.Finish(root);
     }
-    public void Dispose() { target?.Dispose(); imgui?.Dispose(); gpu?.Dispose(); host.Dispose(); }
+    private void ReleaseViewportInput()
+    {
+        inputOwnership.Release();
+        camera.SetCaptured(false);
+        imgui?.SetMouseInputEnabled(true);
+        host.Window?.RelativeMouseMode.SetEnabled(false);
+    }
+
+    public void Dispose() { ReleaseViewportInput(); target?.Dispose(); imgui?.Dispose(); gpu?.Dispose(); host.Dispose(); }
 }

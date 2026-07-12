@@ -91,6 +91,21 @@ public sealed unsafe class SdlGpuImGuiBackend : IDisposable
         royale_imgui_sdl3_process_event(sdlEvent);
     }
 
+    public void SetMouseInputEnabled(bool enabled)
+    {
+        ThrowIfDisposed();
+        ImguiNative.igSetCurrentContext(context);
+
+        ImGuiIO* io = ImguiNative.igGetIO_Nil();
+        if (io is null)
+            throw new InvalidOperationException("ImGui IO was not available.");
+
+        if (enabled)
+            io->ConfigFlags &= ~ImGuiConfigFlags.NoMouse;
+        else
+            io->ConfigFlags |= ImGuiConfigFlags.NoMouse;
+    }
+
     public void NewFrame(double deltaSeconds)
     {
         ThrowIfDisposed();

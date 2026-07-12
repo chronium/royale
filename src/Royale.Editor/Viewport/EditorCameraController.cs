@@ -6,7 +6,7 @@ namespace Royale.Editor.Viewport;
 public sealed class EditorCameraController
 {
     public DebugCamera Camera { get; private set; } = DebugCamera.CreateDefault(); public float FarPlane { get; private set; } = RenderCamera.DefaultFarPlane; public bool Captured { get; private set; }
-    public void UpdateCapture(bool hovered, bool rightDown, bool escape) { if (escape || !rightDown) Captured = false; else if (hovered) Captured = true; }
+    public void SetCaptured(bool captured) => Captured = captured;
     public void Move(DebugCameraInput input, double seconds) { if (Captured) Camera.Update(input, seconds); }
     public void Frame(MapBounds bounds)
     {

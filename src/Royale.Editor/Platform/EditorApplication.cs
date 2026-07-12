@@ -53,6 +53,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool windowFocused = true;
     private bool modalOpenRequested;
     private PendingOperation pendingOperation;
+    private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
 
     public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger, IEditorFileDialogService? dialogs = null)
@@ -172,8 +173,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             viewportHovered &&
             workspace.ViewportVisible &&
             windowFocused;
+        bool consumeShortcut = QueueShortcut(e);
 
-        if (!consumeViewportWheel)
+        if (!consumeViewportWheel && !consumeShortcut)
         {
             SDL_Event value = e;
             imgui?.ProcessEvent(&value);
@@ -295,16 +297,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         Text($"Map ID: {map.Id}");
         fixed (byte* buffer = nameBuffer)
         {
-            if (ImguiNative.igInputText(
+            bool submitted = ImguiNative.igInputText(
                     "Display name",
                     buffer,
                     (uint)nameBuffer.Length,
                     ImGuiInputTextFlags.EnterReturnsTrue,
                     null,
-                    null))
-            {
+                    null);
+            if (submitted || ImguiNative.igIsItemDeactivatedAfterEdit())
                 CommitMapName();
-            }
         }
 
         MapVector3 min = map.WorldBounds.Min;
@@ -688,30 +689,44 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void ProcessShortcuts()
     {
-        bool command =
-            Down(SDL_Keycode.SDLK_LCTRL) ||
-            Down(SDL_Keycode.SDLK_RCTRL) ||
-            Down(SDL_Keycode.SDLK_LGUI) ||
-            Down(SDL_Keycode.SDLK_RGUI);
-        if (!command)
+        EditorKeyboardShortcut shortcut = pendingShortcut;
+        pendingShortcut = EditorKeyboardShortcut.None;
+        if (shortcut == EditorKeyboardShortcut.None)
             return;
 
-        bool shift = Down(SDL_Keycode.SDLK_LSHIFT) || Down(SDL_Keycode.SDLK_RSHIFT);
-        if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_O))
+        CommitMapName();
+        ImGuiEditorNative.ClearActiveId();
+        switch (shortcut)
         {
-            RequestOpen();
-        }
-        else if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_S))
-        {
-            Save(shift);
-        }
-        else if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_Z))
-        {
-            if (shift)
-                Redo();
-            else
+            case EditorKeyboardShortcut.Open:
+                RequestOpen();
+                break;
+            case EditorKeyboardShortcut.Save:
+                Save(false);
+                break;
+            case EditorKeyboardShortcut.SaveAs:
+                Save(true);
+                break;
+            case EditorKeyboardShortcut.Undo:
                 Undo();
+                break;
+            case EditorKeyboardShortcut.Redo:
+                Redo();
+                break;
         }
+    }
+
+    private bool QueueShortcut(in SDL_Event e)
+    {
+        if (e.Type != SDL_EventType.SDL_EVENT_KEY_DOWN || e.key.repeat)
+            return false;
+
+        EditorKeyboardShortcut shortcut = EditorKeyboardShortcutResolver.Resolve(e.key.key, e.key.mod);
+        if (shortcut == EditorKeyboardShortcut.None)
+            return false;
+
+        pendingShortcut = shortcut;
+        return true;
     }
 
     private void UpdateWindowTitle()

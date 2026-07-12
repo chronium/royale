@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T19:22:36.4117410Z
+modifiedAt: 2026-07-12T19:35:25.3069590Z
 ---
 
 ## Purpose
@@ -141,6 +141,8 @@ Asset imports are project-only and batch-oriented. IDs are editable lowercase po
 Import builds staged client and server outputs first, then commits new source files, the source manifest, and generated directories under a project-local journal. Project open recovers an incomplete journal by removing moved files and restoring the manifest backup. A successful import reloads the project so manifest fingerprints and source content are current; imported models are not placed in the map automatically.
 
 `EDITOR-024` transaction hardening supersedes the earlier file-by-file commit description: import and folder moves stage the complete source tree plus both generated audience trees. One internal journal records the staged, live, and backup directories and the completed swap checkpoint. Failure or startup recovery restores all three live trees, including failures before, during, or between generated-output swaps.
+
+Shared external GLB resources may reuse an existing import destination only when the existing and incoming files are byte-for-byte identical. Primary model destinations and separate collision destinations remain exclusive, and differing shared-resource bytes remain a preflight error.
 
 ### Project Lifecycle
 

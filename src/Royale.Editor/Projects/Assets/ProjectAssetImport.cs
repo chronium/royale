@@ -108,15 +108,22 @@ public static class ProjectAssetImporter
             }
             ValidateDestination(Join(folder, Path.GetFileName(row.SourcePath)), row.SourcePath);
             foreach (string uri in GlbExternalResourceInspector.Inspect(row.SourcePath))
-                ValidateDestination(Join(folder, uri), Path.GetFullPath(Path.Combine(Path.GetDirectoryName(row.SourcePath)!, uri.Replace('/', Path.DirectorySeparatorChar))));
+                ValidateDestination(
+                    Join(folder, uri),
+                    Path.GetFullPath(Path.Combine(Path.GetDirectoryName(row.SourcePath)!, uri.Replace('/', Path.DirectorySeparatorChar))),
+                    allowIdenticalExisting: true);
         }
 
-        void ValidateDestination(string relative, string source)
+        void ValidateDestination(string relative, string source, bool allowIdenticalExisting = false)
         {
             if (!File.Exists(source)) throw new FileNotFoundException($"Referenced import resource was not found at '{source}'.", source);
             string target = ProjectAssetPaths.Resolve(project.Paths.Sources, relative);
-            if (File.Exists(target)) throw new IOException($"Import destination '{relative}' already exists.");
             byte[] bytes = File.ReadAllBytes(source);
+            if (File.Exists(target))
+            {
+                if (!allowIdenticalExisting || !File.ReadAllBytes(target).AsSpan().SequenceEqual(bytes))
+                    throw new IOException($"Import destination '{relative}' already exists with different content.");
+            }
             if (destinations.TryGetValue(relative, out byte[]? existing) && !existing.AsSpan().SequenceEqual(bytes))
                 throw new IOException($"Import destination '{relative}' has conflicting source bytes.");
             destinations[relative] = bytes;

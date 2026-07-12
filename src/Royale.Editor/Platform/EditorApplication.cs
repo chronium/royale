@@ -69,6 +69,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool folderModalRequested;
     private readonly List<PendingAssetImportState> pendingImports = [];
     private int pendingCollisionRow = -1;
+    private Action? pendingAssetOperation;
+    private string? importError;
+    private bool closeImportModalRequested;
     private PendingOperation pendingOperation;
     private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
@@ -139,6 +142,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Update(SdlFrameTime time)
     {
+        ProcessAssetOperation();
         ProcessDialogResults();
         ProcessShortcuts();
         UpdateWindowTitle();
@@ -872,6 +876,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (projectSession is null)
             return;
         pendingImports.Clear();
+        importError = null;
         importModalRequested = true;
     }
 
@@ -884,6 +889,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         }
         if (!ImguiNative.igBeginPopupModal("Import Assets", null, ImGuiWindowFlags.AlwaysAutoResize))
             return;
+
+        if (closeImportModalRequested)
+        {
+            closeImportModalRequested = false;
+            ImguiNative.igCloseCurrentPopup();
+            ImguiNative.igEndPopup();
+            return;
+        }
 
         string destination = assetBrowser?.CurrentFolder ?? string.Empty;
         Text($"Destination: assets/{destination}");
@@ -949,23 +962,24 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             ImguiNative.igPopID();
         }
 
-        if (ImguiNative.igButton("Import", new Vector2(90, 0)) && valid)
+        if (importError is not null)
+            Text(importError);
+
+        bool operationPending = pendingAssetOperation is not null;
+        if (ImguiNative.igButton("Import", new Vector2(90, 0)) && valid && !operationPending)
         {
-            try
+            IReadOnlyList<PendingAssetImport> commands = pendingImports.Select(row => row.ToCommand()).ToList();
+            importError = null;
+            QueueAssetOperation("Asset import", () =>
             {
-                projectSession!.ImportAssets(destination, pendingImports.Select(row => row.ToCommand()).ToList());
+                projectSession!.ImportAssets(destination, commands);
                 ReloadProjectAssets();
                 pendingImports.Clear();
-                ImguiNative.igCloseCurrentPopup();
-            }
-            catch (Exception ex)
-            {
-                validationMessage = ex.Message;
-                log.Add($"Asset import failed: {ex.Message}");
-            }
+                closeImportModalRequested = true;
+            }, keepImportModalOnFailure: true);
         }
         ImguiNative.igSameLine(0, 6);
-        if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
+        if (ImguiNative.igButton("Cancel", new Vector2(90, 0)) && !operationPending)
         {
             pendingImports.Clear();
             ImguiNative.igCloseCurrentPopup();
@@ -1023,18 +1037,45 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void RunFolderCommand(Action command, string? navigateTo)
     {
-        try
+        QueueAssetOperation("Asset folder operation", () =>
         {
             command();
             ReloadProjectAssets();
             if (navigateTo is not null)
                 assetBrowser?.Navigate(navigateTo);
-        }
-        catch (Exception ex)
+        });
+    }
+
+    private void QueueAssetOperation(string name, Action operation, bool keepImportModalOnFailure = false)
+    {
+        if (pendingAssetOperation is not null)
+            return;
+        pendingAssetOperation = () =>
         {
-            validationMessage = ex.Message;
-            log.Add($"Asset folder operation failed: {ex.Message}");
-        }
+            try
+            {
+                operation();
+                validationMessage = $"{name}: successful";
+                log.Add($"{name} completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                validationMessage = ex.Message;
+                log.Add($"{name} failed: {ex.Message}");
+                logger.LogError(ex, "{AssetOperation} failed.", name);
+                if (keepImportModalOnFailure)
+                    importError = ex.Message;
+            }
+        };
+    }
+
+    private void ProcessAssetOperation()
+    {
+        Action? operation = pendingAssetOperation;
+        if (operation is null)
+            return;
+        pendingAssetOperation = null;
+        operation();
     }
 
     private static string BufferText(byte[] buffer)

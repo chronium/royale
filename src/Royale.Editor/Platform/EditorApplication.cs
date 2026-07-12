@@ -129,7 +129,6 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Update(SdlFrameTime time)
     {
-        imgui?.NewFrame(time.DeltaSeconds);
         ProcessDialogResults();
         ProcessShortcuts();
         UpdateWindowTitle();
@@ -144,7 +143,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             (escape ? ViewportInputState.EscapePressed : 0);
         inputOwnership.Update(viewportState);
         camera.SetCaptured(inputOwnership.Captured);
-        imgui?.SetMouseInputEnabled(inputOwnership.ImGuiMouseInputEnabled);
+        imgui?.NewFrame(time.DeltaSeconds, inputOwnership.ImGuiMouseInputEnabled);
         host.Window?.RelativeMouseMode.SetEnabled(inputOwnership.Captured);
         EditorCameraActions actions =
             (Down(SDL_Keycode.SDLK_W) ? EditorCameraActions.MoveForward : 0) |

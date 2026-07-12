@@ -128,6 +128,12 @@ public sealed unsafe class SdlGpuImGuiBackend : IDisposable
         ImguiNative.igNewFrame();
     }
 
+    public void NewFrame(double deltaSeconds, bool mouseInputEnabled)
+    {
+        SetMouseInputEnabled(mouseInputEnabled);
+        NewFrame(deltaSeconds);
+    }
+
     internal void Render(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUTexture* swapchainTexture)
     {
         ThrowIfDisposed();

@@ -23,37 +23,113 @@ namespace Royale.Editor.Platform;
 
 public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposable
 {
-    private const string ViewportName = "Viewport"; private const string HierarchyName = "Hierarchy"; private const string InspectorName = "Inspector"; private const string AssetsName = "Asset Browser"; private const string ValidationName = "Validation"; private const string LogName = "Log";
-    private readonly EditorLaunchOptions options; private readonly ILogger logger; private readonly SdlDesktopHost host; private readonly EditorWorkspaceState workspace = new(); private readonly EditorLog log = new(); private readonly EditorCameraController camera = new();
-    private readonly ViewportInputOwnership inputOwnership = new(); private readonly IEditorFileDialogService dialogs;
-    private SdlGpuDevice? gpu; private SdlGpuImGuiBackend? imgui; private SdlGpuOffscreenTarget? target; private EditorMapDocument? document; private StaticMeshScene? scene; private ModelAssetManifest? manifest; private StaticMeshAssetCache? meshCache; private int frames; private ViewportPixelSize requestedSize = new(1, 1); private bool viewportHovered; private bool windowFocused = true; private bool modalOpenRequested; private PendingOperation pendingOperation; private readonly byte[] nameBuffer = new byte[256]; private string validationMessage = "Runtime map loading: successful";
+    private const string ViewportName = "Viewport";
+    private const string HierarchyName = "Hierarchy";
+    private const string InspectorName = "Inspector";
+    private const string AssetsName = "Asset Browser";
+    private const string ValidationName = "Validation";
+    private const string LogName = "Log";
+
+    private readonly EditorLaunchOptions options;
+    private readonly ILogger logger;
+    private readonly SdlDesktopHost host;
+    private readonly EditorWorkspaceState workspace = new();
+    private readonly EditorLog log = new();
+    private readonly EditorCameraController camera = new();
+    private readonly ViewportInputOwnership inputOwnership = new();
+    private readonly IEditorFileDialogService dialogs;
+    private readonly byte[] nameBuffer = new byte[256];
+
+    private SdlGpuDevice? gpu;
+    private SdlGpuImGuiBackend? imgui;
+    private SdlGpuOffscreenTarget? target;
+    private EditorMapDocument? document;
+    private StaticMeshScene? scene;
+    private ModelAssetManifest? manifest;
+    private StaticMeshAssetCache? meshCache;
+    private int frames;
+    private ViewportPixelSize requestedSize = new(1, 1);
+    private bool viewportHovered;
+    private bool windowFocused = true;
+    private bool modalOpenRequested;
+    private PendingOperation pendingOperation;
+    private string validationMessage = "Runtime map loading: successful";
 
     public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger, IEditorFileDialogService? dialogs = null)
     {
-        this.options = options; this.logger = logger; this.dialogs = dialogs ?? new SdlEditorFileDialogService();
-        host = new SdlDesktopHost(new SdlWindowSettings("Royale Editor", 1920, 1080, SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY), new SdlLoopSettings(1.0 / 60.0, 4, 1), logger);
-        if (options.ResetLayout) workspace.RequestLayoutReset();
+        this.options = options;
+        this.logger = logger;
+        this.dialogs = dialogs ?? new SdlEditorFileDialogService();
+        host = new SdlDesktopHost(
+            new SdlWindowSettings(
+                "Royale Editor",
+                1920,
+                1080,
+                SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY),
+            new SdlLoopSettings(1.0 / 60.0, 4, 1),
+            logger);
+
+        if (options.ResetLayout)
+            workspace.RequestLayoutReset();
     }
+
     public void Run() => host.Run(this);
+
     public void Initialize(SdlDesktopHost desktopHost)
     {
         try
         {
-            string layout = EditorLayoutPath.Resolve(); Directory.CreateDirectory(Path.GetDirectoryName(layout)!);
-            EditorMapSource source = EditorMapSourceResolver.Resolve(options.MapId, options.MapFilePath, Environment.CurrentDirectory, AppContext.BaseDirectory); LoadDocument(source.Path, source.RequiresSaveAs);
-            string manifestPath = Path.Combine(AppContext.BaseDirectory, "assets", ContentCatalog.ModelAssetManifestFileName); manifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
-            meshCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory); RebuildScene();
-            gpu = SdlGpuDevice.Create(host.Window!); target = gpu.CreateOffscreenTarget(1, 1); imgui = SdlGpuImGuiBackend.Create(host.Window!, gpu, new SdlGpuImGuiSettings(true, layout));
-            if (!File.Exists(layout)) workspace.RequestLayoutReset();
-            log.Add("Rendering and ImGui docking initialized."); logger.LogInformation("Loaded editor map {MapId} and {AssetCount} manifest assets.", document!.Map.Id, manifest.Assets.Count);
+            string layout = EditorLayoutPath.Resolve();
+            Directory.CreateDirectory(Path.GetDirectoryName(layout)!);
+
+            EditorMapSource source = EditorMapSourceResolver.Resolve(
+                options.MapId,
+                options.MapFilePath,
+                Environment.CurrentDirectory,
+                AppContext.BaseDirectory);
+            LoadDocument(source.Path, source.RequiresSaveAs);
+
+            string manifestPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "assets",
+                ContentCatalog.ModelAssetManifestFileName);
+            manifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
+            meshCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+            RebuildScene();
+
+            gpu = SdlGpuDevice.Create(host.Window!);
+            target = gpu.CreateOffscreenTarget(1, 1);
+            imgui = SdlGpuImGuiBackend.Create(
+                host.Window!,
+                gpu,
+                new SdlGpuImGuiSettings(true, layout));
+
+            if (!File.Exists(layout))
+                workspace.RequestLayoutReset();
+
+            log.Add("Rendering and ImGui docking initialized.");
+            logger.LogInformation(
+                "Loaded editor map {MapId} and {AssetCount} manifest assets.",
+                document!.Map.Id,
+                manifest.Assets.Count);
         }
-        catch (Exception ex) { log.Add($"Initialization failed: {ex.Message}"); logger.LogError(ex, "Editor initialization failed for map {MapId}.", options.MapId); throw; }
+        catch (Exception ex)
+        {
+            log.Add($"Initialization failed: {ex.Message}");
+            logger.LogError(ex, "Editor initialization failed for map {MapId}.", options.MapId);
+            throw;
+        }
     }
+
     public void Update(SdlFrameTime time)
     {
         imgui?.NewFrame(time.DeltaSeconds);
-        ProcessDialogResults(); ProcessShortcuts(); UpdateWindowTitle();
-        bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE); bool right = host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
+        ProcessDialogResults();
+        ProcessShortcuts();
+        UpdateWindowTitle();
+
+        bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE);
+        bool right = host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
         ViewportInputState viewportState =
             (viewportHovered ? ViewportInputState.Hovered : 0) |
             (workspace.ViewportVisible ? ViewportInputState.Visible : 0) |
@@ -73,55 +149,318 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             (Down(SDL_Keycode.SDLK_Q) ? EditorCameraActions.MoveDown : 0) |
             (Down(SDL_Keycode.SDLK_LSHIFT) ? EditorCameraActions.LeftBoost : 0) |
             (Down(SDL_Keycode.SDLK_RSHIFT) ? EditorCameraActions.RightBoost : 0);
-        camera.Update(new EditorCameraInput(actions, host.Input.MouseDeltaX, host.Input.MouseDeltaY, host.Input.MouseWheelY, viewportHovered && workspace.ViewportVisible && windowFocused), time.DeltaSeconds);
+        camera.Update(
+            new EditorCameraInput(
+                actions,
+                host.Input.MouseDeltaX,
+                host.Input.MouseDeltaY,
+                host.Input.MouseWheelY,
+                viewportHovered && workspace.ViewportVisible && windowFocused),
+            time.DeltaSeconds);
     }
+
     private bool Down(SDL_Keycode key) => host.Input.IsKeyDown((int)key);
-    public void FixedUpdate(SdlFixedTickTime time) { }
+
+    public void FixedUpdate(SdlFixedTickTime time)
+    {
+    }
+
     public void ProcessEvent(in SDL_Event e)
     {
-        bool consumeViewportWheel = e.Type == SDL_EventType.SDL_EVENT_MOUSE_WHEEL && viewportHovered && workspace.ViewportVisible && windowFocused;
-        if (!consumeViewportWheel) { SDL_Event value = e; imgui?.ProcessEvent(&value); }
-        switch (e.Type) { case SDL_EventType.SDL_EVENT_KEY_DOWN: if (!e.key.repeat) host.Input.SetKeyDown((int)e.key.key); break; case SDL_EventType.SDL_EVENT_KEY_UP: host.Input.SetKeyUp((int)e.key.key); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN: host.Input.SetMouseButtonDown(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP: host.Input.SetMouseButtonUp(e.button.button); break; case SDL_EventType.SDL_EVENT_MOUSE_MOTION: host.Input.AddMouseDelta(e.motion.xrel, e.motion.yrel); break; case SDL_EventType.SDL_EVENT_MOUSE_WHEEL when consumeViewportWheel: bool flipped = e.wheel.direction == SDL_MouseWheelDirection.SDL_MOUSEWHEEL_FLIPPED; host.Input.AddMouseWheel(EditorMouseWheel.Normalize(e.wheel.x, flipped), EditorMouseWheel.Normalize(e.wheel.y, flipped)); break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED: windowFocused = true; break; case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST: windowFocused = false; camera.CancelDolly(); ReleaseViewportInput(); break; case SDL_EventType.SDL_EVENT_QUIT: case SDL_EventType.SDL_EVENT_WINDOW_CLOSE_REQUESTED: if (document?.IsDirty == true) { host.CancelExit(); RequestPending(PendingOperation.Close); } break; }
+        bool consumeViewportWheel =
+            e.Type == SDL_EventType.SDL_EVENT_MOUSE_WHEEL &&
+            viewportHovered &&
+            workspace.ViewportVisible &&
+            windowFocused;
+
+        if (!consumeViewportWheel)
+        {
+            SDL_Event value = e;
+            imgui?.ProcessEvent(&value);
+        }
+
+        switch (e.Type)
+        {
+            case SDL_EventType.SDL_EVENT_KEY_DOWN:
+                if (!e.key.repeat)
+                    host.Input.SetKeyDown((int)e.key.key);
+                break;
+            case SDL_EventType.SDL_EVENT_KEY_UP:
+                host.Input.SetKeyUp((int)e.key.key);
+                break;
+            case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
+                host.Input.SetMouseButtonDown(e.button.button);
+                break;
+            case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
+                host.Input.SetMouseButtonUp(e.button.button);
+                break;
+            case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
+                host.Input.AddMouseDelta(e.motion.xrel, e.motion.yrel);
+                break;
+            case SDL_EventType.SDL_EVENT_MOUSE_WHEEL when consumeViewportWheel:
+                bool flipped = e.wheel.direction == SDL_MouseWheelDirection.SDL_MOUSEWHEEL_FLIPPED;
+                host.Input.AddMouseWheel(
+                    EditorMouseWheel.Normalize(e.wheel.x, flipped),
+                    EditorMouseWheel.Normalize(e.wheel.y, flipped));
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_GAINED:
+                windowFocused = true;
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
+                windowFocused = false;
+                camera.CancelDolly();
+                ReleaseViewportInput();
+                break;
+            case SDL_EventType.SDL_EVENT_QUIT:
+            case SDL_EventType.SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+                if (document?.IsDirty == true)
+                {
+                    host.CancelExit();
+                    RequestPending(PendingOperation.Close);
+                }
+                break;
+        }
     }
+
     public void Render(SdlFrameTime time)
     {
-        if (gpu is null || imgui is null || target is null || scene is null || document is null || manifest is null) return;
-        if (target.Width != requestedSize.Width || target.Height != requestedSize.Height) target.Resize(requestedSize.Width, requestedSize.Height);
+        if (gpu is null || imgui is null || target is null || scene is null || document is null || manifest is null)
+            return;
+
+        if (target.Width != requestedSize.Width || target.Height != requestedSize.Height)
+            target.Resize(requestedSize.Width, requestedSize.Height);
+
         gpu.RenderOffscreen(target, new RenderFrame(camera.ToRenderCamera(), scene, RenderViewMode.Normal));
         BuildWorkspace(target, document.Map, manifest);
-        frames++; bool capture = options.ScreenshotPath is not null && frames == options.ScreenshotAfterFrames;
-        GpuImageReadback? image = gpu.PresentFrame(new RenderFrame(camera.ToRenderCamera(), new StaticMeshScene([], []), RenderViewMode.Normal), imgui, capture);
-        if (capture && image is not null) { BmpScreenshotWriter.Save(options.ScreenshotPath!, image.RgbaBytes, image.Width, image.Height, SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM); host.RequestExit(); }
+
+        frames++;
+        bool capture = options.ScreenshotPath is not null && frames == options.ScreenshotAfterFrames;
+        GpuImageReadback? image = gpu.PresentFrame(
+            new RenderFrame(camera.ToRenderCamera(), new StaticMeshScene([], []), RenderViewMode.Normal),
+            imgui,
+            capture);
+
+        if (capture && image is not null)
+        {
+            BmpScreenshotWriter.Save(
+                options.ScreenshotPath!,
+                image.RgbaBytes,
+                image.Width,
+                image.Height,
+                SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+            host.RequestExit();
+        }
     }
+
     private void BuildWorkspace(SdlGpuOffscreenTarget viewport, GameMap loadedMap, ModelAssetManifest loadedManifest)
     {
-        BuildMenu(); ImGuiViewport* main = ImguiNative.igGetMainViewport(); uint dockId = ImguiNative.igGetID_Str("RoyaleEditorDockspace");
-        if (workspace.ConsumeLayoutReset()) ResetLayout(dockId, main->Size);
+        BuildMenu();
+        ImGuiViewport* main = ImguiNative.igGetMainViewport();
+        uint dockId = ImguiNative.igGetID_Str("RoyaleEditorDockspace");
+        if (workspace.ConsumeLayoutReset())
+            ResetLayout(dockId, main->Size);
+
         ImguiNative.igDockSpaceOverViewport(dockId, main, ImGuiDockNodeFlags.PassthruCentralNode, null);
-        if (workspace.HierarchyVisible) Window(HierarchyName, () => { Group("Static Boxes", loadedMap.StaticBoxes.Select(x => x.Id)); Group("Static Models", loadedMap.StaticModels.Select(x => x.Id)); Group("Spawn Points", loadedMap.SpawnPoints.Select(x => x.Id)); Group("Loot Points", loadedMap.LootPoints.Select(x => x.Id)); Group("Navigation Nodes", loadedMap.Navigation.Waypoints.Select(x => x.Id)); });
-        if (workspace.InspectorVisible) Window(InspectorName, () => { Text($"Map ID: {loadedMap.Id}"); fixed (byte* buffer = nameBuffer) { if (ImguiNative.igInputText("Display name", buffer, (uint)nameBuffer.Length, ImGuiInputTextFlags.EnterReturnsTrue, null, null)) CommitMapName(); } MapVector3 min = loadedMap.WorldBounds.Min, max = loadedMap.WorldBounds.Max, zone = loadedMap.SafeZone.Center; Text($"Bounds min: {min.X:0.##}, {min.Y:0.##}, {min.Z:0.##}"); Text($"Bounds max: {max.X:0.##}, {max.Y:0.##}, {max.Z:0.##}"); Text($"Safe zone: {zone.X:0.##}, {zone.Y:0.##}, {zone.Z:0.##}; r {loadedMap.SafeZone.Radius:0.##}"); EditorMapSummary s = EditorMapSummary.Create(loadedMap); Text($"Boxes {s.StaticBoxes}; models {s.StaticModels}"); Text($"Spawns {s.SpawnPoints}; loot {s.LootPoints}; nav {s.NavigationNodes}"); });
-        if (workspace.AssetBrowserVisible) Window(AssetsName, () => { foreach (ModelAssetDefinition a in loadedManifest.Assets) Text($"{a.Id}  [{(a.Render is null ? "no render" : "render ready")}]"); });
-        if (workspace.ValidationVisible) Window(ValidationName, () => { Text(validationMessage); Text("Model manifest loading: successful"); Text($"Map content: {loadedMap.StaticBoxes.Count + loadedMap.StaticModels.Count} static objects"); });
-        if (workspace.LogVisible) Window(LogName, () => { foreach (string entry in log.Entries) Text(entry); });
-        if (workspace.ViewportVisible) Window(ViewportName, () => { Vector2 available = ImguiNative.igGetContentRegionAvail(); ImGuiIO* io = ImguiNative.igGetIO_Nil(); requestedSize = ViewportPixelSize.FromLogical(available.X, available.Y, io->DisplayFramebufferScale.X, io->DisplayFramebufferScale.Y); viewportHovered = ImguiNative.igIsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows); ImguiNative.igImage(new ImTextureRef { _TexID = (ulong)viewport.NativeTextureHandle }, available, new Vector2(0, 0), new Vector2(1, 1)); }); else viewportHovered = false; BuildUnsavedModal();
+
+        if (workspace.HierarchyVisible)
+            Window(HierarchyName, () => BuildHierarchy(loadedMap));
+        if (workspace.InspectorVisible)
+            Window(InspectorName, () => BuildInspector(loadedMap));
+        if (workspace.AssetBrowserVisible)
+            Window(AssetsName, () => BuildAssetBrowser(loadedManifest));
+        if (workspace.ValidationVisible)
+            Window(ValidationName, () => BuildValidation(loadedMap));
+        if (workspace.LogVisible)
+            Window(LogName, BuildLog);
+
+        if (workspace.ViewportVisible)
+            Window(ViewportName, () => BuildViewport(viewport));
+        else
+            viewportHovered = false;
+
+        BuildUnsavedModal();
     }
+
+    private static void BuildHierarchy(GameMap map)
+    {
+        Group("Static Boxes", map.StaticBoxes.Select(x => x.Id));
+        Group("Static Models", map.StaticModels.Select(x => x.Id));
+        Group("Spawn Points", map.SpawnPoints.Select(x => x.Id));
+        Group("Loot Points", map.LootPoints.Select(x => x.Id));
+        Group("Navigation Nodes", map.Navigation.Waypoints.Select(x => x.Id));
+    }
+
+    private void BuildInspector(GameMap map)
+    {
+        Text($"Map ID: {map.Id}");
+        fixed (byte* buffer = nameBuffer)
+        {
+            if (ImguiNative.igInputText(
+                    "Display name",
+                    buffer,
+                    (uint)nameBuffer.Length,
+                    ImGuiInputTextFlags.EnterReturnsTrue,
+                    null,
+                    null))
+            {
+                CommitMapName();
+            }
+        }
+
+        MapVector3 min = map.WorldBounds.Min;
+        MapVector3 max = map.WorldBounds.Max;
+        MapVector3 zone = map.SafeZone.Center;
+        Text($"Bounds min: {min.X:0.##}, {min.Y:0.##}, {min.Z:0.##}");
+        Text($"Bounds max: {max.X:0.##}, {max.Y:0.##}, {max.Z:0.##}");
+        Text($"Safe zone: {zone.X:0.##}, {zone.Y:0.##}, {zone.Z:0.##}; r {map.SafeZone.Radius:0.##}");
+
+        EditorMapSummary summary = EditorMapSummary.Create(map);
+        Text($"Boxes {summary.StaticBoxes}; models {summary.StaticModels}");
+        Text($"Spawns {summary.SpawnPoints}; loot {summary.LootPoints}; nav {summary.NavigationNodes}");
+    }
+
+    private static void BuildAssetBrowser(ModelAssetManifest loadedManifest)
+    {
+        foreach (ModelAssetDefinition asset in loadedManifest.Assets)
+            Text($"{asset.Id}  [{(asset.Render is null ? "no render" : "render ready")}]");
+    }
+
+    private void BuildValidation(GameMap map)
+    {
+        Text(validationMessage);
+        Text("Model manifest loading: successful");
+        Text($"Map content: {map.StaticBoxes.Count + map.StaticModels.Count} static objects");
+    }
+
+    private void BuildLog()
+    {
+        foreach (string entry in log.Entries)
+            Text(entry);
+    }
+
+    private void BuildViewport(SdlGpuOffscreenTarget viewport)
+    {
+        Vector2 available = ImguiNative.igGetContentRegionAvail();
+        ImGuiIO* io = ImguiNative.igGetIO_Nil();
+        requestedSize = ViewportPixelSize.FromLogical(
+            available.X,
+            available.Y,
+            io->DisplayFramebufferScale.X,
+            io->DisplayFramebufferScale.Y);
+        viewportHovered = ImguiNative.igIsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows);
+        ImguiNative.igImage(
+            new ImTextureRef { _TexID = (ulong)viewport.NativeTextureHandle },
+            available,
+            new Vector2(0, 0),
+            new Vector2(1, 1));
+    }
+
     private void BuildMenu()
     {
-        if (!ImguiNative.igBeginMainMenuBar()) return;
-        if (ImguiNative.igBeginMenu("File", true)) { ImguiNative.igMenuItem_Bool("New", "", false, false); if (ImguiNative.igMenuItem_Bool("Open", "Cmd/Ctrl+O", false, true)) RequestOpen(); if (ImguiNative.igMenuItem_Bool("Save", "Cmd/Ctrl+S", false, document is not null)) Save(false); if (ImguiNative.igMenuItem_Bool("Save As", "Cmd/Ctrl+Shift+S", false, document is not null)) Save(true); if (ImguiNative.igMenuItem_Bool("Exit", "", false, true)) RequestClose(); ImguiNative.igEndMenu(); }
-        if (ImguiNative.igBeginMenu("Edit", true)) { if (ImguiNative.igMenuItem_Bool("Undo", "Cmd/Ctrl+Z", false, document?.CanUndo == true)) Undo(); if (ImguiNative.igMenuItem_Bool("Redo", "Cmd/Ctrl+Shift+Z", false, document?.CanRedo == true)) Redo(); ImguiNative.igEndMenu(); }
-        if (ImguiNative.igBeginMenu("View", true)) { workspace.HierarchyVisible = Toggle("Hierarchy", workspace.HierarchyVisible); workspace.InspectorVisible = Toggle("Inspector", workspace.InspectorVisible); workspace.AssetBrowserVisible = Toggle("Asset Browser", workspace.AssetBrowserVisible); workspace.ValidationVisible = Toggle("Validation", workspace.ValidationVisible); workspace.LogVisible = Toggle("Log", workspace.LogVisible); workspace.ViewportVisible = Toggle("Viewport", workspace.ViewportVisible); ImguiNative.igEndMenu(); }
-        if (ImguiNative.igBeginMenu("Window", true)) { if (ImguiNative.igMenuItem_Bool("Reset Default Layout", "", false, true)) workspace.RequestLayoutReset(); ImguiNative.igEndMenu(); } ImguiNative.igEndMainMenuBar();
+        if (!ImguiNative.igBeginMainMenuBar())
+            return;
+
+        BuildFileMenu();
+        BuildEditMenu();
+        BuildViewMenu();
+        BuildWindowMenu();
+        ImguiNative.igEndMainMenuBar();
     }
+
+    private void BuildFileMenu()
+    {
+        if (!ImguiNative.igBeginMenu("File", true))
+            return;
+
+        ImguiNative.igMenuItem_Bool("New", "", false, false);
+        if (ImguiNative.igMenuItem_Bool("Open", "Cmd/Ctrl+O", false, true))
+            RequestOpen();
+        if (ImguiNative.igMenuItem_Bool("Save", "Cmd/Ctrl+S", false, document is not null))
+            Save(false);
+        if (ImguiNative.igMenuItem_Bool("Save As", "Cmd/Ctrl+Shift+S", false, document is not null))
+            Save(true);
+        if (ImguiNative.igMenuItem_Bool("Exit", "", false, true))
+            RequestClose();
+
+        ImguiNative.igEndMenu();
+    }
+
+    private void BuildEditMenu()
+    {
+        if (!ImguiNative.igBeginMenu("Edit", true))
+            return;
+
+        if (ImguiNative.igMenuItem_Bool("Undo", "Cmd/Ctrl+Z", false, document?.CanUndo == true))
+            Undo();
+        if (ImguiNative.igMenuItem_Bool("Redo", "Cmd/Ctrl+Shift+Z", false, document?.CanRedo == true))
+            Redo();
+
+        ImguiNative.igEndMenu();
+    }
+
+    private void BuildViewMenu()
+    {
+        if (!ImguiNative.igBeginMenu("View", true))
+            return;
+
+        workspace.HierarchyVisible = Toggle("Hierarchy", workspace.HierarchyVisible);
+        workspace.InspectorVisible = Toggle("Inspector", workspace.InspectorVisible);
+        workspace.AssetBrowserVisible = Toggle("Asset Browser", workspace.AssetBrowserVisible);
+        workspace.ValidationVisible = Toggle("Validation", workspace.ValidationVisible);
+        workspace.LogVisible = Toggle("Log", workspace.LogVisible);
+        workspace.ViewportVisible = Toggle("Viewport", workspace.ViewportVisible);
+        ImguiNative.igEndMenu();
+    }
+
+    private void BuildWindowMenu()
+    {
+        if (!ImguiNative.igBeginMenu("Window", true))
+            return;
+
+        if (ImguiNative.igMenuItem_Bool("Reset Default Layout", "", false, true))
+            workspace.RequestLayoutReset();
+
+        ImguiNative.igEndMenu();
+    }
+
     private static bool Toggle(string name, bool value) => ImguiNative.igMenuItem_Bool(name, "", value, true) ? !value : value;
-    private static void Window(string name, Action body) { if (ImguiNative.igBegin(name, null, ImGuiWindowFlags.None)) body(); ImguiNative.igEnd(); }
+
+    private static void Window(string name, Action body)
+    {
+        if (ImguiNative.igBegin(name, null, ImGuiWindowFlags.None))
+            body();
+
+        ImguiNative.igEnd();
+    }
+
     private static void Text(string value) => ImguiNative.igTextUnformatted(value, null);
-    private static void Group(string name, IEnumerable<string> entries) { if (!ImguiNative.igCollapsingHeader_TreeNodeFlags(name, ImGuiTreeNodeFlags.DefaultOpen)) return; foreach (string entry in entries) Text(entry); }
+
+    private static void Group(string name, IEnumerable<string> entries)
+    {
+        if (!ImguiNative.igCollapsingHeader_TreeNodeFlags(name, ImGuiTreeNodeFlags.DefaultOpen))
+            return;
+
+        foreach (string entry in entries)
+            Text(entry);
+    }
+
     private static void ResetLayout(uint root, Vector2 size)
     {
-        ImGuiDockBuilder.RemoveNode(root); ImGuiDockBuilder.AddDockSpace(root); ImGuiDockBuilder.SetNodeSize(root, size); uint left = ImGuiDockBuilder.Split(root, ImGuiDir.Left, .20f, out uint rest); uint right = ImGuiDockBuilder.Split(rest, ImGuiDir.Right, .25f, out uint center); uint bottom = ImGuiDockBuilder.Split(center, ImGuiDir.Down, .25f, out uint viewport);
-        ImGuiDockBuilder.DockWindow(HierarchyName, left); ImGuiDockBuilder.DockWindow(InspectorName, right); ImGuiDockBuilder.DockWindow(AssetsName, bottom); ImGuiDockBuilder.DockWindow(ValidationName, bottom); ImGuiDockBuilder.DockWindow(LogName, bottom); ImGuiDockBuilder.DockWindow(ViewportName, viewport); ImGuiDockBuilder.Finish(root);
+        ImGuiDockBuilder.RemoveNode(root);
+        ImGuiDockBuilder.AddDockSpace(root);
+        ImGuiDockBuilder.SetNodeSize(root, size);
+        uint left = ImGuiDockBuilder.Split(root, ImGuiDir.Left, .20f, out uint rest);
+        uint right = ImGuiDockBuilder.Split(rest, ImGuiDir.Right, .25f, out uint center);
+        uint bottom = ImGuiDockBuilder.Split(center, ImGuiDir.Down, .25f, out uint viewport);
+        ImGuiDockBuilder.DockWindow(HierarchyName, left);
+        ImGuiDockBuilder.DockWindow(InspectorName, right);
+        ImGuiDockBuilder.DockWindow(AssetsName, bottom);
+        ImGuiDockBuilder.DockWindow(ValidationName, bottom);
+        ImGuiDockBuilder.DockWindow(LogName, bottom);
+        ImGuiDockBuilder.DockWindow(ViewportName, viewport);
+        ImGuiDockBuilder.Finish(root);
     }
+
     private void ReleaseViewportInput()
     {
         inputOwnership.Release();
@@ -133,104 +472,272 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private void LoadDocument(string path, bool requiresSaveAs)
     {
         document = EditorMapPersistence.Load(path, requiresSaveAs);
-        camera.Frame(document.Map.WorldBounds); SetNameBuffer(document.Map.Name);
+        camera.Frame(document.Map.WorldBounds);
+        SetNameBuffer(document.Map.Name);
         log.Add($"Loaded map {document.Map.Id} from {document.SourcePath}{(requiresSaveAs ? " (Save As required)" : string.Empty)}.");
         validationMessage = "Runtime map loading: successful";
-        if (meshCache is not null) RebuildScene();
+        if (meshCache is not null)
+            RebuildScene();
     }
 
     private void RebuildScene()
     {
-        if (document is null || meshCache is null) return;
-        var assets = document.Map.StaticModels.Select(x => x.AssetId).Distinct(StringComparer.Ordinal).ToDictionary(x => x, meshCache.GetRequired, StringComparer.Ordinal);
+        if (document is null || meshCache is null)
+            return;
+
+        var assets = document.Map.StaticModels
+            .Select(x => x.AssetId)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(x => x, meshCache.GetRequired, StringComparer.Ordinal);
         scene = MapStaticMeshScene.CreateScene(document.Map, assets);
     }
 
     private void SetNameBuffer(string value)
     {
-        Array.Clear(nameBuffer); int count = System.Text.Encoding.UTF8.GetBytes(value, nameBuffer);
-        if (count == nameBuffer.Length) nameBuffer[^1] = 0;
+        Array.Clear(nameBuffer);
+        int count = System.Text.Encoding.UTF8.GetBytes(value, nameBuffer);
+        if (count == nameBuffer.Length)
+            nameBuffer[^1] = 0;
     }
 
     private void CommitMapName()
     {
-        if (document is null) return;
-        int length = Array.IndexOf(nameBuffer, (byte)0); if (length < 0) length = nameBuffer.Length;
+        if (document is null)
+            return;
+
+        int length = Array.IndexOf(nameBuffer, (byte)0);
+        if (length < 0)
+            length = nameBuffer.Length;
+
         string value = System.Text.Encoding.UTF8.GetString(nameBuffer, 0, length);
-        if (string.IsNullOrWhiteSpace(value)) { validationMessage = "Map name must be non-empty."; log.Add(validationMessage); SetNameBuffer(document.Map.Name); return; }
-        if (string.Equals(value.Trim(), document.Map.Name, StringComparison.Ordinal)) return;
-        document.Execute(new SetMapNameCommand(document.Map.Name, value)); SetNameBuffer(document.Map.Name); validationMessage = "In-memory map validation: successful"; log.Add("Renamed map.");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            validationMessage = "Map name must be non-empty.";
+            log.Add(validationMessage);
+            SetNameBuffer(document.Map.Name);
+            return;
+        }
+
+        if (string.Equals(value.Trim(), document.Map.Name, StringComparison.Ordinal))
+            return;
+
+        document.Execute(new SetMapNameCommand(document.Map.Name, value));
+        SetNameBuffer(document.Map.Name);
+        validationMessage = "In-memory map validation: successful";
+        log.Add("Renamed map.");
     }
 
-    private void Undo() { if (document?.Undo() == true) { SetNameBuffer(document.Map.Name); log.Add($"Undo: {document.RedoDescription}."); } }
-    private void Redo() { if (document?.Redo() == true) { SetNameBuffer(document.Map.Name); log.Add($"Redo: {document.UndoDescription}."); } }
-    private void RequestOpen() { if (document?.IsDirty == true) RequestPending(PendingOperation.Open); else ShowOpenDialog(); }
-    private void RequestClose() { if (document?.IsDirty == true) { host.CancelExit(); RequestPending(PendingOperation.Close); } else host.RequestExit(); }
-    private void RequestPending(PendingOperation operation) { pendingOperation = operation; modalOpenRequested = true; }
+    private void Undo()
+    {
+        if (document?.Undo() != true)
+            return;
+
+        SetNameBuffer(document.Map.Name);
+        log.Add($"Undo: {document.RedoDescription}.");
+    }
+
+    private void Redo()
+    {
+        if (document?.Redo() != true)
+            return;
+
+        SetNameBuffer(document.Map.Name);
+        log.Add($"Redo: {document.UndoDescription}.");
+    }
+
+    private void RequestOpen()
+    {
+        if (document?.IsDirty == true)
+            RequestPending(PendingOperation.Open);
+        else
+            ShowOpenDialog();
+    }
+
+    private void RequestClose()
+    {
+        if (document?.IsDirty == true)
+        {
+            host.CancelExit();
+            RequestPending(PendingOperation.Close);
+        }
+        else
+        {
+            host.RequestExit();
+        }
+    }
+
+    private void RequestPending(PendingOperation operation)
+    {
+        pendingOperation = operation;
+        modalOpenRequested = true;
+    }
+
     private void ShowOpenDialog() => dialogs.ShowOpenJsonDialog(host.Window!.NativeHandle);
 
     private void Save(bool saveAs)
     {
-        if (document is null) return;
-        if (saveAs || document.RequiresSaveAs || document.SourcePath is null) { dialogs.ShowSaveJsonDialog(host.Window!.NativeHandle, document.SourcePath); return; }
+        if (document is null)
+            return;
+
+        if (saveAs || document.RequiresSaveAs || document.SourcePath is null)
+        {
+            dialogs.ShowSaveJsonDialog(host.Window!.NativeHandle, document.SourcePath);
+            return;
+        }
+
         TrySave(document.SourcePath, true);
     }
 
     private bool TrySave(string path, bool checkExternal)
     {
-        try { EditorMapPersistence.Save(document!, path, checkExternal); validationMessage = "Map validation and persistence: successful"; log.Add($"Saved map to {path}."); ContinuePending(); return true; }
-        catch (Exception ex) { validationMessage = ex.Message; log.Add($"Save failed: {ex.Message}"); logger.LogError(ex, "Editor map save failed."); return false; }
+        try
+        {
+            EditorMapPersistence.Save(document!, path, checkExternal);
+            validationMessage = "Map validation and persistence: successful";
+            log.Add($"Saved map to {path}.");
+            ContinuePending();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            validationMessage = ex.Message;
+            log.Add($"Save failed: {ex.Message}");
+            logger.LogError(ex, "Editor map save failed.");
+            return false;
+        }
     }
 
     private void ProcessDialogResults()
     {
         while (dialogs.TryDequeue(out EditorFileDialogResult result))
         {
-            if (result.Error is not null) { validationMessage = result.Error; log.Add($"File dialog failed: {result.Error}"); continue; }
-            if (result.Path is null) continue;
-            if (result.Kind == EditorFileDialogKind.Save) { TrySave(result.Path, false); continue; }
-            try { LoadDocument(result.Path, false); pendingOperation = PendingOperation.None; }
-            catch (Exception ex) { validationMessage = ex.Message; log.Add($"Open failed: {ex.Message}"); logger.LogError(ex, "Editor map open failed."); }
+            if (result.Error is not null)
+            {
+                validationMessage = result.Error;
+                log.Add($"File dialog failed: {result.Error}");
+                continue;
+            }
+
+            if (result.Path is null)
+                continue;
+
+            if (result.Kind == EditorFileDialogKind.Save)
+            {
+                TrySave(result.Path, false);
+                continue;
+            }
+
+            try
+            {
+                LoadDocument(result.Path, false);
+                pendingOperation = PendingOperation.None;
+            }
+            catch (Exception ex)
+            {
+                validationMessage = ex.Message;
+                log.Add($"Open failed: {ex.Message}");
+                logger.LogError(ex, "Editor map open failed.");
+            }
         }
     }
 
     private void ContinuePending()
     {
-        PendingOperation operation = pendingOperation; pendingOperation = PendingOperation.None;
-        if (operation == PendingOperation.Open) ShowOpenDialog(); else if (operation == PendingOperation.Close) host.RequestExit();
+        PendingOperation operation = pendingOperation;
+        pendingOperation = PendingOperation.None;
+        if (operation == PendingOperation.Open)
+            ShowOpenDialog();
+        else if (operation == PendingOperation.Close)
+            host.RequestExit();
     }
 
     private void BuildUnsavedModal()
     {
-        if (pendingOperation == PendingOperation.None) return;
-        if (modalOpenRequested) { ImguiNative.igOpenPopup_Str("Unsaved Changes", ImGuiPopupFlags.None); modalOpenRequested = false; }
-        if (!ImguiNative.igBeginPopupModal("Unsaved Changes", null, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        if (pendingOperation == PendingOperation.None)
+            return;
+
+        if (modalOpenRequested)
+        {
+            ImguiNative.igOpenPopup_Str("Unsaved Changes", ImGuiPopupFlags.None);
+            modalOpenRequested = false;
+        }
+
+        if (!ImguiNative.igBeginPopupModal("Unsaved Changes", null, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
         Text("Save changes before continuing?");
-        if (ImguiNative.igButton("Save", new Vector2(90, 0))) Save(false);
+        if (ImguiNative.igButton("Save", new Vector2(90, 0)))
+            Save(false);
+
         ImguiNative.igSameLine(0, -1);
-        if (ImguiNative.igButton("Discard", new Vector2(90, 0))) { ImguiNative.igCloseCurrentPopup(); ContinuePending(); }
+        if (ImguiNative.igButton("Discard", new Vector2(90, 0)))
+        {
+            ImguiNative.igCloseCurrentPopup();
+            ContinuePending();
+        }
+
         ImguiNative.igSameLine(0, -1);
-        if (ImguiNative.igButton("Cancel", new Vector2(90, 0))) { pendingOperation = PendingOperation.None; ImguiNative.igCloseCurrentPopup(); }
+        if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
+        {
+            pendingOperation = PendingOperation.None;
+            ImguiNative.igCloseCurrentPopup();
+        }
+
         ImguiNative.igEndPopup();
     }
 
     private void ProcessShortcuts()
     {
-        bool command = Down(SDL_Keycode.SDLK_LCTRL) || Down(SDL_Keycode.SDLK_RCTRL) || Down(SDL_Keycode.SDLK_LGUI) || Down(SDL_Keycode.SDLK_RGUI);
-        if (!command) return; bool shift = Down(SDL_Keycode.SDLK_LSHIFT) || Down(SDL_Keycode.SDLK_RSHIFT);
-        if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_O)) RequestOpen();
-        else if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_S)) Save(shift);
-        else if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_Z)) { if (shift) Redo(); else Undo(); }
+        bool command =
+            Down(SDL_Keycode.SDLK_LCTRL) ||
+            Down(SDL_Keycode.SDLK_RCTRL) ||
+            Down(SDL_Keycode.SDLK_LGUI) ||
+            Down(SDL_Keycode.SDLK_RGUI);
+        if (!command)
+            return;
+
+        bool shift = Down(SDL_Keycode.SDLK_LSHIFT) || Down(SDL_Keycode.SDLK_RSHIFT);
+        if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_O))
+        {
+            RequestOpen();
+        }
+        else if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_S))
+        {
+            Save(shift);
+        }
+        else if (host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_Z))
+        {
+            if (shift)
+                Redo();
+            else
+                Undo();
+        }
     }
 
     private void UpdateWindowTitle()
     {
-        if (document is null || host.Window is null) return;
-        string filename = document.SourcePath is null ? document.Map.Id + ".json" : Path.GetFileName(document.SourcePath);
+        if (document is null || host.Window is null)
+            return;
+
+        string filename = document.SourcePath is null
+            ? document.Map.Id + ".json"
+            : Path.GetFileName(document.SourcePath);
         host.Window.SetTitle($"Royale Editor - {filename}{(document.IsDirty ? "*" : string.Empty)}");
     }
 
-    public void Dispose() { ReleaseViewportInput(); target?.Dispose(); imgui?.Dispose(); gpu?.Dispose(); host.Dispose(); }
+    public void Dispose()
+    {
+        ReleaseViewportInput();
+        target?.Dispose();
+        imgui?.Dispose();
+        gpu?.Dispose();
+        host.Dispose();
+    }
 
-    private enum PendingOperation { None, Open, Close }
+    private enum PendingOperation
+    {
+        None,
+        Open,
+        Close,
+    }
 }

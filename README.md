@@ -97,6 +97,14 @@ Test:
 dotnet test Royale.slnx -m:1 --no-restore
 ```
 
+Verify formatting for the editor sources and tests:
+
+```sh
+dotnet format Royale.slnx --no-restore --verify-no-changes --include src/Royale.Editor tests/Royale.Editor.Tests
+```
+
+Apply the formatting policy to that scope with the same command after removing `--verify-no-changes`.
+
 The `-m:1 --no-restore` flags are intentional for Codex/sandboxed sessions and are also fine for local deterministic builds after restore.
 
 ## Running The Client

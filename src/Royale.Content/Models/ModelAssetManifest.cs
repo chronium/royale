@@ -1,6 +1,6 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Buffers.Binary;
 
 namespace Royale.Content.Models;
 
@@ -8,7 +8,10 @@ public sealed record ModelAssetManifest
 {
     public const int CurrentVersion = 1;
 
-    public int Version { get; init; }
+    public int Version
+    {
+        get; init;
+    }
 
     public List<ModelAssetDefinition> Assets { get; init; } = [];
 }
@@ -17,7 +20,10 @@ public sealed record ModelAssetDefinition
 {
     public string Id { get; init; } = string.Empty;
 
-    public ModelRenderAssetDefinition? Render { get; init; }
+    public ModelRenderAssetDefinition? Render
+    {
+        get; init;
+    }
 
     [JsonRequired]
     public ModelCollisionAssetDefinition Collision { get; init; } = new();
@@ -33,11 +39,20 @@ public sealed record ModelRenderAssetDefinition
 public sealed record ModelCollisionAssetDefinition
 {
     [JsonRequired]
-    public ModelCollisionMode Mode { get; init; }
+    public ModelCollisionMode Mode
+    {
+        get; init;
+    }
 
-    public string? Source { get; init; }
+    public string? Source
+    {
+        get; init;
+    }
 
-    public string? Artifact { get; init; }
+    public string? Artifact
+    {
+        get; init;
+    }
 }
 
 public enum ModelCollisionMode
@@ -63,14 +78,14 @@ public static class ModelAssetManifestLoader
         },
     };
 
-    public static ModelAssetManifest LoadSource(string manifestPath, string sourceRoot)
+    public static ModelAssetManifest LoadSource(string manifestPath, string sourceRoot, bool requireAssets = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
 
         string fullSourceRoot = Path.GetFullPath(sourceRoot);
         ModelAssetManifest manifest = Read(manifestPath);
-        Validate(manifest, manifestPath, fullSourceRoot, requireAssets: true, validateSourceFiles: true);
+        Validate(manifest, manifestPath, fullSourceRoot, requireAssets, validateSourceFiles: true);
         return manifest;
     }
 

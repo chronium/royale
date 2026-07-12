@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T09:17:11.7923570Z
+modifiedAt: 2026-07-12T09:32:40.0407930Z
 ---
 
 ## Purpose
@@ -94,6 +94,35 @@ Save validates the in-memory map, checks the current source SHA-256 fingerprint 
 The title is `Royale Editor - <filename>` with `*` while dirty. File provides Open, Save, and Save As; Edit provides Undo and Redo. Shortcuts are Cmd/Ctrl+O, Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Z, and Cmd/Ctrl+Shift+Z. Open and desktop close requests with unsaved changes show Save / Discard / Cancel. A failed save leaves the document open and dirty and reports the error in Validation and Log. New remains disabled until a default-new-map contract is defined.
 
 `BUG-012` defines display-name completion as either Enter submission or deactivation after editing, so clicking elsewhere commits one document command and immediately updates dirty state. Cmd/Ctrl document shortcuts are resolved from SDL key events and consumed before ImGui text editing; Undo and Redo therefore operate on document history consistently regardless of text-field focus.
+
+## Map Project Format
+
+`EDITOR-020` defines one editable map project as a directory package named `<map-id>.royaleproject`. macOS will later register this directory extension as a document package; other platforms treat it as an ordinary directory. The format remains owned by `Royale.Editor` and introduces no runtime or server dependency.
+
+```text
+arena.royaleproject/
+  project.json
+  map/
+    arena.json
+  assets/
+    model-assets.json
+    meshes/
+    textures/
+  generated/
+    client/
+    server/
+  .cache/
+    thumbnails/
+  .gitignore
+```
+
+`project.json` is strict, versioned JSON with `version`, `id`, `map`, and `assetManifest` fields. Version 1 uses `map/<id>.json` and `assets/model-assets.json`. The package-directory stem, project ID, map filename stem, and `GameMap.Id` must agree exactly. Project IDs are lowercase ASCII letters, digits, `-`, or `_`. Manifest paths use `/`, are relative to the project root, and cannot contain empty, `.` or `..` segments. Unsupported versions fail clearly. Version 1 has no migration; future migrations must be explicit, sequential steps rather than silent rewrites.
+
+The project owns exactly one map. `map/`, `assets/`, `project.json`, and imported authoring sources are authoritative source-control content. An empty source model manifest is valid for box-only maps. `generated/` and `.cache/` are reproducible project-local data, may be deleted safely, and are ignored by canonical `.gitignore` entries `/generated/` and `/.cache/`. User-specific editor layout remains in OS application data.
+
+Runtime-artifact fingerprints include source assets, the source manifest, import settings, pipeline version, and target audience. Thumbnail fingerprints include the model and its resources, preview settings, and thumbnail-renderer version.
+
+`EDITOR-021` owns project creation/opening and compatibility import from the current standalone JSON workflow. `EDITOR-023` owns thumbnail generation and cache lifecycle. `EDITOR-025` owns runtime-only and source-inclusive exports. Existing repository maps and shared assets are not migrated by `EDITOR-020`.
 
 ## Face Snapping
 

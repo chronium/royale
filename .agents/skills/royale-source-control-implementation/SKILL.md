@@ -22,6 +22,10 @@ Confirm the PM task is `doing` before editing tracked implementation files.
 - Read nearby code/tests and the relevant wiki before changing behavior.
 - Make the smallest coherent change that satisfies the task.
 - Preserve project folders, matching namespaces, explicit file-level imports, dependency direction, naming, disposal, and result/error patterns.
+- Keep declarations and control flow readable. Do not compress multiple unrelated statements, fields, assertions, or lifecycle steps onto one line even when the formatter accepts it.
+- Keep files and methods cohesive. Split ownership-focused helpers or domain behavior before a file becomes a monolith; do not replace one large file with a gratuitous swarm of tiny abstractions.
+- Keep composition roots centered on wiring and lifecycle. Place substantial behavior in the domain folder and namespace that owns it.
+- Add interfaces only for actual polymorphism, dependency isolation, platform boundaries, or valuable test seams. Prefer a concrete type when there is one implementation and no substitution need.
 - Avoid unrelated refactors and dependency additions.
 - Use `apply_patch` for manual edits; bulk mechanical moves/rewrites may use appropriate deterministic commands.
 - Do not commit `bin/`, `obj/`, `node_modules/`, local databases, native build outputs, or packaged artifacts unless they are intentional fixtures.
@@ -32,10 +36,11 @@ Branches are optional. Use one only when isolation materially reduces risk or su
 
 1. Inspect the diff and confirm it matches the PM scope.
 2. Run documented validation and report exact outcomes.
-3. Update task notes and wiki source-of-truth content through PM MCP.
-4. Request owner validation for visuals, UI, platform behavior, audio, camera, movement, or combat feel.
-5. Validate PM when PM/wiki structure changed and move the task to `done`.
-6. Run `git diff --check`, stage intentionally, inspect the staged diff, and commit.
+3. Inspect changed files for readability that automated formatting cannot enforce: compressed statements, oversized methods/files, misplaced cross-domain behavior, and unnecessary abstractions.
+4. Update task notes and wiki source-of-truth content through PM MCP.
+5. Request owner validation for visuals, UI, platform behavior, audio, camera, movement, or combat feel.
+6. Validate PM when PM/wiki structure changed and move the task to `done`.
+7. Run `git diff --check`, stage intentionally, inspect the staged diff, and commit.
 
 Commit messages begin with the task ID: `[TASK-123] Imperative summary`.
 

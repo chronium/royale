@@ -1,7 +1,7 @@
 ---
 title: Architecture Overview
 createdAt: 2026-07-05T07:34:45.0706070Z
-modifiedAt: 2026-07-11T19:04:09.1959560Z
+modifiedAt: 2026-07-12T08:44:40.0672880Z
 ---
 
 ## Overview
@@ -88,6 +88,16 @@ The client and simulation retain their established responsibility splits. Protoc
 Projects should still be split only for meaningful dependency, testing, or deployment boundaries. Domain folders are an internal navigation tool and must not be used to introduce new assembly dependencies or weaken server authority.
 
 `Royale.Platform` is the reusable SDL desktop project. Its `Desktop`, `Input`, and `Timing` domains own window/event lifecycle, relative mouse mode, input state, frame timing, and fixed scheduling for graphical executables. `Royale.Client` retains its composition root plus SDL GPU, ImGui, rendering, cameras, networking, gameplay presentation, and telemetry.
+
+### Readability And Cohesion
+
+Source structure optimizes for obvious ownership and inspectability, not minimum file count or maximum abstraction. Normal C# formatting is required; unrelated declarations, control-flow branches, assertions, and lifecycle steps must not be compressed onto one line. Formatting tools enforce whitespace but do not excuse structurally unreadable code.
+
+Files and methods should have cohesive responsibilities. Production source files must not grow into multi-thousand-line catch-all units; split them earlier when navigation, review, testing, or ownership becomes difficult. Composition roots remain focused on lifecycle and dependency wiring, while substantial behavior belongs in the owning domain folder and matching namespace.
+
+A project boundary represents a meaningful deployment, dependency, platform, authority, or testing boundary. Related domains may share a project, but they must not become a flat pile of cross-domain files at its root. Use domain folders and namespaces for internal organization rather than creating an assembly for every concern.
+
+Abstractions remain need-driven. Prefer concrete types when there is one implementation and no substitution requirement. Interfaces and additional layers are appropriate for real polymorphism, external dependency isolation, platform or ownership boundaries, or useful test seams. Avoid both monolithic god objects and ceremonial forests of one-method interfaces and wrapper types.
 
 ## Dependency Direction
 

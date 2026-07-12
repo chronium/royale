@@ -20,6 +20,20 @@ Royale is a small cross-platform, server-authoritative battle royale built in .N
 - Keep project folders and namespace suffixes aligned. Use explicit file-level `using` directives; do not introduce project-wide global usings.
 - Add abstractions only for a concrete game, deployment, testing, or dependency need.
 
+## Code Quality And Structure
+
+Code must be straightforward to read, review, debug, and change. Compact syntax is acceptable when it remains clear; compression that hides structure is not.
+
+- Use normal C# formatting. Do not pack unrelated declarations, branches, statements, assertions, or lifecycle steps onto one line.
+- Give each file a clear, cohesive responsibility. Split files before they become multi-thousand-line implementation units or mix unrelated domains.
+- Organize substantial projects into domain folders with matching namespaces. Do not accumulate a flat collection of cross-domain files under one project root.
+- Keep project boundaries meaningful. Split an assembly only for a real dependency, deployment, platform, ownership, or testing boundary; use folders and namespaces for internal organization.
+- Keep composition roots focused on lifecycle and wiring. Move substantial document, persistence, protocol, rendering, simulation, or UI behavior into the domain that owns it.
+- Prefer concrete code until polymorphism, substitution, isolation of an external dependency, or a real test seam requires an abstraction. Do not create an interface for every class.
+- Avoid both extremes: neither monolithic god files nor forests of one-method types. Choose the smallest structure that makes ownership and behavior obvious.
+- Treat unusually long files, methods, parameter lists, and cross-domain dependency sets as design signals. Refactor when they impede comprehension; do not chase arbitrary metrics when the code remains cohesive.
+- Follow the repository `.editorconfig` and run the documented formatter for the scope you change, while remembering that formatting tools do not replace structural readability.
+
 ## PM And Wiki
 
 All implementation work must have a PM task managed through PM MCP.

@@ -27,6 +27,14 @@ Shared simulation may define rules used by both authority and prediction. It mus
 
 Within projects, use domain folders with matching namespace suffixes. Keep executable entry points and true cross-domain facades at project roots. Use explicit file-level imports rather than project-wide global usings.
 
+## Cohesion And Scale
+
+- A project may contain several related domains when they share deployment and dependencies, but those domains must remain visible through folders and matching namespaces rather than a flat root-level file pile.
+- Do not let source files grow into multi-thousand-line units or classes become catch-all owners. Split by cohesive responsibility before navigation, review, or testing becomes difficult.
+- Composition roots coordinate lifecycle and dependencies; they should not absorb substantial domain behavior.
+- Prefer concrete implementations by default. Introduce interfaces and additional layers only for real substitution, dependency isolation, platform boundaries, ownership boundaries, or useful testing seams.
+- Do not optimize for the fewest files or the most types. Optimize for obvious ownership, readable control flow, and the smallest structure that remains easy to inspect.
+
 ## Decision Gates
 
 Inspect the wiki and nearby code first. Ask the owner before choosing a new:

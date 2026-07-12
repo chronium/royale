@@ -12,8 +12,10 @@ public sealed unsafe class SdlEditorFileDialogService : IEditorFileDialogService
     private GCHandle callbackHandle;
     private EditorFileDialogKind pendingKind;
 
-    public void ShowOpenJsonDialog(nint parentWindow) => Show(EditorFileDialogKind.Open, parentWindow, null);
-    public void ShowSaveJsonDialog(nint parentWindow, string? defaultPath) => Show(EditorFileDialogKind.Save, parentWindow, defaultPath);
+    public void ShowOpenJsonDialog(nint parentWindow) => Show(EditorFileDialogKind.OpenMap, parentWindow, null);
+    public void ShowSaveJsonDialog(nint parentWindow, string? defaultPath) => Show(EditorFileDialogKind.SaveMap, parentWindow, defaultPath);
+    public void ShowOpenProjectDialog(nint parentWindow) => ShowFolder(EditorFileDialogKind.OpenProject, parentWindow);
+    public void ShowDestinationParentDialog(nint parentWindow) => ShowFolder(EditorFileDialogKind.DestinationParent, parentWindow);
     public bool TryDequeue(out EditorFileDialogResult result) => results.TryDequeue(out result);
 
     private void Show(EditorFileDialogKind kind, nint parentWindow, string? defaultPath)
@@ -26,9 +28,18 @@ public sealed unsafe class SdlEditorFileDialogService : IEditorFileDialogService
         fixed (byte* namePtr = name) fixed (byte* patternPtr = pattern) fixed (byte* locationPtr = location)
         {
             var filter = new SDL_DialogFileFilter { name = namePtr, pattern = patternPtr };
-            if (kind == EditorFileDialogKind.Open) SDL_ShowOpenFileDialog(&Callback, GCHandle.ToIntPtr(callbackHandle), (SDL_Window*)parentWindow, &filter, 1, (byte*)null, false);
+            if (kind == EditorFileDialogKind.OpenMap) SDL_ShowOpenFileDialog(&Callback, GCHandle.ToIntPtr(callbackHandle), (SDL_Window*)parentWindow, &filter, 1, (byte*)null, false);
             else SDL_ShowSaveFileDialog(&Callback, GCHandle.ToIntPtr(callbackHandle), (SDL_Window*)parentWindow, &filter, 1, locationPtr);
         }
+    }
+
+    private void ShowFolder(EditorFileDialogKind kind, nint parentWindow)
+    {
+        if (callbackHandle.IsAllocated)
+            return;
+        pendingKind = kind;
+        callbackHandle = GCHandle.Alloc(this);
+        SDL_ShowOpenFolderDialog(&Callback, GCHandle.ToIntPtr(callbackHandle), (SDL_Window*)parentWindow, (byte*)null, false);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

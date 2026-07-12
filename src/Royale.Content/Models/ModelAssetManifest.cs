@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -327,4 +328,17 @@ public static class ModelAssetManifestLoader
 
     private static InvalidDataException InvalidManifest(string path, string message, Exception? inner = null) =>
         new($"Model asset manifest '{path}' is invalid: {message}", inner);
+}
+
+public static class ModelAssetManifestSerializer
+{
+    public static byte[] Serialize(ModelAssetManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        string json = JsonSerializer.Serialize(
+            manifest,
+            ModelAssetManifestLoader.CreateSerializerOptions(writeIndented: true));
+        json = json.Replace("\r\n", "\n", StringComparison.Ordinal);
+        return new UTF8Encoding(false).GetBytes(json + "\n");
+    }
 }

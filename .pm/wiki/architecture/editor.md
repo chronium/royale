@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T09:32:40.0407930Z
+modifiedAt: 2026-07-12T16:56:25.2156260Z
 ---
 
 ## Purpose
@@ -123,6 +123,18 @@ The project owns exactly one map. `map/`, `assets/`, `project.json`, and importe
 Runtime-artifact fingerprints include source assets, the source manifest, import settings, pipeline version, and target audience. Thumbnail fingerprints include the model and its resources, preview settings, and thumbnail-renderer version.
 
 `EDITOR-021` owns project creation/opening and compatibility import from the current standalone JSON workflow. `EDITOR-023` owns thumbnail generation and cache lifecycle. `EDITOR-025` owns runtime-only and source-inclusive exports. Existing repository maps and shared assets are not migrated by `EDITOR-020`.
+
+### Project Lifecycle
+
+`EDITOR-021` makes `.royaleproject` packages the editor's primary authoring document while retaining standalone map JSON as a compatibility document. Startup chooses an explicit `--project`, `--map-file`, or `--map` target in that order, then the most recently opened valid project, then normal default-map resolution. `--project` is mutually exclusive with both map options. The latest successfully opened, created, or converted package is persisted atomically in `Royale/Editor/recent-project.json` under OS application data. Missing, malformed, or invalid recent state is logged and falls back to the default map.
+
+New Project collects a lowercase project ID and display name and creates `<id>.royaleproject` under a selected parent. Creation stages the entire package in a temporary sibling, validates it with `RoyaleProjectLoader`, and renames it into place without merging or overwriting. The starter arena contains a 20×20 metre floor, bounds `(-10,-1,-10)` to `(10,5,10)`, a radius-9 safe zone at zero, spawn points at `(-4,0,0)` and `(4,0,0)`, matching navigation waypoints and one link, and no loot or model assets. Canonical source, generated, cache, manifest, and ignore paths are created even when empty.
+
+Convert Map to Project retains the map ID and display name. It discovers the nearest source `model-assets.json`, filters it to model IDs referenced by the map, and copies each render source, declared resource, and separate collision source using validated relative paths. Model-free maps receive an empty source manifest. Missing IDs or files fail the staged transaction; conversion does not generate runtime artifacts.
+
+A project session owns the loaded project, mutable map document, source manifest, resolved paths, and SHA-256 fingerprints for `project.json`, the source manifest, and map. Candidate projects load and build their source-model mesh cache and scene completely before replacing the active session. Generated collision or render outputs are not required for editor presentation. The Inspector exposes project root, map, source manifest, generated client/server, and thumbnail-cache paths; the window title uses the package name and dirty marker.
+
+Project Save is in-place only. It rejects external changes to any authoritative fingerprint, atomically saves and validates the map, reloads project metadata, and refreshes fingerprints. Standalone JSON retains Save As. New, Open Project, Open Map JSON, Convert, and Close all pass through Save / Discard / Cancel protection, and failed creation, opening, conversion, validation, or save leaves the current document intact.
 
 ## Face Snapping
 

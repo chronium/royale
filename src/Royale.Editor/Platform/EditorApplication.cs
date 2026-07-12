@@ -8,6 +8,7 @@ using Royale.Editor.Launch;
 using Royale.Editor.Dialogs;
 using Royale.Editor.Documents;
 using Royale.Editor.Persistence;
+using Royale.Editor.Projects;
 using Royale.Editor.Viewport;
 using Royale.Editor.Workspace;
 using Royale.Editor.Workspace.Assets;
@@ -40,11 +41,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly ViewportInputOwnership inputOwnership = new();
     private readonly IEditorFileDialogService dialogs;
     private readonly byte[] nameBuffer = new byte[256];
+    private readonly byte[] newProjectIdBuffer = new byte[128];
+    private readonly byte[] newProjectNameBuffer = new byte[256];
 
     private SdlGpuDevice? gpu;
     private SdlGpuImGuiBackend? imgui;
     private SdlGpuOffscreenTarget? target;
     private EditorMapDocument? document;
+    private EditorProjectSession? projectSession;
+    private readonly RecentProjectStore recentProjects = new();
     private StaticMeshScene? scene;
     private ModelAssetManifest? manifest;
     private AssetBrowserModel? assetBrowser;
@@ -55,6 +60,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool viewportHovered;
     private bool windowFocused = true;
     private bool modalOpenRequested;
+    private bool newProjectModalRequested;
     private PendingOperation pendingOperation;
     private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
@@ -86,22 +92,17 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             string layout = EditorLayoutPath.Resolve();
             Directory.CreateDirectory(Path.GetDirectoryName(layout)!);
 
-            EditorMapSource source = EditorMapSourceResolver.Resolve(
-                options.MapId,
-                options.MapFilePath,
+            EditorStartupTarget startup = EditorStartupTargetResolver.Resolve(
+                options,
+                recentProjects,
                 Environment.CurrentDirectory,
                 AppContext.BaseDirectory);
-            LoadDocument(source.Path, source.RequiresSaveAs);
-
-            string manifestPath = Path.Combine(
-                AppContext.BaseDirectory,
-                "assets",
-                ContentCatalog.ModelAssetManifestFileName);
-            manifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
-            assetBrowser = new AssetBrowserModel(manifest);
-            assetBrowserRenderer = new AssetBrowserRenderer(assetBrowser);
-            meshCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
-            RebuildScene();
+            if (startup.Warning is not null)
+                log.Add(startup.Warning);
+            if (startup.Kind == EditorStartupTargetKind.Project)
+                LoadProject(startup.Path, recordRecent: true);
+            else
+                LoadDocument(startup.Path, startup.RequiresSaveAs);
 
             gpu = SdlGpuDevice.Create(host.Window!);
             target = gpu.CreateOffscreenTarget(1, 1);
@@ -117,7 +118,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             logger.LogInformation(
                 "Loaded editor map {MapId} and {AssetCount} manifest assets.",
                 document!.Map.Id,
-                manifest.Assets.Count);
+                manifest!.Assets.Count);
         }
         catch (Exception ex)
         {
@@ -285,6 +286,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             viewportHovered = false;
 
         BuildUnsavedModal();
+        BuildNewProjectModal();
     }
 
     private static void BuildHierarchy(GameMap map)
@@ -322,6 +324,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         EditorMapSummary summary = EditorMapSummary.Create(map);
         Text($"Boxes {summary.StaticBoxes}; models {summary.StaticModels}");
         Text($"Spawns {summary.SpawnPoints}; loot {summary.LootPoints}; nav {summary.NavigationNodes}");
+        if (projectSession is not null)
+        {
+            Text($"Project root: {projectSession.Project.Paths.Root}");
+            Text($"Map: {projectSession.Project.Paths.Map}");
+            Text($"Asset manifest: {projectSession.Project.Paths.AssetManifest}");
+            Text($"Generated client: {projectSession.Project.Paths.GeneratedClient}");
+            Text($"Generated server: {projectSession.Project.Paths.GeneratedServer}");
+            Text($"Cache: {projectSession.Project.Paths.ThumbnailCache}");
+        }
     }
 
     private void BuildValidation(GameMap map)
@@ -371,12 +382,17 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (!ImguiNative.igBeginMenu("File", true))
             return;
 
-        ImguiNative.igMenuItem_Bool("New", "", false, false);
-        if (ImguiNative.igMenuItem_Bool("Open", "Cmd/Ctrl+O", false, true))
-            RequestOpen();
+        if (ImguiNative.igMenuItem_Bool("New Project", "", false, true))
+            RequestTransition(PendingOperation.NewProject);
+        if (ImguiNative.igMenuItem_Bool("Open Project", "Cmd/Ctrl+O", false, true))
+            RequestTransition(PendingOperation.OpenProject);
+        if (ImguiNative.igMenuItem_Bool("Open Map JSON", "", false, true))
+            RequestTransition(PendingOperation.OpenMap);
+        if (ImguiNative.igMenuItem_Bool("Convert Map to Project", "", false, projectSession is null && document is not null))
+            RequestTransition(PendingOperation.Convert);
         if (ImguiNative.igMenuItem_Bool("Save", "Cmd/Ctrl+S", false, document is not null))
             Save(false);
-        if (ImguiNative.igMenuItem_Bool("Save As", "Cmd/Ctrl+Shift+S", false, document is not null))
+        if (ImguiNative.igMenuItem_Bool("Save As", "Cmd/Ctrl+Shift+S", false, document is not null && projectSession is null))
             Save(true);
         if (ImguiNative.igMenuItem_Bool("Exit", "", false, true))
             RequestClose();
@@ -470,13 +486,56 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void LoadDocument(string path, bool requiresSaveAs)
     {
-        document = EditorMapPersistence.Load(path, requiresSaveAs);
+        EditorMapDocument candidateDocument = EditorMapPersistence.Load(path, requiresSaveAs);
+        string manifestPath = Path.Combine(AppContext.BaseDirectory, "assets", ContentCatalog.ModelAssetManifestFileName);
+        ModelAssetManifest candidateManifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
+        StaticMeshAssetCache candidateCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+        StaticMeshScene candidateScene = CreateScene(candidateDocument.Map, candidateCache);
+        projectSession = null;
+        document = candidateDocument;
+        manifest = candidateManifest;
+        meshCache = candidateCache;
+        scene = candidateScene;
+        ReloadAssetBrowser();
         camera.Frame(document.Map.WorldBounds);
         SetNameBuffer(document.Map.Name);
         log.Add($"Loaded map {document.Map.Id} from {document.SourcePath}{(requiresSaveAs ? " (Save As required)" : string.Empty)}.");
         validationMessage = "Runtime map loading: successful";
-        if (meshCache is not null)
-            RebuildScene();
+    }
+
+    private void LoadProject(string root, bool recordRecent)
+    {
+        EditorProjectSession candidate = EditorProjectSession.Load(root);
+        StaticMeshAssetCache candidateCache = StaticMeshAssetCache.LoadSource(candidate.Project.Paths.Sources, candidate.Project.AssetManifest);
+        StaticMeshScene candidateScene = CreateScene(candidate.Document.Map, candidateCache);
+        projectSession = candidate;
+        document = candidate.Document;
+        manifest = candidate.Project.AssetManifest;
+        meshCache = candidateCache;
+        scene = candidateScene;
+        ReloadAssetBrowser();
+        camera.Frame(document.Map.WorldBounds);
+        SetNameBuffer(document.Map.Name);
+        validationMessage = "Project and source assets: successful";
+        log.Add($"Loaded project {candidate.Project.Manifest.Id} from {candidate.Project.Paths.Root}.");
+        if (recordRecent)
+        {
+            try
+            {
+                recentProjects.Write(candidate.Project.Paths.Root);
+            }
+            catch (Exception ex)
+            {
+                log.Add($"Could not record recent project: {ex.Message}");
+                logger.LogWarning(ex, "Could not record recent editor project.");
+            }
+        }
+    }
+
+    private void ReloadAssetBrowser()
+    {
+        assetBrowser = new AssetBrowserModel(manifest!);
+        assetBrowserRenderer = new AssetBrowserRenderer(assetBrowser);
     }
 
     private void RebuildScene()
@@ -484,11 +543,16 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (document is null || meshCache is null)
             return;
 
-        var assets = document.Map.StaticModels
+        scene = CreateScene(document.Map, meshCache);
+    }
+
+    private static StaticMeshScene CreateScene(GameMap map, StaticMeshAssetCache cache)
+    {
+        var assets = map.StaticModels
             .Select(x => x.AssetId)
             .Distinct(StringComparer.Ordinal)
-            .ToDictionary(x => x, meshCache.GetRequired, StringComparer.Ordinal);
-        scene = MapStaticMeshScene.CreateScene(document.Map, assets);
+            .ToDictionary(x => x, cache.GetRequired, StringComparer.Ordinal);
+        return MapStaticMeshScene.CreateScene(map, assets);
     }
 
     private void SetNameBuffer(string value)
@@ -544,12 +608,12 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         log.Add($"Redo: {document.UndoDescription}.");
     }
 
-    private void RequestOpen()
+    private void RequestTransition(PendingOperation operation)
     {
         if (document?.IsDirty == true)
-            RequestPending(PendingOperation.Open);
+            RequestPending(operation);
         else
-            ShowOpenDialog();
+            ContinueOperation(operation);
     }
 
     private void RequestClose()
@@ -571,12 +635,30 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         modalOpenRequested = true;
     }
 
-    private void ShowOpenDialog() => dialogs.ShowOpenJsonDialog(host.Window!.NativeHandle);
+    private void ShowOpenMapDialog() => dialogs.ShowOpenJsonDialog(host.Window!.NativeHandle);
 
     private void Save(bool saveAs)
     {
         if (document is null)
             return;
+
+        if (projectSession is not null)
+        {
+            try
+            {
+                projectSession.Save();
+                validationMessage = "Project map validation and persistence: successful";
+                log.Add($"Saved project map to {projectSession.Project.Paths.Map}.");
+                ContinuePending();
+            }
+            catch (Exception ex)
+            {
+                validationMessage = ex.Message;
+                log.Add($"Save failed: {ex.Message}");
+                logger.LogError(ex, "Editor project save failed.");
+            }
+            return;
+        }
 
         if (saveAs || document.RequiresSaveAs || document.SourcePath is null)
         {
@@ -620,7 +702,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             if (result.Path is null)
                 continue;
 
-            if (result.Kind == EditorFileDialogKind.Save)
+            if (result.Kind == EditorFileDialogKind.SaveMap)
             {
                 TrySave(result.Path, false);
                 continue;
@@ -628,14 +710,24 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
             try
             {
-                LoadDocument(result.Path, false);
+                if (result.Kind == EditorFileDialogKind.OpenProject)
+                    LoadProject(result.Path, recordRecent: true);
+                else if (result.Kind == EditorFileDialogKind.DestinationParent)
+                {
+                    LoadedRoyaleProject created = pendingOperation == PendingOperation.NewProjectDestination
+                        ? RoyaleProjectFactory.Create(result.Path, BufferText(newProjectIdBuffer), BufferText(newProjectNameBuffer))
+                        : RoyaleProjectFactory.Convert(document!.SourcePath!, result.Path);
+                    LoadProject(created.Paths.Root, recordRecent: true);
+                }
+                else
+                    LoadDocument(result.Path, false);
                 pendingOperation = PendingOperation.None;
             }
             catch (Exception ex)
             {
                 validationMessage = ex.Message;
-                log.Add($"Open failed: {ex.Message}");
-                logger.LogError(ex, "Editor map open failed.");
+                log.Add($"Project operation failed: {ex.Message}");
+                logger.LogError(ex, "Editor project operation failed.");
             }
         }
     }
@@ -644,10 +736,70 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     {
         PendingOperation operation = pendingOperation;
         pendingOperation = PendingOperation.None;
-        if (operation == PendingOperation.Open)
-            ShowOpenDialog();
-        else if (operation == PendingOperation.Close)
-            host.RequestExit();
+        ContinueOperation(operation);
+    }
+
+    private void ContinueOperation(PendingOperation operation)
+    {
+        switch (operation)
+        {
+            case PendingOperation.OpenProject:
+                dialogs.ShowOpenProjectDialog(host.Window!.NativeHandle);
+                break;
+            case PendingOperation.OpenMap:
+                ShowOpenMapDialog();
+                break;
+            case PendingOperation.Convert:
+                pendingOperation = PendingOperation.ConvertDestination;
+                dialogs.ShowDestinationParentDialog(host.Window!.NativeHandle);
+                break;
+            case PendingOperation.NewProject:
+                newProjectModalRequested = true;
+                break;
+            case PendingOperation.Close:
+                host.RequestExit();
+                break;
+        }
+    }
+
+    private void BuildNewProjectModal()
+    {
+        if (newProjectModalRequested)
+        {
+            Array.Clear(newProjectIdBuffer);
+            Array.Clear(newProjectNameBuffer);
+            ImguiNative.igOpenPopup_Str("New Project", ImGuiPopupFlags.None);
+            newProjectModalRequested = false;
+        }
+
+        if (!ImguiNative.igBeginPopupModal("New Project", null, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        fixed (byte* id = newProjectIdBuffer)
+            ImguiNative.igInputText("Project ID", id, (uint)newProjectIdBuffer.Length, ImGuiInputTextFlags.None, null, null);
+        fixed (byte* name = newProjectNameBuffer)
+            ImguiNative.igInputText("Display name", name, (uint)newProjectNameBuffer.Length, ImGuiInputTextFlags.None, null, null);
+
+        bool valid = BufferText(newProjectIdBuffer).Length > 0 && BufferText(newProjectNameBuffer).Length > 0;
+        if (ImguiNative.igButton("Choose Parent", new Vector2(120, 0)) && valid)
+        {
+            pendingOperation = PendingOperation.NewProjectDestination;
+            dialogs.ShowDestinationParentDialog(host.Window!.NativeHandle);
+            ImguiNative.igCloseCurrentPopup();
+        }
+        ImguiNative.igSameLine(0, -1);
+        if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
+        {
+            pendingOperation = PendingOperation.None;
+            ImguiNative.igCloseCurrentPopup();
+        }
+        ImguiNative.igEndPopup();
+    }
+
+    private static string BufferText(byte[] buffer)
+    {
+        int length = Array.IndexOf(buffer, (byte)0);
+        return System.Text.Encoding.UTF8.GetString(buffer, 0, length < 0 ? buffer.Length : length).Trim();
     }
 
     private void BuildUnsavedModal()
@@ -697,7 +849,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         switch (shortcut)
         {
             case EditorKeyboardShortcut.Open:
-                RequestOpen();
+                RequestTransition(PendingOperation.OpenProject);
                 break;
             case EditorKeyboardShortcut.Save:
                 Save(false);
@@ -732,7 +884,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (document is null || host.Window is null)
             return;
 
-        string filename = document.SourcePath is null
+        string filename = projectSession is not null
+            ? Path.GetFileName(projectSession.Project.Paths.Root)
+            : document.SourcePath is null
             ? document.Map.Id + ".json"
             : Path.GetFileName(document.SourcePath);
         host.Window.SetTitle($"Royale Editor - {filename}{(document.IsDirty ? "*" : string.Empty)}");
@@ -750,7 +904,12 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private enum PendingOperation
     {
         None,
-        Open,
+        OpenProject,
+        OpenMap,
+        Convert,
+        ConvertDestination,
+        NewProject,
+        NewProjectDestination,
         Close,
     }
 }

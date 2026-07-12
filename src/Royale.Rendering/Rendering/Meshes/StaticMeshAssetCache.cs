@@ -27,6 +27,13 @@ public sealed class StaticMeshAssetCache
         return new StaticMeshAssetCache(assetRoot, ModelAssetManifestLoader.LoadGenerated(manifestPath));
     }
 
+    public static StaticMeshAssetCache LoadSource(string sourceRoot, ModelAssetManifest manifest)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
+        ArgumentNullException.ThrowIfNull(manifest);
+        return new StaticMeshAssetCache(Path.GetFullPath(sourceRoot), manifest);
+    }
+
     public StaticMeshAsset GetRequired(string assetId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetId);

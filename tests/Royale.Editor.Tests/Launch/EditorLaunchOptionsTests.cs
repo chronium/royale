@@ -10,6 +10,7 @@ public sealed class EditorLaunchOptionsTests
         EditorLaunchOptions value = EditorLaunchOptions.Parse([]);
         Assert.Equal("graybox", value.MapId);
         Assert.Null(value.MapFilePath);
+        Assert.Null(value.ProjectPath);
         Assert.Null(value.ScreenshotPath);
         Assert.False(value.ResetLayout);
     }
@@ -50,4 +51,14 @@ public sealed class EditorLaunchOptionsTests
         EditorLaunchOptions value = EditorLaunchOptions.Parse(["--map-file", "/tmp/custom.json"]);
         Assert.Equal("/tmp/custom.json", value.MapFilePath);
     }
+
+    [Fact]
+    public void ParsesExplicitProject() =>
+        Assert.Equal("/tmp/arena.royaleproject", EditorLaunchOptions.Parse(["--project", "/tmp/arena.royaleproject"]).ProjectPath);
+
+    [Theory]
+    [InlineData("--map")]
+    [InlineData("--map-file")]
+    public void RejectsProjectCombinedWithMapTarget(string option) =>
+        Assert.Throws<ArgumentException>(() => EditorLaunchOptions.Parse(["--project", "p", option, "graybox"]));
 }

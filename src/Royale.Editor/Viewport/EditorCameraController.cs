@@ -7,8 +7,8 @@ public sealed class EditorCameraController
 {
     public const float MovementSpeed = 6.0f;
     public const float BoostMultiplier = 3.0f;
-    public const float DollyImpulse = 3.6f;
-    public const float MaximumDollySpeed = 7.2f;
+    public const float DollyImpulse = 10.8f;
+    public const float MaximumDollySpeed = 21.6f;
     public const float DollyHalfLifeSeconds = 0.12f;
     private const float NegligibleDollySpeed = 0.01f;
 

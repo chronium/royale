@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T08:11:06.1194700Z
+modifiedAt: 2026-07-12T08:12:42.8567750Z
 ---
 
 ## Purpose
@@ -70,6 +70,8 @@ Map mutation, persistence, selection/picking, asset thumbnails, drag-and-drop pl
 `EDITOR-018` makes viewport navigation editor-specific. While right-mouse capture is active, W/S fly along the full pitched view direction, A/D strafe camera-relative, and Q/E move along world down/up. Combined movement is normalized at 6 m/s; either Shift key boosts it to 18 m/s. While the visible, focused viewport is hovered, wheel input is consumed from ImGui and adds a signed 36 m/s view-direction dolly impulse, clamped to 72 m/s and exponentially damped with a 0.12-second half-life. SDL flipped-wheel direction is normalized. Dolly momentum may finish after hover or visibility ends, but focus loss cancels it.
 
 Owner feel testing reduced the final wheel-dolly tuning to 10% of the initial scale: each vertical notch adds a signed 3.6 m/s impulse and accumulated dolly velocity is clamped to 7.2 m/s. The 0.12-second half-life is unchanged.
+
+A second owner feel pass superseded the 10% trial: final candidate tuning is 10.8 m/s per wheel notch with a 21.6 m/s accumulated cap. Damping remains unchanged.
 
 ## Map Documents
 

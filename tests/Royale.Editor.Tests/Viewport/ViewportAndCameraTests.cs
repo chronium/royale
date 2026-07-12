@@ -77,7 +77,7 @@ public sealed class ViewportAndCameraTests
         camera.Update(Input(wheel: 1), 0);
         Assert.Equal(0, camera.DollyVelocity);
         camera.Update(Input(wheel: 1, hovered: true), 0);
-        Assert.Equal(3.6f, camera.DollyVelocity);
+        Assert.Equal(10.8f, camera.DollyVelocity);
     }
 
     [Theory]
@@ -91,10 +91,10 @@ public sealed class ViewportAndCameraTests
     {
         var camera = CameraAtOrigin();
         camera.Update(Input(wheel: 3, hovered: true), 0);
-        Assert.Equal(7.2f, camera.DollyVelocity);
+        Assert.Equal(21.6f, camera.DollyVelocity);
 
         camera.Update(Input(), EditorCameraController.DollyHalfLifeSeconds);
-        AssertClose(3.6f, camera.DollyVelocity);
+        AssertClose(10.8f, camera.DollyVelocity);
         Assert.True(camera.Camera.Position.Z < 0);
     }
 
@@ -103,7 +103,7 @@ public sealed class ViewportAndCameraTests
     {
         var camera = CameraAtOrigin();
         camera.Update(Input(wheel: -1, hovered: true), 0);
-        Assert.Equal(-3.6f, camera.DollyVelocity);
+        Assert.Equal(-10.8f, camera.DollyVelocity);
         camera.CancelDolly();
         Assert.Equal(0, camera.DollyVelocity);
 

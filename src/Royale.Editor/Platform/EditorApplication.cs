@@ -54,6 +54,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private ModelAssetManifest? manifest;
     private AssetBrowserModel? assetBrowser;
     private AssetBrowserRenderer? assetBrowserRenderer;
+    private ProjectAssetPreviewProvider? assetPreviewProvider;
     private StaticMeshAssetCache? meshCache;
     private int frames;
     private ViewportPixelSize requestedSize = new(1, 1);
@@ -110,6 +111,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 host.Window!,
                 gpu,
                 new SdlGpuImGuiSettings(true, layout));
+            ReloadAssetBrowser();
 
             if (!File.Exists(layout))
                 workspace.RequestLayoutReset();
@@ -246,15 +248,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             new RenderFrame(camera.ToRenderCamera(), new StaticMeshScene([], []), RenderViewMode.Normal),
             imgui,
             capture);
+        assetPreviewProvider?.ProcessFrame();
 
         if (capture && image is not null)
         {
-            BmpScreenshotWriter.Save(
+            PngScreenshotWriter.Save(
                 options.ScreenshotPath!,
                 image.RgbaBytes,
                 image.Width,
-                image.Height,
-                SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+                image.Height);
             host.RequestExit();
         }
     }
@@ -486,6 +488,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void LoadDocument(string path, bool requiresSaveAs)
     {
+        DisposeAssetPreviewProvider();
         EditorMapDocument candidateDocument = EditorMapPersistence.Load(path, requiresSaveAs);
         string manifestPath = Path.Combine(AppContext.BaseDirectory, "assets", ContentCatalog.ModelAssetManifestFileName);
         ModelAssetManifest candidateManifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
@@ -505,6 +508,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void LoadProject(string root, bool recordRecent)
     {
+        DisposeAssetPreviewProvider();
         EditorProjectSession candidate = EditorProjectSession.Load(root);
         StaticMeshAssetCache candidateCache = StaticMeshAssetCache.LoadSource(candidate.Project.Paths.Sources, candidate.Project.AssetManifest);
         StaticMeshScene candidateScene = CreateScene(candidate.Document.Map, candidateCache);
@@ -534,8 +538,36 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void ReloadAssetBrowser()
     {
-        assetBrowser = new AssetBrowserModel(manifest!);
-        assetBrowserRenderer = new AssetBrowserRenderer(assetBrowser);
+        if (assetBrowser is null)
+            assetBrowser = new AssetBrowserModel(manifest!);
+        else
+            assetBrowser.Reload(manifest!);
+
+        DisposeAssetPreviewProvider();
+        if (projectSession is not null && gpu is not null && meshCache is not null)
+        {
+            assetPreviewProvider = new ProjectAssetPreviewProvider(
+                gpu,
+                meshCache,
+                manifest!,
+                projectSession.Project.Paths.Sources,
+                projectSession.Project.Paths.ThumbnailCache,
+                ReportThumbnailFailure);
+        }
+        assetBrowserRenderer = new AssetBrowserRenderer(assetBrowser, assetPreviewProvider);
+    }
+
+    private void ReportThumbnailFailure(string message)
+    {
+        validationMessage = message;
+        log.Add(message);
+        logger.LogWarning("{ThumbnailFailure}", message);
+    }
+
+    private void DisposeAssetPreviewProvider()
+    {
+        assetPreviewProvider?.Dispose();
+        assetPreviewProvider = null;
     }
 
     private void RebuildScene()
@@ -895,6 +927,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     public void Dispose()
     {
         ReleaseViewportInput();
+        DisposeAssetPreviewProvider();
         target?.Dispose();
         imgui?.Dispose();
         gpu?.Dispose();

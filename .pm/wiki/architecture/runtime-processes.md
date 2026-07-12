@@ -1,7 +1,7 @@
 ---
 title: Runtime Processes
 createdAt: 2026-07-05T16:10:17.2894450Z
-modifiedAt: 2026-07-10T12:58:41.6376700Z
+modifiedAt: 2026-07-12T18:32:29.5189420Z
 ---
 
 ## Game Client
@@ -64,6 +64,8 @@ In offline mode the SDL client creates `LocalPlayerController` and runs local of
 JSON parsing uses `System.Text.Json`, allows comments and trailing commas, and rejects malformed documents, unknown or incorrectly cased fields, missing files, and invalid values. Existing cross-field validation runs after merging: ports must be `1..65535`; freecam vectors require freecam mode and distinct position/look-at values; screenshot frame counts require a screenshot path; and a screenshot path without a count captures after frame `1`.
 
 Map selection loads through the local content catalog so rendering and debug map markers match the selected server map. Protocol/content compatibility is still enforced by the network handshake fields.
+
+Client screenshot capture accepts PNG output only. `--screenshot <path>` and configured `screenshotPath` values must end in `.png` case-insensitively; missing or other extensions fail option parsing before SDL initialization. `--screenshot-after-frames` retains its existing positive-frame requirement.
 
 ## Dedicated Server
 

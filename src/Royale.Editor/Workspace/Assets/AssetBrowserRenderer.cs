@@ -17,6 +17,9 @@ public sealed unsafe class AssetBrowserRenderer
     {
         this.model = model;
         this.previews = previews;
+        int count = Encoding.UTF8.GetBytes(model.Filter, filterBuffer);
+        if (count == filterBuffer.Length)
+            filterBuffer[^1] = 0;
     }
 
     public void Render()

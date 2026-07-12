@@ -101,7 +101,7 @@ public sealed class ImGuiDebugOverlayStateTests
                 true,
                 5,
                 4,
-                "/tmp/royale-freecam.bmp");
+                "/tmp/royale-freecam.png");
 
             Assert.Equal("Active camera: Freecam", renderer.ActiveCameraText);
             Assert.Equal("Launch position override: (4.50, 2.25, -3.75)", renderer.LaunchPositionText);
@@ -111,7 +111,7 @@ public sealed class ImGuiDebugOverlayStateTests
             Assert.Equal("Screenshot: pending", renderer.ScreenshotStateText);
             Assert.Equal("Screenshot target frame: 5", renderer.ScreenshotTargetFrameText);
             Assert.Equal(4, renderer.CompletedFrames);
-            Assert.Equal("Screenshot output: /tmp/royale-freecam.bmp", renderer.ScreenshotOutputPathText);
+            Assert.Equal("Screenshot output: /tmp/royale-freecam.png", renderer.ScreenshotOutputPathText);
         }
         finally
         {

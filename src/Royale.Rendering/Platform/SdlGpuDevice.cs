@@ -7,6 +7,7 @@ using Royale.Rendering.Meshes;
 using Royale.Rendering.Text;
 using Royale.Rendering.UI;
 using static SDL.SDL3;
+using System.Runtime.InteropServices;
 
 namespace Royale.Rendering.Platform;
 
@@ -93,6 +94,74 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         var target = new SdlGpuOffscreenTarget(device, GetSwapchainTextureFormat(), width, height);
         offscreenTargets.Add(target);
         return target;
+    }
+
+    public SdlGpuSampledTexture UploadRgbaTexture(ReadOnlySpan<byte> rgba, int width, int height)
+    {
+        ThrowIfDisposed();
+        if (width < 1 || height < 1)
+            throw new ArgumentOutOfRangeException(nameof(width), "Texture dimensions must be positive.");
+        int byteCount = checked(width * height * 4);
+        if (rgba.Length != byteCount)
+            throw new ArgumentException($"RGBA texture data must contain exactly {byteCount} bytes.", nameof(rgba));
+
+        var textureInfo = new SDL_GPUTextureCreateInfo
+        {
+            type = SDL_GPUTextureType.SDL_GPU_TEXTURETYPE_2D,
+            format = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            usage = SDL_GPUTextureUsageFlags.SDL_GPU_TEXTUREUSAGE_SAMPLER,
+            width = (uint)width,
+            height = (uint)height,
+            layer_count_or_depth = 1,
+            num_levels = 1,
+            sample_count = SDL_GPUSampleCount.SDL_GPU_SAMPLECOUNT_1,
+        };
+        SDL_GPUTexture* texture = SDL_CreateGPUTexture(device, &textureInfo);
+        if (texture is null)
+            throw new InvalidOperationException($"SDL GPU sampled texture creation failed: {SDL_GetError()}");
+
+        SDL_GPUTransferBuffer* transfer = null;
+        try
+        {
+            var transferInfo = new SDL_GPUTransferBufferCreateInfo
+            {
+                usage = SDL_GPUTransferBufferUsage.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+                size = (uint)byteCount,
+            };
+            transfer = SDL_CreateGPUTransferBuffer(device, &transferInfo);
+            if (transfer is null)
+                throw new InvalidOperationException($"SDL GPU sampled texture transfer creation failed: {SDL_GetError()}");
+            IntPtr mapped = SDL_MapGPUTransferBuffer(device, transfer, cycle: false);
+            if (mapped == IntPtr.Zero)
+                throw new InvalidOperationException($"SDL GPU sampled texture mapping failed: {SDL_GetError()}");
+            byte[] pixels = rgba.ToArray();
+            Marshal.Copy(pixels, 0, mapped, pixels.Length);
+            SDL_UnmapGPUTransferBuffer(device, transfer);
+
+            SDL_GPUCommandBuffer* command = SDL_AcquireGPUCommandBuffer(device);
+            if (command is null)
+                throw new InvalidOperationException($"SDL GPU sampled texture command acquisition failed: {SDL_GetError()}");
+            SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(command);
+            if (copy is null)
+                throw new InvalidOperationException($"SDL GPU sampled texture copy pass failed: {SDL_GetError()}");
+            var source = new SDL_GPUTextureTransferInfo { transfer_buffer = transfer, pixels_per_row = (uint)width, rows_per_layer = (uint)height };
+            var destination = new SDL_GPUTextureRegion { texture = texture, w = (uint)width, h = (uint)height, d = 1 };
+            SDL_UploadToGPUTexture(copy, &source, &destination, cycle: false);
+            SDL_EndGPUCopyPass(copy);
+            if (!SDL_SubmitGPUCommandBuffer(command))
+                throw new InvalidOperationException($"SDL GPU sampled texture submission failed: {SDL_GetError()}");
+            return new SdlGpuSampledTexture(device, texture, width, height);
+        }
+        catch
+        {
+            SDL_ReleaseGPUTexture(device, texture);
+            throw;
+        }
+        finally
+        {
+            if (transfer is not null)
+                SDL_ReleaseGPUTransferBuffer(device, transfer);
+        }
     }
 
     public GpuImageReadback? PresentFrame(
@@ -199,15 +268,14 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         if (PreferredShaderFormat is null)
             throw new InvalidOperationException($"SDL GPU device does not support any requested shader format. Supported formats: {SupportedShaderFormats}");
 
-        SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(device);
-        if (commandBuffer is null)
-            throw new InvalidOperationException($"SDL GPU command buffer acquisition failed: {SDL_GetError()}");
-
         uint width = (uint)target.Width;
         uint height = (uint)target.Height;
         staticMeshRenderer ??= new StaticMeshRenderer(Handle, target.ColorFormat, PreferredShaderFormat.Value);
         staticMeshRenderer.PrepareScene(frame.StaticScene);
         blurgTextRenderer ??= new BlurgTextRenderer(Handle, target.ColorFormat, PreferredShaderFormat.Value);
+        SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(device);
+        if (commandBuffer is null)
+            throw new InvalidOperationException($"SDL GPU command buffer acquisition failed: {SDL_GetError()}");
         if (frame.RenderViewMode.ShouldRenderDebugWireframes())
         {
             debugLineRenderer ??= new DebugLineRenderer(Handle, target.ColorFormat, PreferredShaderFormat.Value, StaticMeshRenderer.DepthFormat);
@@ -249,6 +317,48 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         SDL_GPUTransferBuffer* transferBuffer = CreateScreenshotTransferBuffer(byteCount);
         DownloadSwapchainTexture(commandBuffer, target.ColorTexture, transferBuffer, width, height);
         return SubmitReadback(commandBuffer, transferBuffer, byteCount, width, height, target.ColorFormat);
+    }
+
+    public GpuImageReadbackRequest BeginOffscreenReadback(SdlGpuOffscreenTarget target, RenderFrame frame)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(target);
+        if (PreferredShaderFormat is null)
+            throw new InvalidOperationException($"SDL GPU device does not support any requested shader format. Supported formats: {SupportedShaderFormats}");
+
+        uint width = (uint)target.Width;
+        uint height = (uint)target.Height;
+        staticMeshRenderer ??= new StaticMeshRenderer(Handle, target.ColorFormat, PreferredShaderFormat.Value);
+        staticMeshRenderer.PrepareScene(frame.StaticScene);
+        SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(device);
+        if (commandBuffer is null)
+            throw new InvalidOperationException($"SDL GPU command buffer acquisition failed: {SDL_GetError()}");
+        var colorTarget = new SDL_GPUColorTargetInfo
+        {
+            texture = target.ColorTexture,
+            clear_color = frame.EffectiveClearColor,
+            load_op = SDL_GPULoadOp.SDL_GPU_LOADOP_CLEAR,
+            store_op = SDL_GPUStoreOp.SDL_GPU_STOREOP_STORE,
+        };
+        var depthTarget = new SDL_GPUDepthStencilTargetInfo
+        {
+            texture = target.DepthTexture,
+            clear_depth = 1.0f,
+            load_op = SDL_GPULoadOp.SDL_GPU_LOADOP_CLEAR,
+            store_op = SDL_GPUStoreOp.SDL_GPU_STOREOP_DONT_CARE,
+            stencil_load_op = SDL_GPULoadOp.SDL_GPU_LOADOP_DONT_CARE,
+            stencil_store_op = SDL_GPUStoreOp.SDL_GPU_STOREOP_DONT_CARE,
+        };
+        SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, &depthTarget);
+        if (renderPass is null)
+            throw new InvalidOperationException($"SDL GPU thumbnail render pass creation failed: {SDL_GetError()}");
+        staticMeshRenderer.Render(commandBuffer, renderPass, width, height, frame.Camera, frame.StaticScene);
+        SDL_EndGPURenderPass(renderPass);
+
+        uint byteCount = checked(width * height * 4);
+        SDL_GPUTransferBuffer* transferBuffer = CreateScreenshotTransferBuffer(byteCount);
+        DownloadSwapchainTexture(commandBuffer, target.ColorTexture, transferBuffer, width, height);
+        return SubmitReadbackRequest(commandBuffer, transferBuffer, byteCount, width, height, target.ColorFormat);
     }
 
     public void Dispose()
@@ -347,45 +457,23 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         uint height,
         SDL_GPUTextureFormat format)
     {
-        try
-        {
-            SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(commandBuffer);
+        return SubmitReadbackRequest(commandBuffer, transferBuffer, byteCount, width, height, format).Wait();
+    }
 
-            if (fence is null)
-                throw new InvalidOperationException($"SDL GPU screenshot command buffer submission failed: {SDL_GetError()}");
-
-            try
-            {
-                SDL_GPUFence* fenceValue = fence;
-
-                if (!SDL_WaitForGPUFences(device, wait_all: true, &fenceValue, 1))
-                    throw new InvalidOperationException($"SDL GPU screenshot fence wait failed: {SDL_GetError()}");
-            }
-            finally
-            {
-                SDL_ReleaseGPUFence(device, fence);
-            }
-
-            IntPtr mapped = SDL_MapGPUTransferBuffer(device, transferBuffer, cycle: false);
-
-            if (mapped == IntPtr.Zero)
-                throw new InvalidOperationException($"SDL GPU screenshot transfer buffer mapping failed: {SDL_GetError()}");
-
-            try
-            {
-                byte[] rgba = GpuImageReadback.NormalizeToRgba(
-                    new ReadOnlySpan<byte>((void*)mapped, checked((int)byteCount)),
-                    format);
-                return new GpuImageReadback(checked((int)width), checked((int)height), rgba);
-            }
-            finally
-            {
-                SDL_UnmapGPUTransferBuffer(device, transferBuffer);
-            }
-        }
-        finally
+    private GpuImageReadbackRequest SubmitReadbackRequest(
+        SDL_GPUCommandBuffer* commandBuffer,
+        SDL_GPUTransferBuffer* transferBuffer,
+        uint byteCount,
+        uint width,
+        uint height,
+        SDL_GPUTextureFormat format)
+    {
+        SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(commandBuffer);
+        if (fence is null)
         {
             SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+            throw new InvalidOperationException($"SDL GPU image command buffer submission failed: {SDL_GetError()}");
         }
+        return new GpuImageReadbackRequest(device, fence, transferBuffer, byteCount, checked((int)width), checked((int)height), format);
     }
 }

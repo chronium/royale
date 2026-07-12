@@ -81,6 +81,27 @@ public static class Program
         Console.WriteLine($"GPU_HARNESS_PASS {passName} {image.Width}x{image.Height} rgba={image.RgbaBytes.Length}");
     }
 
+    private static void VerifyAsyncReadbackAndUpload(SdlGpuDevice device, SdlGpuOffscreenTarget target)
+    {
+        var scene = new StaticMeshScene([new StaticMeshInstance(Matrix4x4.Identity, "async-box")], []);
+        var frame = new RenderFrame(
+            new RenderCamera(new Vector3(0.0f, 0.0f, 3.0f), 0.0f, 0.0f),
+            scene,
+            RenderViewMode.Normal,
+            ClearColor: ClearColor);
+        using GpuImageReadbackRequest request = device.BeginOffscreenReadback(target, frame);
+        GpuImageReadback? image = null;
+        for (int poll = 0; poll < 10_000 && !request.TryComplete(out image); poll++)
+            Thread.Yield();
+        GpuImageReadback completed = image
+            ?? throw new InvalidOperationException("asynchronous readback did not complete within the polling budget.");
+
+        using SdlGpuSampledTexture texture = device.UploadRgbaTexture(completed.RgbaBytes, completed.Width, completed.Height);
+        Require(texture.NativeTextureHandle != 0, "sampled texture upload returned a null native handle.");
+        Require(texture.Width == target.Width && texture.Height == target.Height, "sampled texture dimensions did not match the readback.");
+        Console.WriteLine($"GPU_HARNESS_PASS async-readback-upload {completed.Width}x{completed.Height}");
+    }
+
     private static byte ToByte(float value) => (byte)MathF.Round(Math.Clamp(value, 0.0f, 1.0f) * byte.MaxValue);
 
     private static void Require(bool condition, string message)
@@ -99,6 +120,7 @@ public static class Program
             RenderAndVerify(device, target, "initial", 128, 96);
             target.Resize(79, 61);
             RenderAndVerify(device, target, "resized", 79, 61);
+            VerifyAsyncReadbackAndUpload(device, target);
             host.RequestExit();
         }
 

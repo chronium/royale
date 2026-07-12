@@ -1,7 +1,7 @@
 ---
 title: Agent Workflow
 createdAt: 2026-07-11T06:09:29.0533370Z
-modifiedAt: 2026-07-11T06:09:29.0533370Z
+modifiedAt: 2026-07-12T18:32:29.5383380Z
 ---
 
 ## Purpose
@@ -39,6 +39,8 @@ Agents check the worktree before implementation. One obvious coherent pre-existi
 Task commits use `[TASK-ID] Imperative summary`. Branches are optional and used only when they materially reduce risk.
 
 Validation scales with blast radius. Exact commands and outcomes are recorded. Rendering, UI, platform behavior, audiovisual feedback, camera feel, movement feel, and combat feel require explicit owner validation in addition to automated checks.
+
+Client and editor screenshot validation commands request `.png` output directly. BMP paths are intentionally rejected and must not be used as compatibility aliases or converted after capture.
 
 ## Skill Design
 

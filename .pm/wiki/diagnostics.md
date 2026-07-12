@@ -1,7 +1,7 @@
 ---
 title: Diagnostics
 createdAt: 2026-07-05T19:44:39.3163150Z
-modifiedAt: 2026-07-10T18:49:40.4156720Z
+modifiedAt: 2026-07-12T18:32:29.5296070Z
 ---
 
 ## Logging
@@ -32,6 +32,8 @@ Application code should use ZLogger extension methods such as `ZLogInformation`,
 The server currently logs startup skeleton details through the shared logger factory.
 
 The client currently logs startup beginning, SDL video initialization, SDL window creation, SDL GPU device creation, shutdown, and fatal startup errors.
+
+The editor reports concise model-thumbnail generation, cache-decode, cache-write, and texture-upload failures in both its Validation surface and Log. A failed asset retains its placeholder and is not retried repeatedly within the same project session.
 
 ## Client Telemetry Overlay
 

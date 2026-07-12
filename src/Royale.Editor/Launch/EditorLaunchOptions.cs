@@ -1,5 +1,6 @@
 using System.Globalization;
 using Royale.Content;
+using Royale.Rendering.Screenshots;
 
 namespace Royale.Editor.Launch;
 
@@ -60,6 +61,8 @@ public sealed record EditorLaunchOptions(string MapId, string? MapFilePath, stri
             throw new ArgumentException("--map-file cannot be combined with --map.");
         if (screenshot is not null && frames == 0)
             frames = 1;
+        if (screenshot is not null)
+            ScreenshotPathValidator.Validate(screenshot, "--screenshot");
         if (screenshot is null && frames != 0)
             throw new ArgumentException("--screenshot-after-frames requires --screenshot.");
 

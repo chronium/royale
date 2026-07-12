@@ -188,7 +188,7 @@ public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
                 imguiBackend,
                 readback: screenshotPath is not null);
             if (image is not null && screenshotPath is not null)
-                BmpScreenshotWriter.Save(screenshotPath, image.RgbaBytes, image.Width, image.Height, SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+                PngScreenshotWriter.Save(screenshotPath, image.RgbaBytes, image.Width, image.Height);
         }
 
         localPlayer?.WeaponFeedback.Update(time.DeltaSeconds);

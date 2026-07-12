@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T16:56:25.2156260Z
+modifiedAt: 2026-07-12T18:32:29.5088100Z
 ---
 
 ## Purpose
@@ -80,6 +80,10 @@ A second owner feel pass superseded the 10% trial: final candidate tuning is 10.
 Tiles are 112 logical pixels wide with a 96×96 preview area. The grid derives its column count from the available panel width, keeps tile dimensions fixed while resizing, and always provides at least one column. Labels are clipped within the tile and expose the full ID in a tooltip. Selected, hovered, keyboard-focused, and disabled entries use distinct ImGui states.
 
 The browser accepts a narrow preview provider that resolves an asset ID to an SDL GPU texture handle. Missing previews, collision-only assets, and unsupported future entry kinds use a neutral empty surface; no temporary file-type artwork is part of this contract. `EDITOR-023` owns lazy offscreen model rendering, image encoding, cache invalidation, asynchronous generation, and GPU preview lifetime. Filesystem navigation, import, drag-and-drop placement, and asset mutation remain outside `EDITOR-022`.
+
+`EDITOR-023` supplies model previews only for active `.royaleproject` sessions; standalone JSON documents keep placeholders. The provider lazily queues each visible render asset once, frames combined primitive bounds with a 60-degree elevated diagonal camera and 15% padding, renders a 256×256 identity-transform scene on opaque neutral gray, and preserves the model's materials and directional lighting.
+
+Work is bounded per frame to one render submission, one completed fence readback, and one cached-image upload so ImGui interaction does not wait for GPU completion or PNG encoding. Valid previews are cached under `.cache/thumbnails/<asset-id>-<full-sha256>.png`. The fingerprint covers the renderer version and framing settings, asset/render definition, source path and bytes, and sorted resource paths and bytes. Corrupt or incorrectly sized caches are removed and regenerated; stale files are removed only after a valid replacement exists. Preview failures remain placeholders and are suppressed until project reload or fingerprint change. Provider resources are disposed before project/document replacement and editor shutdown; generated client/server artifacts do not consume the cache.
 
 ## Map Documents
 

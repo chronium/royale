@@ -22,7 +22,7 @@ public sealed class EditorLaunchOptionsTests
             "--map",
             "prototype-arena",
             "--screenshot",
-            "/tmp/editor.bmp",
+            "/tmp/editor.png",
             "--screenshot-after-frames",
             "4",
             "--reset-layout",
@@ -38,12 +38,19 @@ public sealed class EditorLaunchOptionsTests
     [InlineData("abc")]
     public void RejectsInvalidFrameCounts(string count) =>
         Assert.Throws<ArgumentException>(() =>
-            EditorLaunchOptions.Parse(["--screenshot", "x", "--screenshot-after-frames", count]));
+            EditorLaunchOptions.Parse(["--screenshot", "x.png", "--screenshot-after-frames", count]));
 
     [Fact]
     public void FrameCountRequiresScreenshot() =>
         Assert.Throws<ArgumentException>(() =>
             EditorLaunchOptions.Parse(["--screenshot-after-frames", "2"]));
+
+    [Theory]
+    [InlineData("editor.bmp")]
+    [InlineData("editor.jpg")]
+    [InlineData("editor")]
+    public void RejectsNonPngScreenshotPaths(string path) =>
+        Assert.Throws<ArgumentException>(() => EditorLaunchOptions.Parse(["--screenshot", path]));
 
     [Fact]
     public void ParsesExplicitMapFile()

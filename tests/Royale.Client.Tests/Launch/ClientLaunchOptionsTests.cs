@@ -132,7 +132,7 @@ public sealed class ClientLaunchOptionsTests
             "--map",
             "graybox",
             "--screenshot",
-            "/tmp/royale.bmp",
+            "/tmp/royale.png",
             "--screenshot-after-frames",
             "5"
         ]);
@@ -142,16 +142,16 @@ public sealed class ClientLaunchOptionsTests
         Assert.Equal(7778, options.Port);
         Assert.Equal("graybox", options.MapId);
         Assert.Equal(ClientCameraMode.Gameplay, options.CameraMode);
-        Assert.Equal("/tmp/royale.bmp", options.ScreenshotPath);
+        Assert.Equal("/tmp/royale.png", options.ScreenshotPath);
         Assert.Equal(5, options.ScreenshotAfterFrames);
     }
 
     [Fact]
     public void ParseDefaultsScreenshotToFirstFrame()
     {
-        ClientLaunchOptions options = ClientLaunchOptions.Parse(["--screenshot", "/tmp/royale.bmp"]);
+        ClientLaunchOptions options = ClientLaunchOptions.Parse(["--screenshot", "/tmp/royale.PNG"]);
 
-        Assert.Equal("/tmp/royale.bmp", options.ScreenshotPath);
+        Assert.Equal("/tmp/royale.PNG", options.ScreenshotPath);
         Assert.Equal(1, options.ScreenshotAfterFrames);
     }
 
@@ -160,6 +160,13 @@ public sealed class ClientLaunchOptionsTests
     {
         Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--screenshot-after-frames", "5"]));
     }
+
+    [Theory]
+    [InlineData("/tmp/capture.bmp")]
+    [InlineData("/tmp/capture.jpg")]
+    [InlineData("/tmp/capture")]
+    public void ParseRejectsNonPngScreenshotPaths(string path) =>
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--screenshot", path]));
 
     [Theory]
     [InlineData("0")]
@@ -177,7 +184,7 @@ public sealed class ClientLaunchOptionsTests
     [InlineData("not-a-number")]
     public void ParseRejectsInvalidScreenshotFrameDelay(string value)
     {
-        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--screenshot", "/tmp/royale.bmp", "--screenshot-after-frames", value]));
+        Assert.Throws<ArgumentException>(() => ClientLaunchOptions.Parse(["--screenshot", "/tmp/royale.png", "--screenshot-after-frames", value]));
     }
 
     [Theory]
@@ -348,7 +355,7 @@ public sealed class ClientLaunchOptionsTests
               "cameraMode": "freecam",
               "cameraPosition": "4,2.2,3",
               "cameraLookAt": "1.75,0.7,-1.35",
-              "screenshotPath": "/tmp/royale-profile.bmp",
+              "screenshotPath": "/tmp/royale-profile.png",
               "screenshotAfterFrames": 5
             }
             """);
@@ -362,7 +369,7 @@ public sealed class ClientLaunchOptionsTests
         Assert.Equal(ClientCameraMode.Freecam, options.CameraMode);
         AssertVector(new Vector3(4.0f, 2.2f, 3.0f), Assert.IsType<Vector3>(options.CameraPosition));
         AssertVector(new Vector3(1.75f, 0.7f, -1.35f), Assert.IsType<Vector3>(options.CameraLookAt));
-        Assert.Equal("/tmp/royale-profile.bmp", options.ScreenshotPath);
+        Assert.Equal("/tmp/royale-profile.png", options.ScreenshotPath);
         Assert.Equal(5, options.ScreenshotAfterFrames);
     }
 

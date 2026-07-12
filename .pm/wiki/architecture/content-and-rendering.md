@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-11T20:07:29.5530310Z
+modifiedAt: 2026-07-12T18:43:04.1728190Z
 ---
 
 ## Content and Map Data
@@ -98,7 +98,7 @@ Automated validation covers map load/counts/unique IDs/bounds, all asset categor
 Deterministic captures can select an initial render view and hide ImGui telemetry without changing defaults. `--render-view` accepts `normal`, `world-and-debug`, `debug-only`, or `collision-solids`; `--hide-telemetry` starts with the F3-controlled diagnostic windows hidden. Example:
 
 ```text
-dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build --no-restore -- --offline --map prototype-arena --camera-mode freecam --camera-position 25,24,25 --camera-look-at 0,0,0 --render-view normal --hide-telemetry --screenshot /tmp/prototype-arena-normal.bmp --screenshot-after-frames 5
+dotnet run --project src/Royale.Client/Royale.Client.csproj --no-build --no-restore -- --offline --map prototype-arena --camera-mode freecam --camera-position 25,24,25 --camera-look-at 0,0,0 --render-view normal --hide-telemetry --screenshot /tmp/prototype-arena-normal.png --screenshot-after-frames 5
 ```
 
 `BUG-006` raises both south-compound doorway instances to vertical scale `2.5`. Since the source opening reaches local Y=`0.8`, this provides 2.0 metres of clear height for the default 1.8-metre player capsule while preserving doorway width and the rest of the compound layout. Simulation validation casts the full default capsule through both openings rather than relying on a single waist-height ray.
@@ -247,6 +247,12 @@ World text remains client/rendering presentation state. It is projected on the C
 
 The crate is drawn by the same basic static mesh shader, depth target, and flat lighting used for gray-box solids. Map `staticBoxes` still render through the built-in centered unit-box mesh path; the crate is a separate client/rendering smoke mesh batch. This does not add map schema fields, collision generation, SimpleMesh convex hull use, textures, materials, animation, skinning, mesh library management, protocol behavior, or server dependencies.
 
+### PNG Images And GPU Readback
+
+`Royale.Rendering` owns the shared tightly packed RGBA PNG codec used by screenshots and editor thumbnail caches. PNG encoding uses centrally pinned `StbImageWriteSharp 1.16.7`; decoding uses `StbImageSharp 2.30.15`. Both dependencies are isolated from content, simulation, protocol, and server projects. Client and editor screenshot targets must have a case-insensitive `.png` extension and are rejected during launch-option validation before SDL graphics initialization. BMP output is not supported.
+
+SDL GPU exposes synchronous readback for one-shot process-exiting screenshots and a separate fence-backed asynchronous offscreen readback for progressive editor work. Following SDL's download guidance, thumbnail fence waits run on a worker thread; later frames consume at most one completed RGBA readback and upload at most one sampled texture, so ImGui interaction never performs a synchronous GPU wait. Owned transfer buffers, fences, offscreen targets, and uploaded sampled textures are released on completion, failure, replacement, or shutdown.
+
 ### Manifest-Addressed Model Rendering
 
 `StaticMeshAssetCache` reads the generated client `assets/model-assets.json` catalog and caches loaded assets by stable ID. `SimpleMeshStaticMeshLoader` uses `Model.FromFile` so relative and embedded GLB image resources populate `Model.Images`; node transforms are applied to positions and inverse-transpose normals, while UVs, triangle-group material boundaries, linear base-color factors, and referenced image bytes are preserved as small project-owned render primitives.
@@ -296,13 +302,13 @@ A simple render sequence is sufficient:
 For render validation, the client supports a development screenshot mode:
 
 ```text
-dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --screenshot /tmp/royale-frame.bmp --screenshot-after-frames 5
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --screenshot /tmp/royale-frame.png --screenshot-after-frames 5
 ```
 
 Deterministic validation captures can start directly in freecam with invariant-culture camera vectors. `--camera-mode` accepts `gameplay` or `freecam`; `--camera-position x,y,z` and `--camera-look-at x,y,z` are accepted only with `--camera-mode freecam` and do not mutate gameplay/player state.
 
 ```text
-dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --offline --map graybox --camera-mode freecam --camera-position 4,2.2,3 --camera-look-at 1.75,0.7,-1.35 --screenshot /tmp/royale-crate.bmp --screenshot-after-frames 5
+dotnet run --project src/Royale.Client/Royale.Client.csproj -p:CI_DONT_TARGET_ANDROID=1 -- --offline --map graybox --camera-mode freecam --camera-position 4,2.2,3 --camera-look-at 1.75,0.7,-1.35 --screenshot /tmp/royale-crate.png --screenshot-after-frames 5
 ```
 
 The screenshot path captures the presented swapchain frame through SDL GPU readback after BlurgText and ImGui rendering, writes a BMP, and exits the client after the requested frame.

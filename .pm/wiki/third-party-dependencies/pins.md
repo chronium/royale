@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Pins
 createdAt: 2026-07-05T16:15:06.4182160Z
-modifiedAt: 2026-07-10T13:40:55.2925630Z
+modifiedAt: 2026-07-12T18:32:29.5471590Z
 ---
 
 ## Version Pins
@@ -25,3 +25,5 @@ Use full commit SHAs, not branch names, tags, or floating references.
 Native SDL3 is not pinned separately at this stage. Until platform packaging tasks prove a different requirement, SDL3 native availability is expected to come through the selected SDL3-CS source.
 
 SimpleMesh retains its existing pinned revision. `GAME-012` adds `thirdparty/patches/SimpleMesh/0001-support-unsigned-byte-gltf-indices.patch`, a focused managed-code fix that accepts glTF `UNSIGNED_BYTE` (`5121`) index accessors as permitted by glTF 2.0 and used by the Kenney Prototype Kit environment models. No dependency pin, package, runtime boundary, or native build step changes.
+
+Managed package pins live centrally in `Directory.Packages.props`. `StbImageWriteSharp 1.16.7` encodes PNG screenshots and thumbnail caches, and `StbImageSharp 2.30.15` decodes cached PNGs. Both are .NET Standard 2.0 C# ports of Sean Barrett's stb single-header libraries, are used only by `Royale.Rendering`, and retain the upstream public-domain/MIT dual-license dedication. They introduce no server, simulation, protocol, or content dependency.

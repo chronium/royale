@@ -12,6 +12,7 @@ using Royale.Protocol.Framing;
 using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;
 using Royale.Protocol.Snapshots;
+using Royale.Rendering.Screenshots;
 
 namespace Royale.Client.Launch;
 
@@ -149,6 +150,8 @@ public sealed record ClientLaunchOptions(
 
         if (screenshotPath is not null && string.IsNullOrWhiteSpace(screenshotPath))
             throw new ArgumentException("screenshotPath must be a non-empty string or null.");
+        if (screenshotPath is not null)
+            ScreenshotPathValidator.Validate(screenshotPath, "screenshotPath");
 
         if (screenshotAfterFrames < 0)
             throw new ArgumentException("screenshotAfterFrames must be a positive integer or null.");

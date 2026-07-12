@@ -3,6 +3,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="StbImageSharp" />
+    <PackageReference Include="StbImageWriteSharp" />
     <ProjectReference Include="..\Royale.Platform\Royale.Platform.csproj" />
     <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />
     <ProjectReference Include="..\Royale.Native\Royale.Native.csproj" />

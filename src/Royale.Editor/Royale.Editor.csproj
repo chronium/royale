@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><AllowUnsafeBlocks>true</AllowUnsafeBlocks><RoyaleEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier><RoyaleEffectiveRuntimeIdentifier Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier><RoyaleAssetAudience>client</RoyaleAssetAudience></PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Royale.Platform\Royale.Platform.csproj" /><ProjectReference Include="..\Royale.Rendering\Royale.Rendering.csproj" /><ProjectReference Include="..\Royale.Content\Royale.Content.csproj" /><ProjectReference Include="..\Royale.Diagnostics\Royale.Diagnostics.csproj" />
+    <ProjectReference Include="..\Royale.Platform\Royale.Platform.csproj" /><ProjectReference Include="..\Royale.Rendering\Royale.Rendering.csproj" /><ProjectReference Include="..\Royale.Content\Royale.Content.csproj" /><ProjectReference Include="..\Royale.Diagnostics\Royale.Diagnostics.csproj" /><ProjectReference Include="..\Royale.AssetPipeline\Royale.AssetPipeline.csproj" />
     <ProjectReference Include="..\..\thirdparty\repos\SDL3-CS\SDL3-CS\SDL3-CS.csproj" AdditionalProperties="CI_DONT_TARGET_ANDROID=1" SetTargetFramework="TargetFramework=net8.0" /><ProjectReference Include="..\..\thirdparty\repos\ImGui.Net\Generator\Evergine.Bindings.Imgui\Evergine.Bindings.Imgui.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == 'osx-arm64'">

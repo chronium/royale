@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T18:52:24.2745420Z
+modifiedAt: 2026-07-12T19:22:36.4117410Z
 ---
 
 ## Purpose
@@ -85,6 +85,14 @@ The browser accepts a narrow preview provider that resolves an asset ID to an SD
 
 Work is bounded per frame to one render submission, one completed fence readback, and one cached-image upload so ImGui interaction does not wait for GPU completion or PNG encoding. Valid previews are cached under `.cache/thumbnails/<asset-id>-<full-sha256>.png`. The fingerprint covers the renderer version and framing settings, asset/render definition, source path and bytes, and sorted resource paths and bytes. Corrupt or incorrectly sized caches are removed and regenerated; stale files are removed only after a valid replacement exists. Preview failures remain placeholders and are suppressed until project reload or fingerprint change. Provider resources are disposed before project/document replacement and editor shutdown; generated client/server artifacts do not consume the cache.
 
+`EDITOR-024` defines project assets as a physical tree rooted at the package `assets/` directory. Scans do not follow symbolic links. Registered render sources retain their stable global asset ID and thumbnail association; directories and other files use neutral placeholders. Navigation state uses contained portable relative paths, breadcrumbs, deterministic folder-first sorting, and recursive path/ID search.
+
+Project folder names use lowercase ASCII letters, digits, `-`, and `_`. Create rejects existing paths. Rename and move reject merges, rewrite affected render sources/resources and separate collision sources, and rebuild both audience outputs. Delete is restricted to empty, unreferenced folders. Generated content and thumbnail caches remain outside `assets/`.
+
+The `EDITOR-024` UI presents the physical folder hierarchy beside the selected folder's icon grid. Its toolbar provides recursive search, path breadcrumbs, multi-file `Import Assets...`, and folder commands. Import rows retain inclusion state, editable globally unique IDs, external-resource diagnostics, and one of None, Convex, Triangle Mesh, or Separate Mesh collision; Separate Mesh requires a row-associated GLB. Validation keeps the modal open, and a successful batch reloads the manifest, source mesh cache, scene, browser state, selection where its path survives, and thumbnail provider without placing models in the map.
+
+Folder commands operate on physical project folders. Create and rename require portable lowercase names; move accepts another contained folder and rejects merges; delete confirms its restricted empty/unreferenced behavior through the operation label and backend validation. All manifest-changing operations run through the project session so external-change fingerprints and loaded project state remain current.
+
 ## Map Documents
 
 `EDITOR-004` introduces one open `EditorMapDocument` at a time. The document owns the mutable `GameMap`, source path and SHA-256 fingerprint, editor-only GUID identities for every static box, static model, spawn point, loot point, navigation waypoint, and navigation link, a monotonic revision, command history, and a saved checkpoint. Editor GUIDs are never part of runtime JSON. Dirty state is derived from the current history position versus the checkpoint, so undo can return a document to clean. Completing a display-name edit in Inspector creates one command; map IDs remain read-only.
@@ -127,6 +135,12 @@ The project owns exactly one map. `map/`, `assets/`, `project.json`, and importe
 Runtime-artifact fingerprints include source assets, the source manifest, import settings, pipeline version, and target audience. Thumbnail fingerprints include the model and its resources, preview settings, and thumbnail-renderer version.
 
 `EDITOR-021` owns project creation/opening and compatibility import from the current standalone JSON workflow. `EDITOR-023` owns thumbnail generation and cache lifecycle. `EDITOR-025` owns runtime-only and source-inclusive exports. Existing repository maps and shared assets are not migrated by `EDITOR-020`.
+
+Asset imports are project-only and batch-oriented. IDs are editable lowercase portable slugs and remain independent of paths. Each included GLB selects `none`, `convex`, `triangleMesh`, or `separateMesh`; separate mesh requires another GLB. External GLB resources preserve their relative topology. Duplicate IDs, existing destinations, traversal, missing resources, malformed GLB containers, and differing shared-resource bytes fail before source mutation.
+
+Import builds staged client and server outputs first, then commits new source files, the source manifest, and generated directories under a project-local journal. Project open recovers an incomplete journal by removing moved files and restoring the manifest backup. A successful import reloads the project so manifest fingerprints and source content are current; imported models are not placed in the map automatically.
+
+`EDITOR-024` transaction hardening supersedes the earlier file-by-file commit description: import and folder moves stage the complete source tree plus both generated audience trees. One internal journal records the staged, live, and backup directories and the completed swap checkpoint. Failure or startup recovery restores all three live trees, including failures before, during, or between generated-output swaps.
 
 ### Project Lifecycle
 

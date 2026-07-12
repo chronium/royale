@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-07T08:22:21.1622640Z
+modifiedAt: 2026-07-12T19:09:04.2653930Z
 ---
 
 ## Fetch Scripts
@@ -84,6 +84,8 @@ runtimes/osx-arm64/native/libblurgtext.dylib
 ```
 
 Additional SDL satellite libraries such as SDL3_image, SDL3_mixer, or SDL3_ttf should be copied only when a task introduces a concrete dependency on them.
+
+SimpleMesh-backed asset processing lives in the reusable non-executable `src/Royale.AssetPipeline` project. The executable `tools/Royale.AssetPipeline/Royale.AssetPipeline.Cli.csproj` is intentionally a thin wrapper retained for MSBuild asset generation. Adding or removing either project requires solution restore before no-restore validation.
 
 ## ImGui Native Shim Build
 

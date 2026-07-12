@@ -5,11 +5,11 @@
     <RoyaleAssetSourceRoot>$(RoyaleRepositoryRoot)assets</RoyaleAssetSourceRoot>
     <RoyaleAssetManifest>$(RoyaleAssetSourceRoot)/model-assets.json</RoyaleAssetManifest>
     <RoyaleAssetIntermediate>$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/royale-assets/$(RoyaleAssetAudience)</RoyaleAssetIntermediate>
-    <RoyaleAssetPipelineAssembly>$(RoyaleRepositoryRoot)tools/Royale.AssetPipeline/bin/$(Configuration)/net10.0/Royale.AssetPipeline.dll</RoyaleAssetPipelineAssembly>
+    <RoyaleAssetPipelineAssembly>$(RoyaleRepositoryRoot)tools/Royale.AssetPipeline/bin/$(Configuration)/net10.0/Royale.AssetPipeline.Cli.dll</RoyaleAssetPipelineAssembly>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(RoyaleRepositoryRoot)tools/Royale.AssetPipeline/Royale.AssetPipeline.csproj"
+    <ProjectReference Include="$(RoyaleRepositoryRoot)tools/Royale.AssetPipeline/Royale.AssetPipeline.Cli.csproj"
                       ReferenceOutputAssembly="false"
                       Private="false" />
     <RoyaleAssetInput Include="$(RoyaleAssetManifest)" />

@@ -9,6 +9,7 @@ using Royale.Editor.Dialogs;
 using Royale.Editor.Documents;
 using Royale.Editor.Persistence;
 using Royale.Editor.Projects;
+using Royale.Editor.Projects.Assets;
 using Royale.Editor.Viewport;
 using Royale.Editor.Workspace;
 using Royale.Editor.Workspace.Assets;
@@ -43,6 +44,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly byte[] nameBuffer = new byte[256];
     private readonly byte[] newProjectIdBuffer = new byte[128];
     private readonly byte[] newProjectNameBuffer = new byte[256];
+    private readonly byte[] assetFolderNameBuffer = new byte[128];
+    private readonly byte[] assetFolderParentBuffer = new byte[256];
 
     private SdlGpuDevice? gpu;
     private SdlGpuImGuiBackend? imgui;
@@ -62,6 +65,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool windowFocused = true;
     private bool modalOpenRequested;
     private bool newProjectModalRequested;
+    private bool importModalRequested;
+    private bool folderModalRequested;
+    private readonly List<PendingAssetImportState> pendingImports = [];
+    private int pendingCollisionRow = -1;
     private PendingOperation pendingOperation;
     private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
@@ -289,6 +296,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         BuildUnsavedModal();
         BuildNewProjectModal();
+        BuildImportModal();
+        BuildFolderModal();
     }
 
     private static void BuildHierarchy(GameMap map)
@@ -539,7 +548,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private void ReloadAssetBrowser()
     {
         if (assetBrowser is null)
-            assetBrowser = new AssetBrowserModel(manifest!);
+            assetBrowser = projectSession is null
+                ? new AssetBrowserModel(manifest!)
+                : new AssetBrowserModel(projectSession.Project.Paths.Sources, manifest!);
         else
             assetBrowser.Reload(manifest!);
 
@@ -554,7 +565,11 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 projectSession.Project.Paths.ThumbnailCache,
                 ReportThumbnailFailure);
         }
-        assetBrowserRenderer = new AssetBrowserRenderer(assetBrowser, assetPreviewProvider);
+        assetBrowserRenderer = new AssetBrowserRenderer(
+            assetBrowser,
+            assetPreviewProvider,
+            RequestAssetImport,
+            () => folderModalRequested = true);
     }
 
     private void ReportThumbnailFailure(string message)
@@ -734,6 +749,30 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             if (result.Path is null)
                 continue;
 
+            if (result.Kind == EditorFileDialogKind.ImportModels)
+            {
+                IEnumerable<string> paths = result.Paths ?? [result.Path];
+                var reserved = manifest!.Assets.Select(asset => asset.Id)
+                    .Concat(pendingImports.Select(row => row.AssetId))
+                    .ToList();
+                foreach (string path in paths)
+                {
+                    var row = new PendingAssetImportState(path, reserved);
+                    pendingImports.Add(row);
+                    reserved.Add(row.AssetId);
+                }
+                importModalRequested = true;
+                continue;
+            }
+            if (result.Kind == EditorFileDialogKind.CollisionModel)
+            {
+                if (pendingCollisionRow >= 0 && pendingCollisionRow < pendingImports.Count)
+                    pendingImports[pendingCollisionRow].SeparateCollisionPath = result.Path;
+                pendingCollisionRow = -1;
+                importModalRequested = true;
+                continue;
+            }
+
             if (result.Kind == EditorFileDialogKind.SaveMap)
             {
                 TrySave(result.Path, false);
@@ -826,6 +865,176 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             ImguiNative.igCloseCurrentPopup();
         }
         ImguiNative.igEndPopup();
+    }
+
+    private void RequestAssetImport()
+    {
+        if (projectSession is null)
+            return;
+        pendingImports.Clear();
+        importModalRequested = true;
+    }
+
+    private void BuildImportModal()
+    {
+        if (importModalRequested)
+        {
+            ImguiNative.igOpenPopup_Str("Import Assets", ImGuiPopupFlags.None);
+            importModalRequested = false;
+        }
+        if (!ImguiNative.igBeginPopupModal("Import Assets", null, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        string destination = assetBrowser?.CurrentFolder ?? string.Empty;
+        Text($"Destination: assets/{destination}");
+        if (ImguiNative.igButton("Add Files...", new Vector2(110, 0)))
+            dialogs.ShowOpenGlbDialog(host.Window!.NativeHandle);
+
+        var ids = manifest!.Assets.Select(asset => asset.Id).ToHashSet(StringComparer.Ordinal);
+        bool valid = pendingImports.Any(row => row.Include);
+        for (int index = 0; index < pendingImports.Count; index++)
+        {
+            PendingAssetImportState row = pendingImports[index];
+            ImguiNative.igPushID_Int(index);
+            byte include = row.Include ? (byte)1 : (byte)0;
+            if (ImguiNative.igCheckbox("##include", &include))
+                row.Include = include != 0;
+            ImguiNative.igSameLine(0, 6);
+            Text(Path.GetFileName(row.SourcePath));
+            ImguiNative.igSameLine(0, 10);
+            ImguiNative.igSetNextItemWidth(180);
+            fixed (byte* id = row.AssetIdBuffer)
+                ImguiNative.igInputText("Asset ID", id, (uint)row.AssetIdBuffer.Length, ImGuiInputTextFlags.None, null, null);
+
+            string collisionLabel = row.CollisionMode switch
+            {
+                ModelCollisionMode.None => "None",
+                ModelCollisionMode.Convex => "Convex",
+                ModelCollisionMode.TriangleMesh => "Triangle Mesh",
+                _ => "Separate Mesh",
+            };
+            if (ImguiNative.igBeginCombo("Collision", collisionLabel, ImGuiComboFlags.None))
+            {
+                foreach ((ModelCollisionMode mode, string label) in new[]
+                {
+                    (ModelCollisionMode.None, "None"),
+                    (ModelCollisionMode.Convex, "Convex"),
+                    (ModelCollisionMode.TriangleMesh, "Triangle Mesh"),
+                    (ModelCollisionMode.SeparateMesh, "Separate Mesh"),
+                })
+                    if (ImguiNative.igSelectable_Bool(label, row.CollisionMode == mode, ImGuiSelectableFlags.None, default))
+                        row.CollisionMode = mode;
+                ImguiNative.igEndCombo();
+            }
+            if (row.CollisionMode == ModelCollisionMode.SeparateMesh
+                && ImguiNative.igButton("Choose Collision GLB...", new Vector2(160, 0)))
+            {
+                pendingCollisionRow = index;
+                dialogs.ShowOpenGlbDialog(host.Window!.NativeHandle, collisionOnly: true);
+            }
+            Text($"External resources: {row.ExternalResourceCount}");
+            row.Validate(ids);
+            if (row.Diagnostic is not null)
+            {
+                valid = false;
+                Text(row.Diagnostic);
+            }
+            if (ImguiNative.igSmallButton("Remove"))
+            {
+                pendingImports.RemoveAt(index--);
+                ImguiNative.igPopID();
+                continue;
+            }
+            ImguiNative.igSeparator();
+            ImguiNative.igPopID();
+        }
+
+        if (ImguiNative.igButton("Import", new Vector2(90, 0)) && valid)
+        {
+            try
+            {
+                projectSession!.ImportAssets(destination, pendingImports.Select(row => row.ToCommand()).ToList());
+                ReloadProjectAssets();
+                pendingImports.Clear();
+                ImguiNative.igCloseCurrentPopup();
+            }
+            catch (Exception ex)
+            {
+                validationMessage = ex.Message;
+                log.Add($"Asset import failed: {ex.Message}");
+            }
+        }
+        ImguiNative.igSameLine(0, 6);
+        if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
+        {
+            pendingImports.Clear();
+            ImguiNative.igCloseCurrentPopup();
+        }
+        ImguiNative.igEndPopup();
+    }
+
+    private void ReloadProjectAssets()
+    {
+        manifest = projectSession!.Project.AssetManifest;
+        meshCache = StaticMeshAssetCache.LoadSource(projectSession.Project.Paths.Sources, manifest);
+        scene = CreateScene(document!.Map, meshCache);
+        ReloadAssetBrowser();
+        validationMessage = "Project assets reloaded successfully.";
+    }
+
+    private void BuildFolderModal()
+    {
+        if (folderModalRequested)
+        {
+            Array.Clear(assetFolderNameBuffer);
+            Array.Clear(assetFolderParentBuffer);
+            ImguiNative.igOpenPopup_Str("Asset Folders", ImGuiPopupFlags.None);
+            folderModalRequested = false;
+        }
+        if (!ImguiNative.igBeginPopupModal("Asset Folders", null, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        string current = assetBrowser?.CurrentFolder ?? string.Empty;
+        Text($"Current: assets/{current}");
+        fixed (byte* name = assetFolderNameBuffer)
+            ImguiNative.igInputTextWithHint("Name", "lowercase-folder", name, (uint)assetFolderNameBuffer.Length, ImGuiInputTextFlags.None, null, null);
+        fixed (byte* parent = assetFolderParentBuffer)
+            ImguiNative.igInputTextWithHint("Move parent", "folder/path (empty = assets)", parent, (uint)assetFolderParentBuffer.Length, ImGuiInputTextFlags.None, null, null);
+
+        string nameValue = BufferText(assetFolderNameBuffer);
+        string parentValue = BufferText(assetFolderParentBuffer);
+        if (ImguiNative.igButton("Create", new Vector2(82, 0)))
+            RunFolderCommand(() => projectSession!.CreateAssetFolder(current, nameValue), current);
+        ImguiNative.igSameLine(0, 5);
+        if (ImguiNative.igButton("Rename", new Vector2(82, 0)) && current.Length > 0)
+            RunFolderCommand(() => projectSession!.MoveAssetFolder(current, Path.GetDirectoryName(current)?.Replace('\\', '/') ?? string.Empty, nameValue), null);
+        ImguiNative.igSameLine(0, 5);
+        if (ImguiNative.igButton("Move", new Vector2(82, 0)) && current.Length > 0)
+            RunFolderCommand(() => projectSession!.MoveAssetFolder(current, parentValue), null);
+        ImguiNative.igSameLine(0, 5);
+        if (ImguiNative.igButton("Delete Empty", new Vector2(105, 0)) && current.Length > 0)
+            RunFolderCommand(() => projectSession!.DeleteAssetFolder(current), null);
+
+        Text("Rename/move reject merges. Delete only accepts empty, unreferenced folders.");
+        if (ImguiNative.igButton("Close", new Vector2(90, 0)))
+            ImguiNative.igCloseCurrentPopup();
+        ImguiNative.igEndPopup();
+    }
+
+    private void RunFolderCommand(Action command, string? navigateTo)
+    {
+        try
+        {
+            command();
+            ReloadProjectAssets();
+            if (navigateTo is not null)
+                assetBrowser?.Navigate(navigateTo);
+        }
+        catch (Exception ex)
+        {
+            validationMessage = ex.Message;
+            log.Add($"Asset folder operation failed: {ex.Message}");
+        }
     }
 
     private static string BufferText(byte[] buffer)

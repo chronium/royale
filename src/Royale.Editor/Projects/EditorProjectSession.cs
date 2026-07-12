@@ -1,5 +1,6 @@
 using Royale.Editor.Documents;
 using Royale.Editor.Persistence;
+using Royale.Editor.Projects.Assets;
 
 namespace Royale.Editor.Projects;
 
@@ -29,6 +30,36 @@ public sealed class EditorProjectSession
         RequireUnchanged(Project.Paths.AssetManifest, AssetManifestFingerprint, "source asset manifest");
         EditorMapPersistence.Save(Document, Project.Paths.Map, checkExternalChange: true);
         Project = RoyaleProjectLoader.Load(Project.Paths.Root);
+        RefreshFingerprints();
+    }
+
+    public void ImportAssets(string destinationFolder, IReadOnlyList<PendingAssetImport> pending)
+    {
+        RequireUnchanged(Project.Paths.AssetManifest, AssetManifestFingerprint, "source asset manifest");
+        Project = ProjectAssetImporter.Import(Project, destinationFolder, pending);
+        RefreshFingerprints();
+    }
+
+    public void CreateAssetFolder(string parent, string name)
+    {
+        RequireUnchanged(Project.Paths.AssetManifest, AssetManifestFingerprint, "source asset manifest");
+        ProjectAssetFolders.Create(Project, parent, name);
+        Project = RoyaleProjectLoader.Load(Project.Paths.Root);
+        RefreshFingerprints();
+    }
+
+    public void DeleteAssetFolder(string folder)
+    {
+        RequireUnchanged(Project.Paths.AssetManifest, AssetManifestFingerprint, "source asset manifest");
+        ProjectAssetFolders.Delete(Project, folder);
+        Project = RoyaleProjectLoader.Load(Project.Paths.Root);
+        RefreshFingerprints();
+    }
+
+    public void MoveAssetFolder(string folder, string newParent, string? newName = null)
+    {
+        RequireUnchanged(Project.Paths.AssetManifest, AssetManifestFingerprint, "source asset manifest");
+        Project = ProjectAssetFolders.Move(Project, folder, newParent, newName);
         RefreshFingerprints();
     }
 

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPublishable>false</IsPublishable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />
+    <ProjectReference Include="..\..\thirdparty\repos\SimpleMesh\SimpleMesh\SimpleMesh.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-12T18:43:04.1728190Z
+modifiedAt: 2026-07-12T19:09:04.2488670Z
 ---
 
 ## Content and Map Data
@@ -130,6 +130,8 @@ The first source asset is `kenney-crate`, using `meshes/kenney-prototype-kit/cra
 The selected Kenney models use valid glTF `UNSIGNED_BYTE` indices, supported through the focused SimpleMesh project patch recorded under `thirdparty/patches/SimpleMesh`. Triangle-mesh cooking deterministically discards degenerate source/canonicalized faces while retaining and sorting valid faces; it fails if none remain. Convex cooking retains its stricter degenerate-triangle rejection. Tests build deterministic client and server outputs, load every model through `StaticMeshAssetCache`, and create a valid native Box3D shape from every generated artifact.
 
 `BUG-005` addresses the Kenney doorway's paired opposite-winding coplanar faces at their two consumers. Client GLB import preserves all authored vertices, indices, normals, and UVs; the SDL static-mesh pipeline uses counter-clockwise front faces with backface culling so only the camera-facing member of each pair is rasterized. Triangle-mesh collision cooking separately removes position-index duplicate surfaces before deterministic ordering because rasterizer culling does not apply to Box3D. The committed Kenney source remains unchanged, close-range depth fighting is avoided, and generated collision falls from 152 source triangles to 76 unique surfaces.
+
+`EDITOR-024` extracts processing and collision generation into the non-executable `src/Royale.AssetPipeline` library. `tools/Royale.AssetPipeline` remains the thin command-line wrapper used by `Royale.AssetPipeline.targets`, so existing MSBuild invocation and client/server audience rules remain unchanged. The editor uses the library in-process to validate candidate manifests and build staged generated directories before committing project sources. `GlbExternalResourceInspector` is the reusable GLB 2.0 JSON-resource inspection boundary.
 
 #### Convex Collision Artifacts
 

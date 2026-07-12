@@ -6,8 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Royale.Content\Royale.Content.csproj" />
-    <ProjectReference Include="..\..\thirdparty\repos\SimpleMesh\SimpleMesh\SimpleMesh.csproj" />
+    <ProjectReference Include="..\..\src\Royale.AssetPipeline\Royale.AssetPipeline.csproj" />
   </ItemGroup>
 
 </Project>

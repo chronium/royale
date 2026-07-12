@@ -20,6 +20,12 @@ public static class RoyaleProjectLoader
         string root = Path.GetFullPath(projectDirectory);
         ValidatePackage(root);
 
+        var recoveryPaths = new RoyaleProjectPaths(
+            root,
+            $"{RoyaleProjectLayout.MapDirectoryName}/{Path.GetFileNameWithoutExtension(root)}.json",
+            $"{RoyaleProjectLayout.AssetsDirectoryName}/{RoyaleProjectLayout.AssetManifestFileName}");
+        Assets.ProjectAssetImporter.Recover(recoveryPaths);
+
         string manifestPath = Path.Combine(root, RoyaleProjectLayout.ManifestFileName);
         RoyaleProjectManifest manifest = ReadManifest(manifestPath);
         ValidateManifest(manifest, manifestPath);

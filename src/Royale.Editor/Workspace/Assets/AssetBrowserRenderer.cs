@@ -12,11 +12,19 @@ public sealed unsafe class AssetBrowserRenderer
     private readonly AssetBrowserModel model;
     private readonly IAssetPreviewProvider? previews;
     private readonly byte[] filterBuffer = new byte[128];
+    private readonly Action? requestImport;
+    private readonly Action? requestFolderMenu;
 
-    public AssetBrowserRenderer(AssetBrowserModel model, IAssetPreviewProvider? previews = null)
+    public AssetBrowserRenderer(
+        AssetBrowserModel model,
+        IAssetPreviewProvider? previews = null,
+        Action? requestImport = null,
+        Action? requestFolderMenu = null)
     {
         this.model = model;
         this.previews = previews;
+        this.requestImport = requestImport;
+        this.requestFolderMenu = requestFolderMenu;
         int count = Encoding.UTF8.GetBytes(model.Filter, filterBuffer);
         if (count == filterBuffer.Length)
             filterBuffer[^1] = 0;
@@ -24,6 +32,12 @@ public sealed unsafe class AssetBrowserRenderer
 
     public void Render()
     {
+        if (ImguiNative.igButton("Import Assets...", new Vector2(118f, 0f)))
+            requestImport?.Invoke();
+        ImguiNative.igSameLine(0, 6f);
+        if (ImguiNative.igButton("Folders...", new Vector2(90f, 0f)))
+            requestFolderMenu?.Invoke();
+        ImguiNative.igSameLine(0, 8f);
         ImguiNative.igSetNextItemWidth(MathF.Min(260f, ImguiNative.igGetContentRegionAvail().X));
         fixed (byte* buffer = filterBuffer)
         {
@@ -41,6 +55,22 @@ public sealed unsafe class AssetBrowserRenderer
         }
 
         ImguiNative.igSeparator();
+        if (model.Tree is not null)
+        {
+            ImguiNative.igBeginChild_Str("##asset-folders", new Vector2(180f, 0f), ImGuiChildFlags.Borders, ImGuiWindowFlags.None);
+            RenderFolderTree(model.Tree);
+            ImguiNative.igEndChild();
+            ImguiNative.igSameLine(0, 8f);
+            ImguiNative.igBeginChild_Str("##asset-grid", default, ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        }
+        foreach (string breadcrumb in model.Breadcrumbs)
+        {
+            string label = breadcrumb.Length == 0 ? "assets" : Path.GetFileName(breadcrumb);
+            if (ImguiNative.igSmallButton($"{label}##crumb-{breadcrumb}"))
+                model.Navigate(breadcrumb);
+            ImguiNative.igSameLine(0, 4f);
+        }
+        ImguiNative.igNewLine();
         float availableWidth = ImguiNative.igGetContentRegionAvail().X;
         int columns = AssetBrowserModel.CalculateColumns(availableWidth);
 
@@ -49,6 +79,27 @@ public sealed unsafe class AssetBrowserRenderer
             RenderTile(model.FilteredEntries[index]);
             if ((index + 1) % columns != 0)
                 ImguiNative.igSameLine(0, AssetBrowserModel.TileSpacing);
+        }
+        if (model.Tree is not null)
+            ImguiNative.igEndChild();
+    }
+
+    private void RenderFolderTree(ProjectAssetNode folder)
+    {
+        bool hasChildren = folder.Children.Any(child => child.Kind == ProjectAssetNodeKind.Folder);
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth;
+        if (!hasChildren)
+            flags |= ImGuiTreeNodeFlags.Leaf;
+        if (model.CurrentFolder == folder.RelativePath)
+            flags |= ImGuiTreeNodeFlags.Selected;
+        bool open = ImguiNative.igTreeNodeEx_Str($"{folder.Name}##{folder.RelativePath}", flags);
+        if (ImguiNative.igIsItemClicked(ImGuiMouseButton.Left))
+            model.Navigate(folder.RelativePath);
+        if (open)
+        {
+            foreach (ProjectAssetNode child in folder.Children.Where(child => child.Kind == ProjectAssetNodeKind.Folder))
+                RenderFolderTree(child);
+            ImguiNative.igTreePop();
         }
     }
 
@@ -59,7 +110,7 @@ public sealed unsafe class AssetBrowserRenderer
         ImGuiSelectableFlags flags = entry.IsEnabled
             ? ImGuiSelectableFlags.None
             : ImGuiSelectableFlags.Disabled;
-        bool selected = model.SelectedAssetId == entry.Id;
+        bool selected = model.SelectedPath == entry.RelativePath;
         bool activated = ImguiNative.igSelectable_Bool(
             "##tile",
             selected,
@@ -69,7 +120,10 @@ public sealed unsafe class AssetBrowserRenderer
         bool focused = ImguiNative.igIsItemFocused();
 
         if (activated)
-            model.Select(entry.Id);
+            model.SelectPath(entry.RelativePath);
+        if (hovered && entry.Kind == AssetBrowserEntryKind.Folder
+            && ImguiNative.igIsMouseDoubleClicked_Nil(ImGuiMouseButton.Left))
+            model.Navigate(entry.RelativePath);
 
         DrawPreview(entry, origin, selected, hovered, focused);
         DrawLabel(entry, origin, hovered);
@@ -85,7 +139,9 @@ public sealed unsafe class AssetBrowserRenderer
     {
         Vector2 min = origin + new Vector2(PreviewInset, 4f);
         Vector2 max = min + new Vector2(AssetBrowserModel.PreviewSize, AssetBrowserModel.PreviewSize);
-        AssetBrowserPreview preview = AssetBrowserPreviewResolver.Resolve(entry, previews);
+        AssetBrowserPreview preview = entry.Kind == AssetBrowserEntryKind.Model
+            ? AssetBrowserPreviewResolver.Resolve(entry, previews)
+            : default;
 
         if (preview.HasTexture)
         {
@@ -102,7 +158,9 @@ public sealed unsafe class AssetBrowserRenderer
         else
         {
             ImDrawList* drawList = ImguiNative.igGetWindowDrawList();
-            uint surface = ImguiNative.igGetColorU32_Col(ImGuiCol.FrameBg, entry.IsEnabled ? 1f : .55f);
+            uint surface = ImguiNative.igGetColorU32_Col(
+                ImGuiCol.FrameBg,
+                entry.Kind == AssetBrowserEntryKind.Folder ? .9f : .6f);
             ImguiNative.ImDrawList_AddRectFilled(drawList, min, max, surface, 3f, ImDrawFlags.None);
         }
 

@@ -5,7 +5,7 @@ namespace Royale.Content.Maps;
 public static class MapCatalog
 {
     private const float NavigationCoverageDistance = 2.0f;
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
@@ -29,19 +29,38 @@ public static class MapCatalog
 
         try
         {
-            using FileStream stream = File.OpenRead(path);
-            GameMap? map = JsonSerializer.Deserialize<GameMap>(stream, JsonOptions);
-
-            if (map is null)
-                throw new InvalidDataException($"Map '{mapId}' at '{path}' did not contain a JSON object.");
-
-            ValidateMap(mapId, path, map);
-            return map;
+            return LoadFile(path, mapId);
         }
         catch (JsonException ex)
         {
             throw new InvalidDataException($"Map '{mapId}' at '{path}' is not valid JSON map content.", ex);
         }
+    }
+
+    public static GameMap LoadFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        using FileStream stream = File.OpenRead(path);
+        GameMap? map;
+        try { map = JsonSerializer.Deserialize<GameMap>(stream, JsonOptions); }
+        catch (JsonException ex) { throw new InvalidDataException($"Map at '{path}' is not valid JSON map content.", ex); }
+        if (map is null) throw new InvalidDataException($"Map at '{path}' did not contain a JSON object.");
+        ValidateMap(map.Id, path, map);
+        return map;
+    }
+
+    public static GameMap LoadFile(string path, string expectedMapId)
+    {
+        GameMap map = LoadFile(path);
+        if (!string.Equals(map.Id, expectedMapId, StringComparison.Ordinal))
+            throw InvalidMap(path, $"id '{map.Id}' does not match requested map id '{expectedMapId}'.");
+        return map;
+    }
+
+    public static void Validate(GameMap map, string path = "<memory>")
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ValidateMap(map.Id, path, map);
     }
 
     public static string GetMapPath(string mapId, string contentRoot)

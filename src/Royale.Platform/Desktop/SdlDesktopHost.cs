@@ -79,6 +79,7 @@ public sealed unsafe class SdlDesktopHost : IDisposable
     }
 
     public void RequestExit() => exitRequested = true;
+    public void CancelExit() => exitRequested = false;
 
     private void Initialize()
     {

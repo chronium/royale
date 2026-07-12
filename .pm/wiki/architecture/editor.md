@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T08:12:42.8567750Z
+modifiedAt: 2026-07-12T08:27:13.9511330Z
 ---
 
 ## Purpose
@@ -75,19 +75,15 @@ A second owner feel pass superseded the 10% trial: final candidate tuning is 10.
 
 ## Map Documents
 
-The editor loads and writes the existing `GameMap` JSON format. An editor-only mutable document model may retain stable entity identities and command history, but editor metadata must not leak into runtime map JSON.
+`EDITOR-004` introduces one open `EditorMapDocument` at a time. The document owns the mutable `GameMap`, source path and SHA-256 fingerprint, editor-only GUID identities for every static box, static model, spawn point, loot point, navigation waypoint, and navigation link, a monotonic revision, command history, and a saved checkpoint. Editor GUIDs are never part of runtime JSON. Dirty state is derived from the current history position versus the checkpoint, so undo can return a document to clean. Completing a display-name edit in Inspector creates one command; map IDs remain read-only.
 
-The complete current map schema is editable:
+Startup accepts `--map-file <path>` for an explicit file. For `--map <id>`, the editor walks from the current directory toward the filesystem root looking for `Royale.slnx`; when found, it prefers `src/Royale.Content/Maps/<id>.json`. Otherwise it reads the packaged `maps/<id>.json` and requires Save As. Open and Save As use SDL native JSON file dialogs, whose callbacks enqueue results for processing on the editor thread. Opening a map rebuilds scene data, hierarchy/inspector content, framing, and selection-dependent state.
 
-- Static boxes and static models
-- Spawn and loot points
-- Navigation nodes and links
-- World bounds
-- Safe-zone settings
+`MapCatalog.LoadFile` and `MapCatalog.Validate` are the common runtime/editor loading and validation APIs. Loading permits comments and trailing commas. Saving normalizes source formatting and comments into deterministic, indented camel-case UTF-8 JSON without BOM, with declaration-defined property order, retained array order, LF line endings, and one final newline.
 
-Documents track dirty state and use command-based undo and redo. Save and Save As are explicit operations; the editor does not continuously autosave.
+Save validates the in-memory map, checks the current source SHA-256 fingerprint against the loaded or last-saved fingerprint, writes a uniquely named temporary file in the destination directory, flushes it to disk, reloads and validates the temporary output, and atomically moves it over the destination. Failures preserve the original and remove the temporary file. Save As requires a `.json` filename whose stem exactly matches the unchanged runtime map ID. Packaged origins cannot be saved in place.
 
-Before saving, the editor runs runtime-equivalent structural, asset, navigation, spawn, bounds, and collision validation. Invalid documents remain dirty and are not written. Writes use a temporary file and atomic replacement. If the source changed externally after loading, the editor rejects the save instead of overwriting newer content.
+The title is `Royale Editor - <filename>` with `*` while dirty. File provides Open, Save, and Save As; Edit provides Undo and Redo. Shortcuts are Cmd/Ctrl+O, Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Z, and Cmd/Ctrl+Shift+Z. Open and desktop close requests with unsaved changes show Save / Discard / Cancel. A failed save leaves the document open and dirty and reports the error in Validation and Log. New remains disabled until a default-new-map contract is defined.
 
 ## Face Snapping
 

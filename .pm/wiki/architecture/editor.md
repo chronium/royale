@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T08:16:32.6996040Z
+modifiedAt: 2026-07-13T08:31:25.1470290Z
 ---
 
 ## Purpose
@@ -110,6 +110,8 @@ The title is `Royale Editor - <filename>` with `*` while dirty. File provides Op
 SDL dialogs, ImGui popup rendering, persistence, logging, and host exit remain application concerns. New Project and Convert use separate destination-dialog state, which is cleared on cancellation, dialog error, completion, or operation failure. Cancelled or failed Open, New, and Convert operations leave the active document and its presentation resources intact.
 
 `BUG-012` defines display-name completion as either Enter submission or deactivation after editing, so clicking elsewhere commits one document command and immediately updates dirty state. Cmd/Ctrl document shortcuts are resolved from SDL key events and consumed before ImGui text editing; Undo and Redo therefore operate on document history consistently regardless of text-field focus.
+
+`BUG-013` treats the Inspector display-name control as a fixed 256-byte ImGui UTF-8 field: 255 payload bytes plus the required null terminator. Synchronizing a longer runtime map name preserves the authoritative `GameMap.Name` and presents only the longest prefix composed of complete UTF-8 sequences. Inspector and Validation warn that the source name is preserved and that editing and committing the field will replace it with the visible prefix. Loading, undo/redo synchronization, focusing, or leaving the field without editing does not create a rename command. The limit belongs only to this editor control; runtime map loading and `SetMapNameCommand` remain unrestricted.
 
 ## Map Project Format
 

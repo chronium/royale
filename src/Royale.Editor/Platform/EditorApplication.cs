@@ -44,7 +44,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly EditorTransformManipulation manipulation = new();
     private readonly EditorTransformSettingsStore transformSettingsStore = new();
     private readonly IEditorFileDialogService dialogs;
-    private readonly byte[] nameBuffer = new byte[256];
+    private readonly EditorUtf8InputBuffer nameInput = new(256);
     private readonly byte[] newProjectIdBuffer = new byte[128];
     private readonly byte[] newProjectNameBuffer = new byte[256];
     private readonly byte[] assetFolderNameBuffer = new byte[128];
@@ -84,6 +84,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool viewportFocused;
     private bool gizmoUsing;
     private bool gizmoHovered;
+    private bool mapNameEdited;
 
     public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger, IEditorFileDialogService? dialogs = null)
     {
@@ -362,18 +363,23 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         }
 
         Text($"Map ID: {map.Id}");
-        fixed (byte* buffer = nameBuffer)
+        string valueBeforeInput = nameInput.Value;
+        fixed (byte* buffer = nameInput.Buffer)
         {
             bool submitted = ImguiNative.igInputText(
                     "Display name",
                     buffer,
-                    (uint)nameBuffer.Length,
+                    (uint)nameInput.Capacity,
                     ImGuiInputTextFlags.EnterReturnsTrue,
                     null,
                     null);
-            if (submitted || ImguiNative.igIsItemDeactivatedAfterEdit())
+            if (!string.Equals(valueBeforeInput, nameInput.Value, StringComparison.Ordinal))
+                mapNameEdited = true;
+            if (mapNameEdited && (submitted || ImguiNative.igIsItemDeactivatedAfterEdit()))
                 CommitMapName();
         }
+        if (nameInput.WasTruncated)
+            TextWrapped(MapNameTruncationWarning);
 
         MapVector3 min = map.WorldBounds.Min;
         MapVector3 max = map.WorldBounds.Max;
@@ -399,6 +405,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private void BuildValidation(GameMap map)
     {
         Text(validationMessage);
+        if (nameInput.WasTruncated)
+            TextWrapped(MapNameTruncationWarning);
         Text("Model manifest loading: successful");
         Text($"Map content: {map.StaticBoxes.Count + map.StaticModels.Count} static objects");
     }
@@ -523,6 +531,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     }
 
     private static void Text(string value) => ImguiNative.igTextUnformatted(value, null);
+
+    private static void TextWrapped(string value) => ImguiNative.igTextWrapped(value);
 
     private void Group(string name, EditorEntityKind kind)
     {
@@ -853,24 +863,23 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         return MapStaticMeshScene.CreateScene(map, assets);
     }
 
+    private const string MapNameTruncationWarning =
+        "Warning: The map name exceeds the 255-byte editor field. The original is preserved; editing and committing this field will replace it with the visible UTF-8 prefix.";
+
     private void SetNameBuffer(string value)
     {
-        Array.Clear(nameBuffer);
-        int count = System.Text.Encoding.UTF8.GetBytes(value, nameBuffer);
-        if (count == nameBuffer.Length)
-            nameBuffer[^1] = 0;
+        nameInput.SetValue(value);
+        mapNameEdited = false;
     }
 
     private void CommitMapName()
     {
         if (document is null)
             return;
+        if (!mapNameEdited)
+            return;
 
-        int length = Array.IndexOf(nameBuffer, (byte)0);
-        if (length < 0)
-            length = nameBuffer.Length;
-
-        string value = System.Text.Encoding.UTF8.GetString(nameBuffer, 0, length);
+        string value = nameInput.Value;
         if (string.IsNullOrWhiteSpace(value))
         {
             validationMessage = "Map name must be non-empty.";

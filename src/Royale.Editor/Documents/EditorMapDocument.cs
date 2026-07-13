@@ -29,6 +29,26 @@ public sealed class EditorMapDocument
     public string? UndoDescription => CanUndo ? history[historyPosition - 1].Description : null;
     public string? RedoDescription => CanRedo ? history[historyPosition].Description : null;
 
+    public EditorEntityIdentity GetIdentity(Guid editorId) =>
+        TryGetIdentity(editorId, out EditorEntityIdentity identity)
+            ? identity
+            : throw new KeyNotFoundException($"Editor entity '{editorId}' does not belong to this document.");
+
+    public bool TryGetIdentity(Guid editorId, out EditorEntityIdentity identity)
+    {
+        foreach (EditorEntityIdentity candidate in Identities)
+        {
+            if (candidate.EditorId == editorId)
+            {
+                identity = candidate;
+                return true;
+            }
+        }
+
+        identity = default;
+        return false;
+    }
+
     public void Execute(IEditorDocumentCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);

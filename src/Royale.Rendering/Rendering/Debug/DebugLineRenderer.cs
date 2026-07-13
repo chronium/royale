@@ -194,6 +194,9 @@ internal sealed unsafe class DebugLineRenderer : IDisposable
                 fill_mode = SDL_GPUFillMode.SDL_GPU_FILLMODE_FILL,
                 cull_mode = SDL_GPUCullMode.SDL_GPU_CULLMODE_NONE,
                 front_face = SDL_GPUFrontFace.SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+                depth_bias_constant_factor = -1.0f,
+                depth_bias_clamp = -0.0001f,
+                enable_depth_bias = true,
             },
             multisample_state = new SDL_GPUMultisampleState
             {
@@ -201,7 +204,8 @@ internal sealed unsafe class DebugLineRenderer : IDisposable
             },
             depth_stencil_state = new SDL_GPUDepthStencilState
             {
-                enable_depth_test = false,
+                compare_op = SDL_GPUCompareOp.SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
+                enable_depth_test = true,
                 enable_depth_write = false,
             },
             target_info = new SDL_GPUGraphicsPipelineTargetInfo

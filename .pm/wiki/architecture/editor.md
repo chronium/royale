@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T04:57:40.9018590Z
+modifiedAt: 2026-07-13T05:29:31.2600510Z
 ---
 
 ## Purpose
@@ -63,7 +63,7 @@ The shell is read-only. Hierarchy lists static boxes, static models, spawn point
 
 The central viewport displays the selected map through a resizable SDL GPU offscreen target. Logical ImGui size is converted to framebuffer pixels using the high-DPI scale and target recreation is suppressed unless pixel dimensions change. The camera is initially framed from map bounds with a far plane derived from map extent. Hold right mouse over the viewport for relative-mouse look; while captured, use WASD horizontally and Q/E down/up. Release right mouse or press Escape to release capture. Full editor screenshots capture the composed docked UI and exit after completion.
 
-Map mutation, persistence, selection/picking, asset thumbnails, drag-and-drop placement, ImGuizmo transforms, undo/redo, and Save/Save As remain deferred to later editor tasks.
+Map persistence, selection/picking, asset thumbnails, ImGuizmo transforms, undo/redo, and Save/Save As are now implemented by their owning editor tasks. Drag-and-drop placement, creation, deletion, duplication, and general entity property editing remain deferred.
 
 `EDITOR-017` gives captured viewport camera input exclusive pointer ownership. Capture begins only while the visible, focused viewport is hovered with right mouse held. During capture, ImGui's global mouse input is suppressed while SDL events continue to reach its backend; relative mouse mode hides the cursor. Right-mouse release, Escape, viewport closure, focus loss, and editor disposal immediately restore normal cursor and ImGui interaction.
 
@@ -158,9 +158,17 @@ Project Save is in-place only. It rejects external changes to any authoritative 
 
 ## Grid and Transform Snapping
 
-`EDITOR-005` adds a toggleable world-space construction grid on the XZ plane at `Y = 0`. Grid visibility and transform snapping are independent controls. Translation snapping uses the configurable grid spacing; rotation and scale use independently configurable increments.
+`EDITOR-005` adds one selection state keyed by the document-owned `EditorEntityIdentity.EditorId`. Hierarchy selection and viewport picking update the same state; loading another document clears it. Static boxes and models support translate, rotate, and scale; spawn points support translate and rotate; loot points and navigation waypoints support translate only. Navigation links remain non-spatial. Viewport picking uses the nearest ray hit against oriented box bounds, transformed model mesh bounds, or visible marker proxies, and does not pick through a hovered or active gizmo. The Inspector reports the selected type, display ID, position, rotation, and size or scale read-only. Creation, deletion, duplication, and editable entity properties remain deferred.
 
-The defaults are 1 metre for translation, 15 degrees for rotation, and 0.1 for scale. Grid visibility, snapping toggles, and increments are per-user editor preferences stored outside project source, so they persist across sessions without changing map or project data. A completed ImGuizmo manipulation remains one undoable document command regardless of snapping.
+The viewport toolbar provides Translate, Rotate, Scale, Local/World, Grid, Snap, and the active increment. `W`, `E`, and `R` select transform modes while the viewport is hovered and focused, relative-mouse camera capture is inactive, no text or modal owns input, and no manipulation is active. Unsupported operations are disabled; position-only entities automatically use Translate. System.Numerics matrices are transposed at the narrow ImGuizmo adapter boundary.
+
+A manipulation previews directly in the editor presentation without adding history. Escape restores the original transform. Mouse release rejects non-finite values, non-positive box sizes, and zero model scale; suppresses no-ops; and otherwise creates one before/after command resolved through the stable editor identity. Undo and redo restore the complete transform while preserving selection. Whole-map validation remains on normal validation and save rather than every drag.
+
+The depth-tested construction grid covers map bounds rounded outward on the XZ plane at `Y = 0`, emphasizes both world axes and every tenth line, and uses a bounded coarser visual subdivision for exceptionally dense settings. Translation snapping continues to use the exact configured increment even when presentation is coarsened. Non-mesh spatial entities have distinct spawn, loot, and navigation markers, and the selected entity receives an orange wire-bounds highlight.
+
+Defaults are grid visible, snapping enabled, world orientation, Translate mode, 1 metre translation/grid spacing, 15 degrees rotation, and 0.1 scale. Positive finite increments are clamped to practical UI ranges. Grid visibility, snapping, operation, orientation, and all increments are atomically persisted per user at `Royale/Editor/editor-settings.json` under OS application data. Missing, malformed, invalid, or unsupported settings fall back to defaults without preventing startup.
+
+Validation on 2026-07-13 completed the documented formatter check, a zero-warning full solution build, and all 1,113 solution tests. Native macOS screenshot validation confirmed bundled cimguizmo startup, toolbar layout, the depth-aware grid, emphasized axes, and spatial markers. Owner validation remains required for picking accuracy, all three gizmo modes, grid readability and changed spacing, snapping behavior, and the `W`/`E`/`R` workflow.
 
 ## Face Snapping
 

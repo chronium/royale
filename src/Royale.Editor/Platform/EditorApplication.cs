@@ -40,6 +40,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly EditorLog log = new();
     private readonly EditorCameraController camera = new();
     private readonly ViewportInputOwnership inputOwnership = new();
+    private readonly EditorSelectionState selection = new();
+    private readonly EditorTransformManipulation manipulation = new();
+    private readonly EditorTransformSettingsStore transformSettingsStore = new();
     private readonly IEditorFileDialogService dialogs;
     private readonly byte[] nameBuffer = new byte[256];
     private readonly byte[] newProjectIdBuffer = new byte[128];
@@ -75,12 +78,18 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private PendingOperation pendingOperation;
     private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
+    private EditorTransformSettings transformSettings;
+    private EditorViewportPresentation? viewportPresentation;
+    private bool viewportFocused;
+    private bool gizmoUsing;
+    private bool gizmoHovered;
 
     public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger, IEditorFileDialogService? dialogs = null)
     {
         this.options = options;
         this.logger = logger;
         this.dialogs = dialogs ?? new SdlEditorFileDialogService();
+        transformSettings = transformSettingsStore.Read();
         host = new SdlDesktopHost(
             new SdlWindowSettings(
                 "Royale Editor",
@@ -148,6 +157,13 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         UpdateWindowTitle();
 
         bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE);
+        if (escape && document is not null && manipulation.Cancel(document))
+        {
+            ImGuiEditorNative.ClearActiveId();
+            gizmoUsing = false;
+            RebuildScene();
+            log.Add("Cancelled entity transform.");
+        }
         bool right = host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
         ViewportInputState viewportState =
             (viewportHovered ? ViewportInputState.Hovered : 0) |
@@ -250,7 +266,18 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (target.Width != requestedSize.Width || target.Height != requestedSize.Height)
             target.Resize(requestedSize.Width, requestedSize.Height);
 
-        gpu.RenderOffscreen(target, new RenderFrame(camera.ToRenderCamera(), scene, RenderViewMode.Normal));
+        viewportPresentation = EditorViewportPresentationBuilder.Build(
+            document,
+            meshCache!,
+            selection.SelectedEditorId,
+            transformSettings.GridVisible,
+            transformSettings.GridSpacing);
+        gpu.RenderOffscreen(target, new RenderFrame(
+            camera.ToRenderCamera(),
+            scene,
+            RenderViewMode.WorldAndDebug,
+            viewportPresentation.DebugPrimitives));
+        ImGuizmoViewportAdapter.BeginFrame();
         BuildWorkspace(target, document.Map);
 
         frames++;
@@ -283,7 +310,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         ImguiNative.igDockSpaceOverViewport(dockId, main, ImGuiDockNodeFlags.PassthruCentralNode, null);
 
         if (workspace.HierarchyVisible)
-            Window(HierarchyName, () => BuildHierarchy(loadedMap));
+            Window(HierarchyName, BuildHierarchy);
         if (workspace.InspectorVisible)
             Window(InspectorName, () => BuildInspector(loadedMap));
         if (workspace.AssetBrowserVisible)
@@ -296,7 +323,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (workspace.ViewportVisible)
             Window(ViewportName, () => BuildViewport(viewport));
         else
+        {
             viewportHovered = false;
+            viewportFocused = false;
+        }
 
         BuildUnsavedModal();
         BuildNewProjectModal();
@@ -304,17 +334,35 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         BuildFolderModal();
     }
 
-    private static void BuildHierarchy(GameMap map)
+    private void BuildHierarchy()
     {
-        Group("Static Boxes", map.StaticBoxes.Select(x => x.Id));
-        Group("Static Models", map.StaticModels.Select(x => x.Id));
-        Group("Spawn Points", map.SpawnPoints.Select(x => x.Id));
-        Group("Loot Points", map.LootPoints.Select(x => x.Id));
-        Group("Navigation Nodes", map.Navigation.Waypoints.Select(x => x.Id));
+        if (document is null)
+            return;
+        Group("Static Boxes", EditorEntityKind.StaticBox);
+        Group("Static Models", EditorEntityKind.StaticModel);
+        Group("Spawn Points", EditorEntityKind.SpawnPoint);
+        Group("Loot Points", EditorEntityKind.LootPoint);
+        Group("Navigation Nodes", EditorEntityKind.NavigationWaypoint);
     }
 
     private void BuildInspector(GameMap map)
     {
+        EditorEntityIdentity? selected = document is null ? null : selection.Resolve(document);
+        if (selected is EditorEntityIdentity identity)
+        {
+            EditorEntityTransform transform = EditorEntityTransforms.Get(document!, identity);
+            Text($"Selected: {identity.Kind}");
+            Text($"ID: {EditorEntityTransforms.GetDisplayId(document!, identity)}");
+            Text($"Position: {Format(transform.Position)}");
+            if (EditorEntityTransforms.GetCapabilities(identity.Kind).HasFlag(EditorTransformCapabilities.Rotate))
+                Text($"Rotation: {Format(transform.RotationDegrees)} degrees");
+            if (identity.Kind == EditorEntityKind.StaticBox)
+                Text($"Size: {Format(transform.ScaleOrSize)}");
+            else if (identity.Kind == EditorEntityKind.StaticModel)
+                Text($"Scale: {Format(transform.ScaleOrSize)}");
+            ImguiNative.igSeparator();
+        }
+
         Text($"Map ID: {map.Id}");
         fixed (byte* buffer = nameBuffer)
         {
@@ -365,19 +413,32 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void BuildViewport(SdlGpuOffscreenTarget viewport)
     {
+        BuildViewportToolbar();
         Vector2 available = ImguiNative.igGetContentRegionAvail();
+        Vector2 imagePosition = ImguiNative.igGetCursorScreenPos();
         ImGuiIO* io = ImguiNative.igGetIO_Nil();
         requestedSize = ViewportPixelSize.FromLogical(
             available.X,
             available.Y,
             io->DisplayFramebufferScale.X,
             io->DisplayFramebufferScale.Y);
-        viewportHovered = ImguiNative.igIsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows);
         ImguiNative.igImage(
             new ImTextureRef { _TexID = (ulong)viewport.NativeTextureHandle },
             available,
             new Vector2(0, 0),
             new Vector2(1, 1));
+        viewportHovered = ImguiNative.igIsItemHovered(ImGuiHoveredFlags.None);
+        viewportFocused = ImguiNative.igIsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
+        HandleTransformHotkeys();
+
+        gizmoHovered = false;
+        EditorEntityIdentity? selected = selection.Resolve(document!);
+        if (selected is EditorEntityIdentity identity && !inputOwnership.Captured)
+            BuildTransformGizmo(viewport, imagePosition, available, identity);
+
+        if (viewportHovered && ImguiNative.igIsMouseClicked_Bool(ImGuiMouseButton.Left, false) &&
+            !gizmoHovered && !gizmoUsing && !manipulation.IsActive)
+            PickViewport(io->MousePos, imagePosition, available);
     }
 
     private void BuildMenu()
@@ -465,14 +526,198 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private static void Text(string value) => ImguiNative.igTextUnformatted(value, null);
 
-    private static void Group(string name, IEnumerable<string> entries)
+    private void Group(string name, EditorEntityKind kind)
     {
         if (!ImguiNative.igCollapsingHeader_TreeNodeFlags(name, ImGuiTreeNodeFlags.DefaultOpen))
             return;
 
-        foreach (string entry in entries)
-            Text(entry);
+        foreach (EditorEntityIdentity identity in document!.Identities.Where(candidate => candidate.Kind == kind))
+        {
+            string label = $"{EditorEntityTransforms.GetDisplayId(document, identity)}##{identity.EditorId:N}";
+            bool isSelected = selection.SelectedEditorId == identity.EditorId;
+            if (ImguiNative.igSelectable_Bool(label, isSelected, ImGuiSelectableFlags.None, default))
+                selection.Select(document, identity.EditorId);
+        }
     }
+
+    private void HandleTransformHotkeys()
+    {
+        if (!viewportHovered || !viewportFocused || inputOwnership.Captured || manipulation.IsActive)
+            return;
+        ImGuiIO* io = ImguiNative.igGetIO_Nil();
+        if (io->WantTextInput != 0 || ImguiNative.igIsPopupOpen_Str(null!, ImGuiPopupFlags.AnyPopup))
+            return;
+
+        EditorEntityIdentity? selected = selection.Resolve(document!);
+        if (selected is not EditorEntityIdentity identity)
+            return;
+        EditorTransformCapabilities capabilities = EditorEntityTransforms.GetCapabilities(identity.Kind);
+        EditorTransformOperation? operation =
+            host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_W) ? EditorTransformOperation.Translate :
+            host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_E) ? EditorTransformOperation.Rotate :
+            host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_R) ? EditorTransformOperation.Scale : null;
+        if (operation is null)
+            return;
+        EditorTransformCapabilities required = operation.Value switch
+        {
+            EditorTransformOperation.Rotate => EditorTransformCapabilities.Rotate,
+            EditorTransformOperation.Scale => EditorTransformCapabilities.Scale,
+            _ => EditorTransformCapabilities.Translate,
+        };
+        if (capabilities.HasFlag(required))
+            UpdateTransformSettings(transformSettings with { Operation = operation.Value });
+    }
+
+    private void BuildViewportToolbar()
+    {
+        EditorEntityIdentity? selected = selection.Resolve(document!);
+        EditorTransformCapabilities capabilities = selected is EditorEntityIdentity identity
+            ? EditorEntityTransforms.GetCapabilities(identity.Kind)
+            : EditorTransformCapabilities.None;
+        EditorTransformOperation effective = ImGuizmoViewportAdapter.ResolveOperation(transformSettings.Operation, capabilities);
+
+        ToolbarOperation("Translate", EditorTransformOperation.Translate, EditorTransformCapabilities.Translate, effective, capabilities);
+        ImguiNative.igSameLine(0, 4);
+        ToolbarOperation("Rotate", EditorTransformOperation.Rotate, EditorTransformCapabilities.Rotate, effective, capabilities);
+        ImguiNative.igSameLine(0, 4);
+        ToolbarOperation("Scale", EditorTransformOperation.Scale, EditorTransformCapabilities.Scale, effective, capabilities);
+        ImguiNative.igSameLine(0, 10);
+
+        if (ImguiNative.igButton(transformSettings.Orientation == EditorTransformOrientation.Local ? "Local" : "World", new Vector2(58, 0)))
+            UpdateTransformSettings(transformSettings with
+            {
+                Orientation = transformSettings.Orientation == EditorTransformOrientation.Local
+                    ? EditorTransformOrientation.World
+                    : EditorTransformOrientation.Local,
+            });
+        ImguiNative.igSameLine(0, 8);
+
+        byte grid = transformSettings.GridVisible ? (byte)1 : (byte)0;
+        if (ImguiNative.igCheckbox("Grid", &grid))
+            UpdateTransformSettings(transformSettings with { GridVisible = grid != 0 });
+        ImguiNative.igSameLine(0, 8);
+        byte snap = transformSettings.SnappingEnabled ? (byte)1 : (byte)0;
+        if (ImguiNative.igCheckbox("Snap", &snap))
+            UpdateTransformSettings(transformSettings with { SnappingEnabled = snap != 0 });
+        ImguiNative.igSameLine(0, 8);
+
+        float increment = transformSettings.GetSnapIncrement(effective);
+        ImguiNative.igSetNextItemWidth(90);
+        if (ImguiNative.igDragFloat("Increment", &increment, 0.05f, IncrementMinimum(effective), IncrementMaximum(effective), "%.2f", ImGuiSliderFlags.AlwaysClamp))
+        {
+            EditorTransformSettings updated = effective switch
+            {
+                EditorTransformOperation.Rotate => transformSettings with { RotationIncrementDegrees = increment },
+                EditorTransformOperation.Scale => transformSettings with { ScaleIncrement = increment },
+                _ => transformSettings with { GridSpacing = increment },
+            };
+            UpdateTransformSettings(updated);
+        }
+    }
+
+    private void ToolbarOperation(
+        string label,
+        EditorTransformOperation operation,
+        EditorTransformCapabilities required,
+        EditorTransformOperation effective,
+        EditorTransformCapabilities available)
+    {
+        bool disabled = !available.HasFlag(required) || manipulation.IsActive;
+        ImguiNative.igBeginDisabled(disabled);
+        if (ImguiNative.igRadioButton_Bool(label, effective == operation))
+            UpdateTransformSettings(transformSettings with { Operation = operation });
+        ImguiNative.igEndDisabled();
+    }
+
+    private void BuildTransformGizmo(
+        SdlGpuOffscreenTarget viewport,
+        Vector2 imagePosition,
+        Vector2 imageSize,
+        EditorEntityIdentity identity)
+    {
+        EditorEntityTransform current = EditorEntityTransforms.Get(document!, identity);
+        EditorTransformCapabilities capabilities = EditorEntityTransforms.GetCapabilities(identity.Kind);
+        bool wasUsing = gizmoUsing;
+        ImGuizmoFrameResult result = ImGuizmoViewportAdapter.Manipulate(
+            camera.ToRenderCamera(),
+            (uint)viewport.Width,
+            (uint)viewport.Height,
+            imagePosition,
+            imageSize,
+            current,
+            transformSettings,
+            capabilities);
+
+        gizmoUsing = result.IsUsing;
+        gizmoHovered = result.IsHovered;
+        if (result.IsUsing && !manipulation.IsActive)
+            manipulation.Begin(document!, identity);
+        if (result.Changed)
+        {
+            if (!manipulation.IsActive)
+                manipulation.Begin(document!, identity);
+            manipulation.Preview(document!, result.Transform);
+            RebuildScene();
+        }
+        if (wasUsing && !result.IsUsing && manipulation.IsActive)
+        {
+            if (manipulation.Complete(document!, out string? error))
+                log.Add($"Transformed {EditorEntityTransforms.GetDisplayId(document!, identity)}.");
+            else if (error is not null)
+            {
+                validationMessage = error;
+                log.Add($"Transform rejected: {error}");
+            }
+            RebuildScene();
+        }
+    }
+
+    private void PickViewport(Vector2 mousePosition, Vector2 imagePosition, Vector2 imageSize)
+    {
+        if (viewportPresentation is null)
+            return;
+        EditorRay ray = EditorViewportPicking.CreateRay(
+            camera.ToRenderCamera(),
+            mousePosition.X - imagePosition.X,
+            mousePosition.Y - imagePosition.Y,
+            imageSize.X,
+            imageSize.Y);
+        EditorPickResult? result = EditorViewportPicking.Pick(ray, viewportPresentation.PickTargets);
+        if (result is EditorPickResult hit)
+            selection.Select(document!, hit.Identity.EditorId);
+        else
+            selection.Clear();
+    }
+
+    private void UpdateTransformSettings(EditorTransformSettings value)
+    {
+        transformSettings = value;
+        try
+        {
+            transformSettingsStore.Write(value);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.Add($"Could not persist editor transform settings: {ex.Message}");
+            logger.LogWarning(ex, "Could not persist editor transform settings to {Path}.", transformSettingsStore.Path);
+        }
+    }
+
+    private static float IncrementMinimum(EditorTransformOperation operation) => operation switch
+    {
+        EditorTransformOperation.Rotate => EditorTransformSettings.MinimumRotationIncrement,
+        EditorTransformOperation.Scale => EditorTransformSettings.MinimumScaleIncrement,
+        _ => EditorTransformSettings.MinimumGridSpacing,
+    };
+
+    private static float IncrementMaximum(EditorTransformOperation operation) => operation switch
+    {
+        EditorTransformOperation.Rotate => EditorTransformSettings.MaximumRotationIncrement,
+        EditorTransformOperation.Scale => EditorTransformSettings.MaximumScaleIncrement,
+        _ => EditorTransformSettings.MaximumGridSpacing,
+    };
+
+    private static string Format(System.Numerics.Vector3 value) => $"{value.X:0.###}, {value.Y:0.###}, {value.Z:0.###}";
 
     private static void ResetLayout(uint root, Vector2 size)
     {
@@ -512,6 +757,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         manifest = candidateManifest;
         meshCache = candidateCache;
         scene = candidateScene;
+        selection.Clear();
+        gizmoUsing = false;
         ReloadAssetBrowser();
         camera.Frame(document.Map.WorldBounds);
         SetNameBuffer(document.Map.Name);
@@ -530,6 +777,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         manifest = candidate.Project.AssetManifest;
         meshCache = candidateCache;
         scene = candidateScene;
+        selection.Clear();
+        gizmoUsing = false;
         ReloadAssetBrowser();
         camera.Frame(document.Map.WorldBounds);
         SetNameBuffer(document.Map.Name);
@@ -647,6 +896,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             return;
 
         SetNameBuffer(document.Map.Name);
+        RebuildScene();
         log.Add($"Undo: {document.RedoDescription}.");
     }
 
@@ -656,6 +906,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             return;
 
         SetNameBuffer(document.Map.Name);
+        RebuildScene();
         log.Add($"Redo: {document.UndoDescription}.");
     }
 

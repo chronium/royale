@@ -3,6 +3,7 @@ using Evergine.Bindings.Imgui;
 using Evergine.Bindings.Imguizmo;
 using Royale.Editor.Documents;
 using Royale.Editor.Viewport;
+using Royale.Editor.Viewport.FaceSnap;
 using Royale.Rendering.Cameras;
 
 namespace Royale.Editor.Platform;
@@ -11,10 +12,13 @@ internal readonly record struct ImGuizmoFrameResult(
     EditorEntityTransform Transform,
     bool Changed,
     bool IsUsing,
-    bool IsHovered);
+    bool IsHovered,
+    EditorTranslationConstraint TranslationConstraint);
 
 internal static unsafe class ImGuizmoViewportAdapter
 {
+    private static EditorTranslationConstraint activeTranslationConstraint;
+
     public static void BeginFrame() => ImguizmoNative.ImGuizmo_BeginFrame();
 
     public static ImGuizmoFrameResult Manipulate(
@@ -32,6 +36,10 @@ internal static unsafe class ImGuizmoViewportAdapter
         Matrix4x4 projection = EditorMatrixConverter.ToImGuizmo(camera.CreateProjectionMatrix(viewportWidth, viewportHeight));
         Matrix4x4 matrix = EditorMatrixConverter.ToImGuizmo(transform.CreateMatrix());
         Vector3 snap = settings.GetSnapVector(operation);
+        bool wasUsing = ImguizmoNative.ImGuizmo_IsUsing();
+        EditorTranslationConstraint hoveredConstraint = operation == EditorTransformOperation.Translate && !wasUsing
+            ? ResolveHoveredTranslationConstraint()
+            : EditorTranslationConstraint.None;
 
         ImguizmoNative.ImGuizmo_SetDrawlist(ImguiNative.igGetWindowDrawList());
         ImguizmoNative.ImGuizmo_SetOrthographic(false);
@@ -56,11 +64,21 @@ internal static unsafe class ImGuizmoViewportAdapter
             ? EditorEntityTransform.FromMatrix(EditorMatrixConverter.FromImGuizmo(matrix))
             : transform;
         result = PreserveUnsupportedComponents(transform, result, capabilities);
+        bool isUsing = ImguizmoNative.ImGuizmo_IsUsing();
+        if (!wasUsing && isUsing)
+            activeTranslationConstraint = hoveredConstraint;
+        EditorTranslationConstraint constraint = isUsing || wasUsing
+            ? activeTranslationConstraint
+            : EditorTranslationConstraint.None;
+        if (!isUsing)
+            activeTranslationConstraint = EditorTranslationConstraint.None;
+
         return new ImGuizmoFrameResult(
             result,
             changed,
-            ImguizmoNative.ImGuizmo_IsUsing(),
-            ImguizmoNative.ImGuizmo_IsOver_Nil());
+            isUsing,
+            ImguizmoNative.ImGuizmo_IsOver_Nil(),
+            constraint);
     }
 
     public static EditorTransformOperation ResolveOperation(
@@ -91,4 +109,13 @@ internal static unsafe class ImGuizmoViewportAdapter
         EditorTransformOperation.Scale => OPERATION.SCALE,
         _ => OPERATION.TRANSLATE,
     };
+
+    private static EditorTranslationConstraint ResolveHoveredTranslationConstraint() =>
+        EditorTranslationConstraintResolver.Resolve(
+            ImguizmoNative.ImGuizmo_IsOver_OPERATION(OPERATION.TRANSLATE_X),
+            ImguizmoNative.ImGuizmo_IsOver_OPERATION(OPERATION.TRANSLATE_Y),
+            ImguizmoNative.ImGuizmo_IsOver_OPERATION(OPERATION.TRANSLATE_Z),
+            ImguizmoNative.ImGuizmo_IsOver_OPERATION(OPERATION.TRANSLATE_X | OPERATION.TRANSLATE_Y),
+            ImguizmoNative.ImGuizmo_IsOver_OPERATION(OPERATION.TRANSLATE_Y | OPERATION.TRANSLATE_Z),
+            ImguizmoNative.ImGuizmo_IsOver_OPERATION(OPERATION.TRANSLATE_X | OPERATION.TRANSLATE_Z));
 }

@@ -56,6 +56,79 @@ public sealed class EditorFaceSnapSessionTests
     }
 
     [Fact]
+    public void GizmoSessionExcludesSelectedColliderAndRestoresCandidateOnMiss()
+    {
+        EditorMapDocument document = CreateDocument();
+        EditorEntityIdentity selected = document.Identities[0];
+        EditorEntityTransform original = EditorEntityTransforms.Get(document, selected);
+        var bounds = new EditorPickTarget(
+            selected,
+            original.CreateMatrix(),
+            new Vector3(-0.5f),
+            new Vector3(0.5f));
+        using var session = new EditorGizmoFaceSnapSession(
+            document,
+            selected,
+            bounds,
+            MapStaticCollisionWorld.Create(document.Map));
+        EditorEntityTransform candidate = original with { Position = new Vector3(0, 0, -3) };
+        session.UpdateCandidate(candidate);
+
+        Assert.True(session.TrySnap(
+            new EditorRay(Vector3.Zero, -Vector3.UnitZ),
+            EditorTranslationConstraint.Z,
+            EditorTransformOrientation.World,
+            out EditorEntityTransform snapped));
+        Assert.Equal("target", session.Hit?.Collider.ContentId);
+        Assert.InRange(snapped.Position.Z, -4.0001f, -3.9999f);
+        Assert.False(document.CanUndo);
+
+        Assert.False(session.TrySnap(
+            new EditorRay(Vector3.Zero, Vector3.UnitY),
+            EditorTranslationConstraint.Z,
+            EditorTransformOrientation.World,
+            out EditorEntityTransform missed));
+        Assert.Equal(candidate, missed);
+        Assert.Null(session.Hit);
+    }
+
+    [Fact]
+    public void GizmoSnapCompletesAsOneUndoableManipulation()
+    {
+        EditorMapDocument document = CreateDocument();
+        EditorEntityIdentity selected = document.Identities[0];
+        EditorEntityTransform original = EditorEntityTransforms.Get(document, selected);
+        var bounds = new EditorPickTarget(
+            selected,
+            original.CreateMatrix(),
+            new Vector3(-0.5f),
+            new Vector3(0.5f));
+        using var session = new EditorGizmoFaceSnapSession(
+            document,
+            selected,
+            bounds,
+            MapStaticCollisionWorld.Create(document.Map));
+        var manipulation = new EditorTransformManipulation();
+        manipulation.Begin(document, selected);
+        session.UpdateCandidate(original with { Position = new Vector3(0, 0, -3) });
+
+        Assert.True(session.TrySnap(
+            new EditorRay(Vector3.Zero, -Vector3.UnitZ),
+            EditorTranslationConstraint.Z,
+            EditorTransformOrientation.World,
+            out EditorEntityTransform snapped));
+        manipulation.Preview(document, snapped);
+        Assert.True(manipulation.Complete(document, out string? error));
+        Assert.Null(error);
+
+        Assert.True(document.Undo());
+        Assert.Equal(original, EditorEntityTransforms.Get(document, selected));
+        Assert.False(document.CanUndo);
+        Assert.True(document.Redo());
+        Assert.True(snapped.NearlyEquals(EditorEntityTransforms.Get(document, selected)));
+    }
+
+    [Fact]
     public void ProjectSessionRebuildsServerCollisionOutputBeforeCreatingWorld()
     {
         string parent = Path.Combine(Path.GetTempPath(), "royale-face-snap-project-" + Guid.NewGuid().ToString("N"));

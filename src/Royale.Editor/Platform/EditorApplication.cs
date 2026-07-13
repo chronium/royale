@@ -88,6 +88,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool gizmoUsing;
     private bool gizmoHovered;
     private EditorFaceSnapSession? faceSnapSession;
+    private EditorGizmoFaceSnapSession? gizmoFaceSnapSession;
     private EditorFaceSnapSettings faceSnapSettings = new();
     private bool mapNameEdited;
     private Guid? inspectorEditorId;
@@ -179,12 +180,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             CancelFaceSnap("Cancelled face snap because the selection or document changed.");
 
         bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE);
-        bool faceSnapWasActive = faceSnapSession is not null;
+        bool rightPressed = host.Input.WasMouseButtonPressed(SDL3.SDL_BUTTON_RIGHT);
+        bool faceSnapWasActive = faceSnapSession is not null || gizmoFaceSnapSession is not null;
         if (faceSnapWasActive &&
-            (escape || host.Input.WasMouseButtonPressed(SDL3.SDL_BUTTON_RIGHT)))
+            (escape || rightPressed))
             CancelFaceSnap(escape ? "Cancelled face snap." : "Cancelled face snap with right click.");
         if (escape && document is not null && manipulation.Cancel(document))
         {
+            DisposeGizmoFaceSnap();
             ImGuiEditorNative.ClearActiveId();
             gizmoUsing = false;
             RebuildScene();
@@ -297,6 +300,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             transformSettings.GridSpacing);
         if (faceSnapSession?.Hit is MapStaticRayHit faceSnapHit)
             EditorFaceSnapDebug.Add(viewportPresentation.DebugPrimitives, faceSnapHit);
+        if (gizmoFaceSnapSession?.Hit is MapStaticRayHit gizmoFaceSnapHit)
+            EditorFaceSnapDebug.Add(viewportPresentation.DebugPrimitives, gizmoFaceSnapHit);
         gpu.RenderOffscreen(target, new RenderFrame(
             camera.ToRenderCamera(),
             scene,
@@ -1026,6 +1031,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             ? EditorEntityTransforms.GetCapabilities(identity.Kind)
             : EditorTransformCapabilities.None;
         EditorTransformOperation effective = ImGuizmoViewportAdapter.ResolveOperation(transformSettings.Operation, capabilities);
+        bool canFaceSnap = selected is EditorEntityIdentity selectedIdentity &&
+            EditorEntityTransforms.HasSpatialTransform(selectedIdentity.Kind);
 
         ToolbarOperation("Translate", EditorTransformOperation.Translate, EditorTransformCapabilities.Translate, effective, capabilities);
         ImguiNative.igSameLine(0, 4);
@@ -1051,6 +1058,16 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (ImguiNative.igCheckbox("Snap", &snap))
             UpdateTransformSettings(transformSettings with { SnappingEnabled = snap != 0 });
         ImguiNative.igSameLine(0, 8);
+        byte face = transformSettings.FaceSnappingEnabled ? (byte)1 : (byte)0;
+        ImguiNative.igBeginDisabled(
+            effective != EditorTransformOperation.Translate ||
+            !canFaceSnap ||
+            manipulation.IsActive ||
+            faceSnapSession is not null);
+        if (ImguiNative.igCheckbox("Face", &face))
+            UpdateTransformSettings(transformSettings with { FaceSnappingEnabled = face != 0 });
+        ImguiNative.igEndDisabled();
+        ImguiNative.igSameLine(0, 8);
 
         float increment = transformSettings.GetSnapIncrement(effective);
         ImguiNative.igSetNextItemWidth(90);
@@ -1066,8 +1083,6 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         }
 
         ImguiNative.igSameLine(0, 10);
-        bool canFaceSnap = selected is EditorEntityIdentity selectedIdentity &&
-            EditorEntityTransforms.HasSpatialTransform(selectedIdentity.Kind);
         ImguiNative.igBeginDisabled(!canFaceSnap || manipulation.IsActive);
         if (ImguiNative.igButton(faceSnapSession is null ? "Face Snap" : "Cancel Face Snap", new Vector2(116, 0)))
         {
@@ -1175,10 +1190,26 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void CancelFaceSnap(string message)
     {
-        if (faceSnapSession is null)
+        bool cancelled = false;
+        if (faceSnapSession is not null)
+        {
+            faceSnapSession.Cancel();
+            faceSnapSession = null;
+            cancelled = true;
+        }
+        if (gizmoFaceSnapSession is not null)
+        {
+            if (document is not null && manipulation.Cancel(document))
+            {
+                ImGuiEditorNative.ClearActiveId();
+                gizmoUsing = false;
+            }
+            DisposeGizmoFaceSnap();
+            cancelled = true;
+        }
+        if (!cancelled)
             return;
-        faceSnapSession.Cancel();
-        faceSnapSession = null;
+
         RebuildScene();
         log.Add(message);
     }
@@ -1213,7 +1244,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         Vector2 imageSize,
         EditorEntityIdentity identity)
     {
-        EditorEntityTransform current = EditorEntityTransforms.Get(document!, identity);
+        EditorEntityTransform current = gizmoFaceSnapSession?.Candidate ??
+            EditorEntityTransforms.Get(document!, identity);
         EditorTransformCapabilities capabilities = EditorEntityTransforms.GetCapabilities(identity.Kind);
         bool wasUsing = gizmoUsing;
         ImGuizmoFrameResult result = ImGuizmoViewportAdapter.Manipulate(
@@ -1228,13 +1260,69 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         gizmoUsing = result.IsUsing;
         gizmoHovered = result.IsHovered;
+        EditorTransformOperation effectiveOperation =
+            ImGuizmoViewportAdapter.ResolveOperation(transformSettings.Operation, capabilities);
         if (result.IsUsing && !manipulation.IsActive)
-            manipulation.Begin(document!, identity);
-        if (result.Changed)
         {
-            if (!manipulation.IsActive)
-                manipulation.Begin(document!, identity);
-            manipulation.Preview(document!, result.Transform);
+            manipulation.Begin(document!, identity);
+            if (transformSettings.FaceSnappingEnabled &&
+                effectiveOperation == EditorTransformOperation.Translate &&
+                result.TranslationConstraint != EditorTranslationConstraint.None)
+            {
+                if (!BeginGizmoFaceSnap(identity))
+                {
+                    manipulation.Cancel(document!);
+                    ImGuiEditorNative.ClearActiveId();
+                    gizmoUsing = false;
+                    RebuildScene();
+                    return;
+                }
+            }
+        }
+        else if (result.Changed && !manipulation.IsActive)
+        {
+            manipulation.Begin(document!, identity);
+        }
+        if (result.Changed && gizmoFaceSnapSession is not null)
+            gizmoFaceSnapSession.UpdateCandidate(result.Transform);
+
+        EditorEntityTransform preview = result.Transform;
+        bool hasPreview = result.Changed;
+        if ((result.IsUsing || wasUsing) && gizmoFaceSnapSession is not null)
+        {
+            try
+            {
+                ImGuiIO* io = ImguiNative.igGetIO_Nil();
+                EditorRay ray = EditorViewportPicking.CreateRay(
+                    camera.ToRenderCamera(),
+                    io->MousePos.X - imagePosition.X,
+                    io->MousePos.Y - imagePosition.Y,
+                    imageSize.X,
+                    imageSize.Y);
+                gizmoFaceSnapSession.TrySnap(
+                    ray,
+                    result.TranslationConstraint,
+                    transformSettings.Orientation,
+                    out preview);
+                hasPreview = true;
+            }
+            catch (Exception ex)
+            {
+                manipulation.Cancel(document!);
+                DisposeGizmoFaceSnap();
+                ImGuiEditorNative.ClearActiveId();
+                gizmoUsing = false;
+                UpdateTransformSettings(transformSettings with { FaceSnappingEnabled = false });
+                validationMessage = $"Gizmo face snap failed: {ex.Message}";
+                log.Add(validationMessage);
+                logger.LogError(ex, "Gizmo face snap failed during a translate manipulation.");
+                RebuildScene();
+                return;
+            }
+        }
+        if (hasPreview)
+        {
+            manipulation.Preview(document!, preview);
             RebuildScene();
         }
         if (wasUsing && !result.IsUsing && manipulation.IsActive)
@@ -1249,8 +1337,37 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 validationMessage = error;
                 log.Add($"Transform rejected: {error}");
             }
+            DisposeGizmoFaceSnap();
             RebuildScene();
         }
+    }
+
+    private bool BeginGizmoFaceSnap(EditorEntityIdentity identity)
+    {
+        MapStaticCollisionWorld? collisionWorld = null;
+        try
+        {
+            EditorPickTarget bounds = EditorViewportPresentationBuilder.CreatePickTarget(document!, meshCache!, identity);
+            collisionWorld = EditorFaceSnapCollisionWorldFactory.Create(document!, projectSession);
+            gizmoFaceSnapSession = new EditorGizmoFaceSnapSession(document!, identity, bounds, collisionWorld);
+            collisionWorld = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            collisionWorld?.Dispose();
+            UpdateTransformSettings(transformSettings with { FaceSnappingEnabled = false });
+            validationMessage = $"Could not start gizmo face snap: {ex.Message}";
+            log.Add(validationMessage);
+            logger.LogError(ex, "Gizmo face snap initialization failed.");
+            return false;
+        }
+    }
+
+    private void DisposeGizmoFaceSnap()
+    {
+        gizmoFaceSnapSession?.Dispose();
+        gizmoFaceSnapSession = null;
     }
 
     private void PickViewport(Vector2 mousePosition, Vector2 imagePosition, Vector2 imageSize)
@@ -2042,6 +2159,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     {
         faceSnapSession?.Dispose();
         faceSnapSession = null;
+        DisposeGizmoFaceSnap();
         ReleaseViewportInput();
         DisposeAssetPreviewProvider();
         target?.Dispose();

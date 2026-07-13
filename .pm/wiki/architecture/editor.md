@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T11:40:54.5795800Z
+modifiedAt: 2026-07-13T14:20:08.0575710Z
 ---
 
 ## Purpose
@@ -201,6 +201,14 @@ Rotation is preserved by default. Optional alignment rotates one selected local 
 While active, cursor raycasts update the entity preview without adding document history and draw the hit point, normal, and a small target-plane indicator. Normal viewport picking, transform gizmos and hotkeys, translation snapping, and right-mouse camera capture are suppressed. A miss restores the original transform and cannot commit. Left click commits the current hit as one `SetEntityTransformCommand`; Escape, right click, toolbar cancellation, selection or document edits, document transitions, save, replacement, and editor shutdown restore the original preview state and dispose the collision world. Undo and redo operate on the complete committed transform.
 
 Collision generation or Box3D failures restore the document, exit the mode, and report actionable text in Validation and Log plus the structured logger. Automated coverage includes floor, wall, rotated surfaces, non-uniform and proxy bounds, all alignment axes, anti-parallel rotation, preview/miss/cancel, one-command undo/redo, project collision regeneration, and a native filtered-ray test that skips the selected collider.
+
+### Constrained Gizmo Face Snapping
+
+`EDITOR-027` adds a persistent `Face` checkbox beside the transform grid-snap control. It augments Translate gizmo drags without replacing the standalone whole-object Face Snap mode. Axis handles move and face-snap only on their selected axis, preserving the other two coordinates; plane handles move within their selected two-axis plane and preserve the excluded coordinate. Constraints use the displayed World or Local gizmo basis. Rotation and scale are never changed. The screen/free-translation handle continues to use ordinary gizmo movement.
+
+At the start of an eligible axis or plane drag, the editor builds and retains the same runtime-equivalent collision world used by standalone Face Snap. Project documents regenerate `generated/server` first, standalone documents use packaged collision, and a selected box or model collider is excluded. The raw gizmo candidate is retained separately from the displayed snapped preview so a hit cannot feed back into subsequent drag calculations. Each cursor ray hit projects the target normal into the allowed translation subspace; surfaces with no reachable normal component are treated as misses. A hit applies the smallest allowed correction that puts the selected oriented bounds or marker proxy bounds exactly flush with the target plane. This final correction overrides translation-grid quantization only along the contact constraint, preserving exact contact.
+
+A miss or unreachable surface displays the ordinary constrained gizmo candidate. Mouse release commits the displayed transform through the existing manipulation lifecycle as one undoable `SetEntityTransformCommand`. Escape, right click, selection or document changes, save, undo/redo, document transitions, and shutdown restore the pre-drag transform and dispose the collision world. Collision generation or Box3D failures also restore the transform, disable the `Face` checkbox, exit the drag, and report through Validation, Log, and structured logging. Hit point, normal, and target-plane debug indicators are shared with standalone Face Snap.
 
 ## Playtesting
 

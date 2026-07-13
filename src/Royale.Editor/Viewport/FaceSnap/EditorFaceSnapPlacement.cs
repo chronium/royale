@@ -24,6 +24,45 @@ public static class EditorFaceSnapPlacement
             rotation = Quaternion.Normalize(Quaternion.Concatenate(rotation, delta));
         }
 
+        float minimumProjection = CalculateMinimumProjection(
+            original.ScaleOrSize,
+            rotation,
+            localMinimum,
+            localMaximum,
+            normal,
+            boundsFollowRotation);
+
+        Vector3 position = hit.Point - normal * minimumProjection;
+        Vector3 rotationDegrees = EditorEntityTransform.FromMatrix(
+            Matrix4x4.CreateFromQuaternion(rotation)).RotationDegrees;
+        return original with { Position = position, RotationDegrees = rotationDegrees };
+    }
+
+    public static float CalculateMinimumProjection(
+        EditorEntityTransform transform,
+        Vector3 localMinimum,
+        Vector3 localMaximum,
+        Vector3 normal,
+        bool boundsFollowRotation)
+    {
+        Quaternion rotation = GetRotation(transform);
+        return CalculateMinimumProjection(
+            transform.ScaleOrSize,
+            rotation,
+            localMinimum,
+            localMaximum,
+            normal,
+            boundsFollowRotation);
+    }
+
+    private static float CalculateMinimumProjection(
+        Vector3 scale,
+        Quaternion rotation,
+        Vector3 localMinimum,
+        Vector3 localMaximum,
+        Vector3 normal,
+        bool boundsFollowRotation)
+    {
         float minimumProjection = float.PositiveInfinity;
         for (int index = 0; index < 8; index++)
         {
@@ -31,15 +70,11 @@ public static class EditorFaceSnapPlacement
                 (index & 1) == 0 ? localMinimum.X : localMaximum.X,
                 (index & 2) == 0 ? localMinimum.Y : localMaximum.Y,
                 (index & 4) == 0 ? localMinimum.Z : localMaximum.Z);
-            Vector3 scaled = corner * original.ScaleOrSize;
+            Vector3 scaled = corner * scale;
             Vector3 offset = boundsFollowRotation ? Vector3.Transform(scaled, rotation) : scaled;
             minimumProjection = MathF.Min(minimumProjection, Vector3.Dot(offset, normal));
         }
-
-        Vector3 position = hit.Point - normal * minimumProjection;
-        Vector3 rotationDegrees = EditorEntityTransform.FromMatrix(
-            Matrix4x4.CreateFromQuaternion(rotation)).RotationDegrees;
-        return original with { Position = position, RotationDegrees = rotationDegrees };
+        return minimumProjection;
     }
 
     private static Quaternion GetRotation(EditorEntityTransform transform)

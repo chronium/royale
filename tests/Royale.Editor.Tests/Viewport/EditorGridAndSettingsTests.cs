@@ -47,6 +47,7 @@ public sealed class EditorGridAndSettingsTests
         {
             GridVisible = false,
             SnappingEnabled = false,
+            FaceSnappingEnabled = true,
             Operation = EditorTransformOperation.Rotate,
             Orientation = EditorTransformOrientation.Local,
             GridSpacing = 2.5f,
@@ -78,6 +79,7 @@ public sealed class EditorGridAndSettingsTests
         var settings = new EditorTransformSettings();
         Assert.True(settings.GridVisible);
         Assert.True(settings.SnappingEnabled);
+        Assert.False(settings.FaceSnappingEnabled);
         Assert.Equal(1, settings.GridSpacing);
         Assert.Equal(15, settings.RotationIncrementDegrees);
         Assert.Equal(0.1f, settings.ScaleIncrement);

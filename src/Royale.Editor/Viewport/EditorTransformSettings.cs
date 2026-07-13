@@ -31,6 +31,7 @@ public sealed record EditorTransformSettings
     public int Version { get; init; } = CurrentVersion;
     public bool GridVisible { get; init; } = true;
     public bool SnappingEnabled { get; init; } = true;
+    public bool FaceSnappingEnabled { get; init; }
     public EditorTransformOperation Operation { get; init; } = EditorTransformOperation.Translate;
     public EditorTransformOrientation Orientation { get; init; } = EditorTransformOrientation.World;
     public float GridSpacing { get; init; } = 1.0f;

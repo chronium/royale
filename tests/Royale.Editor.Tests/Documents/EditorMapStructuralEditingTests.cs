@@ -154,6 +154,7 @@ public sealed class EditorMapStructuralEditingTests
 
         Assert.Equal(link, selection.Resolve(document));
         Assert.Equal(EditorTransformCapabilities.None, EditorEntityTransforms.GetCapabilities(link.Kind));
+        Assert.False(EditorEntityTransforms.HasSpatialTransform(link.Kind));
     }
 
     [Fact]

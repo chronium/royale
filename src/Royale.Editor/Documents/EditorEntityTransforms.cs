@@ -5,6 +5,9 @@ namespace Royale.Editor.Documents;
 
 public static class EditorEntityTransforms
 {
+    public static bool HasSpatialTransform(EditorEntityKind kind) =>
+        GetCapabilities(kind) != EditorTransformCapabilities.None;
+
     public static EditorTransformCapabilities GetCapabilities(EditorEntityKind kind) => kind switch
     {
         EditorEntityKind.StaticBox or EditorEntityKind.StaticModel =>

@@ -669,7 +669,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         gizmoHovered = false;
         EditorEntityIdentity? selected = selection.Resolve(document!);
-        if (selected is EditorEntityIdentity identity && !inputOwnership.Captured)
+        if (selected is EditorEntityIdentity identity &&
+            EditorEntityTransforms.HasSpatialTransform(identity.Kind) &&
+            !inputOwnership.Captured)
             BuildTransformGizmo(viewport, imagePosition, available, identity);
 
         if (viewportHovered && ImguiNative.igIsMouseClicked_Bool(ImGuiMouseButton.Left, false) &&

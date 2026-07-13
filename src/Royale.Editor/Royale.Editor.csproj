@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Royale.Platform\Royale.Platform.csproj" />
     <ProjectReference Include="..\Royale.Rendering\Royale.Rendering.csproj" />
     <ProjectReference Include="..\Royale.Content\Royale.Content.csproj" />

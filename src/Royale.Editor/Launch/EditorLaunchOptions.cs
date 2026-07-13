@@ -4,9 +4,30 @@ using Royale.Rendering.Screenshots;
 
 namespace Royale.Editor.Launch;
 
-public sealed record EditorLaunchOptions(string MapId, string? MapFilePath, string? ProjectPath, string? ScreenshotPath, int ScreenshotAfterFrames, bool ResetLayout, bool ExplicitMap)
+public sealed record EditorLaunchOptions(
+    string MapId,
+    string? MapFilePath,
+    string? ProjectPath,
+    string? ScreenshotPath,
+    int ScreenshotAfterFrames,
+    bool ResetLayout,
+    bool ExplicitMap,
+    bool McpEnabled,
+    int McpPort)
 {
-    public static EditorLaunchOptions Default { get; } = new(ContentCatalog.DefaultMapId, null, null, null, 0, false, false);
+    public const int DefaultMcpPort = 51238;
+
+    public static EditorLaunchOptions Default { get; } = new(
+        ContentCatalog.DefaultMapId,
+        null,
+        null,
+        null,
+        0,
+        false,
+        false,
+        false,
+        DefaultMcpPort);
+
     public static EditorLaunchOptions Parse(IReadOnlyList<string> args)
     {
         string map = ContentCatalog.DefaultMapId;
@@ -16,6 +37,9 @@ public sealed record EditorLaunchOptions(string MapId, string? MapFilePath, stri
         string? screenshot = null;
         int frames = 0;
         bool reset = false;
+        bool mcp = false;
+        bool mcpPortSpecified = false;
+        int mcpPort = DefaultMcpPort;
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -48,6 +72,21 @@ public sealed record EditorLaunchOptions(string MapId, string? MapFilePath, stri
                 case "--reset-layout":
                     reset = true;
                     break;
+                case "--mcp":
+                    mcp = true;
+                    break;
+                case "--mcp-port":
+                    mcpPortSpecified = true;
+                    if (!int.TryParse(
+                            Value(args, ref i, "--mcp-port"),
+                            NumberStyles.None,
+                            CultureInfo.InvariantCulture,
+                            out mcpPort) ||
+                        mcpPort is < 1 or > 65535)
+                    {
+                        throw new ArgumentException("--mcp-port must be an integer from 1 through 65535.");
+                    }
+                    break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");
             }
@@ -65,8 +104,10 @@ public sealed record EditorLaunchOptions(string MapId, string? MapFilePath, stri
             ScreenshotPathValidator.Validate(screenshot, "--screenshot");
         if (screenshot is null && frames != 0)
             throw new ArgumentException("--screenshot-after-frames requires --screenshot.");
+        if (mcpPortSpecified && !mcp)
+            throw new ArgumentException("--mcp-port requires --mcp.");
 
-        return new(map, mapFile, project, screenshot, frames, reset, explicitMap);
+        return new(map, mapFile, project, screenshot, frames, reset, explicitMap, mcp, mcpPort);
     }
 
     private static string Value(IReadOnlyList<string> args, ref int i, string option)

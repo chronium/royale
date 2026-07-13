@@ -9,7 +9,10 @@ try
 {
     EditorLaunchOptions options = EditorLaunchOptions.Parse(args);
     logger.LogInformation("Editor startup beginning for map {MapId}.", options.MapId);
-    using var application = new EditorApplication(options, loggerFactory.CreateLogger<EditorApplication>());
+    using var application = new EditorApplication(
+        options,
+        loggerFactory.CreateLogger<EditorApplication>(),
+        loggerFactory);
     application.Run();
 }
 catch (Exception exception)

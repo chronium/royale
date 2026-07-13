@@ -1,10 +1,12 @@
 using Evergine.Bindings.Imgui;
 using Evergine.Mathematics;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;
 using Royale.Editor.Launch;
+using Royale.Editor.Mcp;
 using Royale.Editor.Dialogs;
 using Royale.Editor.Documents;
 using Royale.Editor.Persistence;
@@ -36,6 +38,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private const string AssetsName = "Asset Browser";
     private const string ValidationName = "Validation";
     private const string LogName = "Log";
+    private const string McpStatusName = "MCP Status";
 
     private readonly EditorLaunchOptions options;
     private readonly ILogger logger;
@@ -50,6 +53,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly IEditorFileDialogService dialogs;
     private readonly EditorPlaytestLauncher playtest;
     private readonly EditorSaveAndLaunchCoordinator saveAndLaunch;
+    private readonly EditorMainThreadDispatcher mainThreadDispatcher = new();
+    private readonly EditorMcpServer? mcpServer;
     private readonly EditorUtf8InputBuffer nameInput = new(256);
     private readonly EditorUtf8InputBuffer entityIdInput = new(256);
     private readonly byte[] newProjectIdBuffer = new byte[128];
@@ -106,7 +111,11 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool deleteModalRequested;
     private Guid? deletedSelectionForUndo;
 
-    public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger, IEditorFileDialogService? dialogs = null)
+    public EditorApplication(
+        EditorLaunchOptions options,
+        ILogger<EditorApplication> logger,
+        ILoggerFactory? loggerFactory = null,
+        IEditorFileDialogService? dialogs = null)
     {
         this.options = options;
         this.logger = logger;
@@ -114,6 +123,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         playtest = new EditorPlaytestLauncher(log.Add);
         saveAndLaunch = new EditorSaveAndLaunchCoordinator(
             () => FindRepositoryRoot(Environment.CurrentDirectory));
+        if (options.McpEnabled)
+        {
+            loggerFactory ??= Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+            mcpServer = new EditorMcpServer(
+                options.McpPort,
+                mainThreadDispatcher,
+                loggerFactory.CreateLogger<EditorMcpServer>());
+            workspace.McpStatusVisible = true;
+        }
         transformSettings = transformSettingsStore.Read();
         host = new SdlDesktopHost(
             new SdlWindowSettings(
@@ -128,7 +146,12 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             workspace.RequestLayoutReset();
     }
 
-    public void Run() => host.Run(this);
+    public void Run()
+    {
+        mainThreadDispatcher.BindToCurrentThread();
+        mcpServer?.StartAsync().GetAwaiter().GetResult();
+        host.Run(this);
+    }
 
     public void Initialize(SdlDesktopHost desktopHost)
     {
@@ -176,6 +199,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Update(SdlFrameTime time)
     {
+        mainThreadDispatcher.ExecutePending();
         ProcessAssetOperation();
         ProcessDialogResults();
         ProcessShortcuts();
@@ -357,6 +381,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             Window(ValidationName, () => BuildValidation(loadedMap));
         if (workspace.LogVisible)
             Window(LogName, BuildLog);
+        if (workspace.McpStatusVisible && mcpServer is not null)
+            Window(McpStatusName, BuildMcpStatus);
 
         if (workspace.ViewportVisible)
             Window(ViewportName, () => BuildViewport(viewport));
@@ -840,6 +866,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         workspace.ValidationVisible = Toggle("Validation", workspace.ValidationVisible);
         workspace.LogVisible = Toggle("Log", workspace.LogVisible);
         workspace.ViewportVisible = Toggle("Viewport", workspace.ViewportVisible);
+        if (mcpServer is not null)
+            workspace.McpStatusVisible = Toggle(McpStatusName, workspace.McpStatusVisible);
         ImguiNative.igEndMenu();
     }
 
@@ -867,6 +895,23 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private static void Text(string value) => ImguiNative.igTextUnformatted(value, null);
 
     private static void TextWrapped(string value) => ImguiNative.igTextWrapped(value);
+
+    private void BuildMcpStatus()
+    {
+        EditorMcpStatusSnapshot status = mcpServer!.Status.Snapshot;
+        Text($"State: {status.State.ToString().ToLowerInvariant()}");
+        Text($"Endpoint: {status.Endpoint}");
+        Text($"Requests: {status.ActiveRequests} active, {status.TotalAcceptedRequests} accepted total");
+        Text($"Last activity: {FormatTimestamp(status.LastRequestActivityUtc)}");
+        TextWrapped(status.LastRejectedRequest is null
+            ? "Last rejected request: none"
+            : $"Last rejected request: {FormatTimestamp(status.LastRejectedRequest.TimestampUtc)} — {status.LastRejectedRequest.Summary}");
+        if (status.Error is not null)
+            TextWrapped($"Error: {status.Error}");
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp) =>
+        timestamp?.ToUniversalTime().ToString("u", CultureInfo.InvariantCulture) ?? "none";
 
     private void Group(string name, EditorEntityKind kind)
     {
@@ -1500,6 +1545,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         ImGuiDockBuilder.DockWindow(AssetsName, bottom);
         ImGuiDockBuilder.DockWindow(ValidationName, bottom);
         ImGuiDockBuilder.DockWindow(LogName, bottom);
+        ImGuiDockBuilder.DockWindow(McpStatusName, bottom);
         ImGuiDockBuilder.DockWindow(ViewportName, viewport);
         ImGuiDockBuilder.Finish(root);
     }
@@ -2326,6 +2372,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Dispose()
     {
+        mainThreadDispatcher.Stop();
+        mcpServer?.StopAsync().GetAwaiter().GetResult();
         saveAndLaunch.Dispose();
         playtest.Dispose();
         faceSnapSession?.Dispose();

@@ -8,6 +8,7 @@ public sealed class EditorWorkspaceState
     public bool ValidationVisible { get; set; } = true;
     public bool LogVisible { get; set; } = true;
     public bool ViewportVisible { get; set; } = true;
+    public bool McpStatusVisible { get; set; }
     public bool LayoutResetPending { get; private set; }
 
     public void RequestLayoutReset() => LayoutResetPending = true;

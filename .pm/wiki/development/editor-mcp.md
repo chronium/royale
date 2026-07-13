@@ -1,7 +1,7 @@
 ---
 title: Editor MCP
 createdAt: 2026-07-11T18:49:21.0289030Z
-modifiedAt: 2026-07-11T18:49:21.0289030Z
+modifiedAt: 2026-07-13T18:39:21.6733340Z
 ---
 
 ## Purpose
@@ -10,11 +10,15 @@ The running Royale editor will expose an optional MCP server so an agent and a h
 
 ## Transport And Security
 
-The editor uses the official .NET `ModelContextProtocol` SDK and hosts Streamable HTTP on loopback only. MCP hosting is opt-in.
+The editor uses the official stable .NET `ModelContextProtocol.AspNetCore` SDK and hosts stateless Streamable HTTP at `http://127.0.0.1:<port>/mcp`. Legacy SSE is disabled. The editor does not configure CORS.
 
-The endpoint requires authentication. Its secret is supplied from local configuration or environment state and must never be committed. The editor displays endpoint and connection status, but it must not log authentication secrets.
+Hosting is opt-in with `--mcp`. The default port is `51238`; `--mcp-port <port>` overrides it and is invalid without `--mcp`. A requested port that cannot be bound aborts editor startup with a clear error. Additional editor instances must choose another port explicitly.
 
-All MCP operations that touch editor or GPU state are queued onto the editor main thread.
+This endpoint follows a trusted development-machine threat model and is deliberately unauthenticated. It has no credentials or secrets. Kestrel binds only to IPv4 loopback, requests must carry a `Host` value of `127.0.0.1` or `localhost`, and every request containing an `Origin` header is rejected. Remote access, browser clients, DNS-rebinding access, and browser-originated requests are unsupported.
+
+The editor exposes a dockable MCP status window while hosting is enabled. It shows lifecycle state, endpoint, active and accepted request counts, recent request activity, rejected requests, and sanitized startup or transport failures.
+
+All future MCP operations that read or mutate editor, document, rendering, or GPU state must use the editor main-thread dispatcher. The dispatcher executes queued work at the beginning of the editor update and propagates results, exceptions, cancellation, and shutdown failures without running queued-work continuations on the render thread.
 
 ## Document Safety
 
@@ -26,7 +30,9 @@ Opening or replacing a map is rejected while the current document has unsaved ch
 
 ## Tool Surface
 
-The initial tool surface covers:
+`EDITOR-009` exposes MCP initialization and an empty `tools/list` response. It intentionally ships no inspection or mutation tools.
+
+Follow-on editor MCP tasks own the planned tool surface:
 
 - Editor and active-document status
 - Map and asset listing

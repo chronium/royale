@@ -13,6 +13,8 @@ public sealed class EditorLaunchOptionsTests
         Assert.Null(value.ProjectPath);
         Assert.Null(value.ScreenshotPath);
         Assert.False(value.ResetLayout);
+        Assert.False(value.McpEnabled);
+        Assert.Equal(EditorLaunchOptions.DefaultMcpPort, value.McpPort);
     }
 
     [Fact]
@@ -26,10 +28,15 @@ public sealed class EditorLaunchOptionsTests
             "--screenshot-after-frames",
             "4",
             "--reset-layout",
+            "--mcp",
+            "--mcp-port",
+            "52000",
         ]);
         Assert.Equal("prototype-arena", value.MapId);
         Assert.Equal(4, value.ScreenshotAfterFrames);
         Assert.True(value.ResetLayout);
+        Assert.True(value.McpEnabled);
+        Assert.Equal(52000, value.McpPort);
     }
 
     [Theory]
@@ -68,4 +75,25 @@ public sealed class EditorLaunchOptionsTests
     [InlineData("--map-file")]
     public void RejectsProjectCombinedWithMapTarget(string option) =>
         Assert.Throws<ArgumentException>(() => EditorLaunchOptions.Parse(["--project", "p", option, "graybox"]));
+
+    [Fact]
+    public void McpUsesDefaultPort()
+    {
+        EditorLaunchOptions value = EditorLaunchOptions.Parse(["--mcp"]);
+
+        Assert.True(value.McpEnabled);
+        Assert.Equal(EditorLaunchOptions.DefaultMcpPort, value.McpPort);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("65536")]
+    [InlineData("-1")]
+    [InlineData("abc")]
+    public void RejectsInvalidMcpPorts(string port) =>
+        Assert.Throws<ArgumentException>(() => EditorLaunchOptions.Parse(["--mcp", "--mcp-port", port]));
+
+    [Fact]
+    public void McpPortRequiresMcp() =>
+        Assert.Throws<ArgumentException>(() => EditorLaunchOptions.Parse(["--mcp-port", "52000"]));
 }

@@ -69,8 +69,9 @@ public sealed class InProcessServerSession : IDisposable
     public static InProcessServerSession Create(
         GameMap map,
         MatchStartSettings? matchStartSettings = null,
-        int? spawnSeed = null) =>
-        new(HeadlessServerSimulation.Create(map, matchStartSettings, spawnSeed));
+        int? spawnSeed = null,
+        DirectoryInfo? assetRoot = null) =>
+        new(HeadlessServerSimulation.Create(map, matchStartSettings, spawnSeed, assetRoot));
 
     public IReadOnlyList<ServerPlayerDebugState> GetPlayerDebugStates(
         IReadOnlyDictionary<ServerPlayerId, int>? peerIdsByPlayerId = null)

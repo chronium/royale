@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T14:20:08.0575710Z
+modifiedAt: 2026-07-13T17:02:01.8538800Z
 ---
 
 ## Purpose
@@ -212,7 +212,13 @@ A miss or unreachable surface displays the ordinary constrained gizmo candidate.
 
 ## Playtesting
 
-The initial editor does not embed a playable simulation. Save and Launch validates and saves the map, then starts the normal development server and client using existing launch profiles and the selected map.
+`EDITOR-008` keeps playtesting out of process. **Validate Map** runs an explicit synchronous, runtime-equivalent validation of the current in-memory revision. Its structured stages cover map schema and bounds, source and generated manifests, referenced client render content, generated server collision and Box3D world creation, physical navigation, and every authored spawn's collision clearance, initial-safe-zone membership, and non-overlap. Results become stale after document or project-asset changes.
+
+Project validation builds isolated temporary client and server outputs directly from the source manifest; it never trusts the package's `generated/` trees. Standalone JSON uses the editor's packaged asset catalog. Temporary validation output is removed after ordinary validation and retained only while a validated managed playtest uses it.
+
+**Save and Launch** cancels active transform and face-snap previews, validates, saves with the existing external-change checks, replaces any managed playtest pair, and starts `launch/server.sh` followed by `launch/client-connected.sh`. The editor waits up to 15 seconds for `ROYALE_SERVER_READY`, emitted only after UDP binding and simulation initialization. Child stdout and stderr are prefixed into Log. Timeout, startup failure, or an unexpected child exit stops the pair; **Stop Playtest**, relaunch, and editor shutdown terminate both process trees and release temporary outputs. A standalone Save As resumes launch only after a successful destination save.
+
+The workflow uses fixed development host/port `127.0.0.1:7777`, existing development profiles, and their OTLP environment behavior. It is a POSIX source-checkout workflow requiring existing build outputs. Windows process launching and launch-profile editing remain deferred.
 
 ## Deferred Capabilities
 

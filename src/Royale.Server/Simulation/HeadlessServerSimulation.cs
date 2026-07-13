@@ -94,12 +94,15 @@ public sealed class HeadlessServerSimulation : IDisposable
     public static HeadlessServerSimulation Create(
         GameMap map,
         MatchStartSettings? matchStartSettings = null,
-        int? spawnSeed = null)
+        int? spawnSeed = null,
+        DirectoryInfo? assetRoot = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         matchStartSettings ??= MatchStartSettings.Default;
 
-        MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        MapStaticCollisionWorld collisionWorld = assetRoot is null
+            ? MapStaticCollisionWorld.Create(map)
+            : MapStaticCollisionWorld.Create(map, assetRoot);
 
         try
         {

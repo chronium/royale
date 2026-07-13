@@ -15,6 +15,7 @@ using Royale.Server.Match;
 using Royale.Server.Observability;
 using Royale.Server.Sessions;
 using Royale.Server.Simulation;
+using Royale.Content.Maps;
 using Royale.Simulation.World;
 
 namespace Royale.Server.Networking;
@@ -88,6 +89,32 @@ public sealed class NetworkServerRuntime : INetworkEventHandler, IDisposable
             return new NetworkServerRuntime(
                 transport,
                 InProcessServerSession.Create(mapId, matchStartSettings),
+                observability);
+        }
+        catch
+        {
+            transport.Dispose();
+            throw;
+        }
+    }
+
+    public static NetworkServerRuntime Listen(
+        GameMap map,
+        DirectoryInfo assetRoot,
+        int port,
+        MatchStartSettings? matchStartSettings = null,
+        ServerObservability? observability = null)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(assetRoot);
+        var transport = new LiteNetLibNetworkTransport();
+        transport.Start(port);
+
+        try
+        {
+            return new NetworkServerRuntime(
+                transport,
+                InProcessServerSession.Create(map, matchStartSettings, assetRoot: assetRoot),
                 observability);
         }
         catch

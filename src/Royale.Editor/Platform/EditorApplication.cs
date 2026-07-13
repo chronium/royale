@@ -8,12 +8,14 @@ using Royale.Editor.Launch;
 using Royale.Editor.Dialogs;
 using Royale.Editor.Documents;
 using Royale.Editor.Persistence;
+using Royale.Editor.Playtest;
 using Royale.Editor.Projects;
 using Royale.Editor.Projects.Assets;
 using Royale.Editor.Viewport;
 using Royale.Editor.Viewport.FaceSnap;
 using Royale.Editor.Workspace;
 using Royale.Editor.Workspace.Assets;
+using Royale.Editor.Validation;
 using Royale.Platform.Desktop;
 using Royale.Rendering;
 using Royale.Rendering.Cameras;
@@ -46,6 +48,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly EditorTransformManipulation manipulation = new();
     private readonly EditorTransformSettingsStore transformSettingsStore = new();
     private readonly IEditorFileDialogService dialogs;
+    private readonly EditorPlaytestLauncher playtest;
+    private readonly EditorSaveAndLaunchCoordinator saveAndLaunch;
     private readonly EditorUtf8InputBuffer nameInput = new(256);
     private readonly EditorUtf8InputBuffer entityIdInput = new(256);
     private readonly byte[] newProjectIdBuffer = new byte[128];
@@ -82,6 +86,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private ProjectDestinationOperation projectDestinationOperation;
     private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
+    private EditorMapValidationReport? fullValidationReport;
     private EditorTransformSettings transformSettings;
     private EditorViewportPresentation? viewportPresentation;
     private bool viewportFocused;
@@ -106,6 +111,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         this.options = options;
         this.logger = logger;
         this.dialogs = dialogs ?? new SdlEditorFileDialogService();
+        playtest = new EditorPlaytestLauncher(log.Add);
+        saveAndLaunch = new EditorSaveAndLaunchCoordinator(
+            () => FindRepositoryRoot(Environment.CurrentDirectory));
         transformSettings = transformSettingsStore.Read();
         host = new SdlDesktopHost(
             new SdlWindowSettings(
@@ -468,6 +476,29 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             TextWrapped(MapNameTruncationWarning);
         Text("Model manifest loading: successful");
         Text($"Map content: {map.StaticBoxes.Count + map.StaticModels.Count} static objects");
+        if (ImguiNative.igButton("Validate Map", new Vector2(120, 0)))
+            ValidateMap();
+        ImguiNative.igSameLine(0, 6);
+        if (ImguiNative.igButton("Save and Launch", new Vector2(140, 0)))
+            SaveAndLaunch();
+        ImguiNative.igSameLine(0, 6);
+        ImguiNative.igBeginDisabled(!playtest.IsRunning);
+        if (ImguiNative.igButton("Stop Playtest", new Vector2(120, 0)))
+            _ = playtest.StopAsync();
+        ImguiNative.igEndDisabled();
+
+        if (fullValidationReport is null)
+        {
+            Text("Full validation: not run");
+            return;
+        }
+
+        bool current = fullValidationReport.IsCurrent(
+            document!.Revision,
+            projectSession?.AssetManifestFingerprint);
+        Text($"Full validation: {(current ? fullValidationReport.Success ? "successful" : "failed" : "stale")}");
+        foreach (EditorMapValidationStage stage in fullValidationReport.Stages)
+            TextWrapped($"[{(stage.Success ? "OK" : "ERROR")}] {stage.Category}: {stage.Message}");
     }
 
     private void SynchronizeInspector(EditorEntityIdentity identity)
@@ -646,6 +677,39 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         }
     }
 
+    private void ValidateMap()
+    {
+        if (document is null)
+            return;
+
+        CancelEditingPreviews("Cancelled active placement before validation.");
+        using EditorMapValidationResult result = EditorMapValidator.Validate(document, projectSession);
+        fullValidationReport = result.Report;
+        ReportFullValidation(result.Report);
+    }
+
+    private void ReportFullValidation(EditorMapValidationReport report)
+    {
+        validationMessage = report.Success
+            ? "Full runtime-equivalent map validation: successful"
+            : "Full runtime-equivalent map validation: failed";
+        log.Add(validationMessage);
+        foreach (EditorMapValidationStage stage in report.Stages)
+            log.Add($"Validation [{(stage.Success ? "OK" : "ERROR")}] {stage.Category}: {stage.Message}");
+    }
+
+    private void CancelEditingPreviews(string message)
+    {
+        CancelFaceSnap(message);
+        if (document is not null && manipulation.Cancel(document))
+        {
+            ImGuiEditorNative.ClearActiveId();
+            gizmoUsing = false;
+            RebuildScene();
+            log.Add(message);
+        }
+    }
+
     private void BuildLog()
     {
         foreach (string entry in log.Entries)
@@ -740,6 +804,12 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             Save(false);
         if (ImguiNative.igMenuItem_Bool("Save As", "Cmd/Ctrl+Shift+S", false, document is not null && projectSession is null))
             Save(true);
+        if (ImguiNative.igMenuItem_Bool("Validate Map", "", false, document is not null))
+            ValidateMap();
+        if (ImguiNative.igMenuItem_Bool("Save and Launch", "", false, document is not null))
+            SaveAndLaunch();
+        if (ImguiNative.igMenuItem_Bool("Stop Playtest", "", false, playtest.IsRunning))
+            _ = playtest.StopAsync();
         if (ImguiNative.igMenuItem_Bool("Exit", "", false, true))
             RequestClose();
 
@@ -1453,6 +1523,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         DisposeAssetPreviewProvider();
         projectSession = null;
         document = candidateDocument;
+        fullValidationReport = null;
         manifest = candidateManifest;
         meshCache = candidateCache;
         scene = candidateScene;
@@ -1474,6 +1545,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         DisposeAssetPreviewProvider();
         projectSession = candidate;
         document = candidate.Document;
+        fullValidationReport = null;
         manifest = candidate.Project.AssetManifest;
         meshCache = candidateCache;
         scene = candidateScene;
@@ -1668,6 +1740,76 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         TrySave(document.SourcePath, true);
     }
 
+    private void SaveAndLaunch()
+    {
+        if (document is null)
+            return;
+
+        CancelEditingPreviews("Cancelled active placement before Save and Launch.");
+        try
+        {
+            EditorSaveAndLaunchOutcome outcome = saveAndLaunch.Begin(document, projectSession);
+            fullValidationReport = outcome.Report;
+            ReportFullValidation(outcome.Report);
+            switch (outcome.Status)
+            {
+                case EditorSaveAndLaunchStatus.ValidationFailed:
+                    validationMessage = "Save and Launch blocked by full validation errors.";
+                    log.Add(validationMessage);
+                    break;
+                case EditorSaveAndLaunchStatus.AwaitingSaveAs:
+                    dialogs.ShowSaveJsonDialog(host.Window!.NativeHandle, document.SourcePath);
+                    break;
+                case EditorSaveAndLaunchStatus.Ready:
+                    log.Add($"Saved map to {outcome.Request!.MapFile}.");
+                    _ = LaunchValidatedPlaytestAsync(outcome.Request);
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            saveAndLaunch.Cancel();
+            validationMessage = exception.Message;
+            log.Add($"Save and Launch failed: {exception.Message}");
+            logger.LogError(exception, "Editor Save and Launch failed before process startup.");
+        }
+    }
+
+    private Task LaunchValidatedPlaytestAsync(EditorPlaytestRequest request)
+    {
+        return playtest.LaunchAsync(request).ContinueWith(task =>
+        {
+            if (task.Exception is null)
+            {
+                validationMessage = "Playtest server and client started successfully.";
+                return;
+            }
+
+            Exception exception = task.Exception.GetBaseException();
+            validationMessage = $"Playtest launch failed: {exception.Message}";
+            logger.LogError(exception, "Editor playtest launch failed.");
+        }, TaskScheduler.Default);
+    }
+
+    private static string FindRepositoryRoot(string startDirectory)
+    {
+        DirectoryInfo? directory = new(Path.GetFullPath(startDirectory));
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Royale.slnx")) &&
+                File.Exists(Path.Combine(directory.FullName, "launch", "server.sh")) &&
+                File.Exists(Path.Combine(directory.FullName, "launch", "client-connected.sh")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"Could not find a Royale source checkout above '{Path.GetFullPath(startDirectory)}'.");
+    }
+
     private bool TrySave(string path, bool checkExternal)
     {
         try
@@ -1697,7 +1839,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 if (result.Kind == EditorFileDialogKind.DestinationParent)
                     projectDestinationOperation = ProjectDestinationOperation.None;
                 if (result.Kind == EditorFileDialogKind.SaveMap)
+                {
+                    saveAndLaunch.Cancel();
                     ApplyDocumentWorkflowResult(documentWorkflow.SaveFailed());
+                }
                 validationMessage = result.Error;
                 log.Add($"File dialog failed: {result.Error}");
                 continue;
@@ -1708,7 +1853,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 if (result.Kind == EditorFileDialogKind.DestinationParent)
                     projectDestinationOperation = ProjectDestinationOperation.None;
                 if (result.Kind == EditorFileDialogKind.SaveMap)
+                {
+                    bool wasPendingLaunch = saveAndLaunch.AwaitingSaveAs;
+                    if (wasPendingLaunch)
+                        _ = saveAndLaunch.CompleteSaveAs(path: null);
                     ApplyDocumentWorkflowResult(documentWorkflow.SaveAsCancelled());
+                    if (wasPendingLaunch)
+                        log.Add("Save and Launch cancelled.");
+                }
                 continue;
             }
 
@@ -1738,6 +1890,22 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
             if (result.Kind == EditorFileDialogKind.SaveMap)
             {
+                if (saveAndLaunch.AwaitingSaveAs)
+                {
+                    try
+                    {
+                        EditorSaveAndLaunchOutcome outcome = saveAndLaunch.CompleteSaveAs(result.Path);
+                        log.Add($"Saved map to {outcome.Request!.MapFile}.");
+                        _ = LaunchValidatedPlaytestAsync(outcome.Request);
+                    }
+                    catch (Exception exception)
+                    {
+                        validationMessage = exception.Message;
+                        log.Add($"Save and Launch save failed: {exception.Message}");
+                        logger.LogError(exception, "Editor Save and Launch failed while saving a destination.");
+                    }
+                    continue;
+                }
                 TrySave(result.Path, false);
                 continue;
             }
@@ -1971,6 +2139,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         meshCache = StaticMeshAssetCache.LoadSource(projectSession.Project.Paths.Sources, manifest);
         scene = CreateScene(document!.Map, meshCache);
         ReloadAssetBrowser();
+        fullValidationReport = null;
         validationMessage = "Project assets reloaded successfully.";
     }
 
@@ -2157,6 +2326,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Dispose()
     {
+        saveAndLaunch.Dispose();
+        playtest.Dispose();
         faceSnapSession?.Dispose();
         faceSnapSession = null;
         DisposeGizmoFaceSnap();

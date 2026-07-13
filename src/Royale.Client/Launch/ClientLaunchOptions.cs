@@ -29,6 +29,12 @@ public sealed record ClientLaunchOptions(
     string? ScreenshotPath,
     int ScreenshotAfterFrames)
 {
+    public string? MapFile { get; init; }
+
+    public string? AssetRoot { get; init; }
+
+    public bool RequireMapIdMatch { get; init; }
+
     public static ClientLaunchOptions Default { get; } = new(
         ClientLaunchMode.Offline,
         null,
@@ -67,6 +73,9 @@ public sealed record ClientLaunchOptions(
             : ParseVector3(profile.CameraLookAt, "cameraLookAt");
         string? screenshotPath = profile?.ScreenshotPath;
         int screenshotAfterFrames = profile?.ScreenshotAfterFrames ?? 0;
+        string? mapFile = null;
+        string? assetRoot = null;
+        bool mapIdExplicit = false;
 
         for (int index = 0; index < args.Count; index++)
         {
@@ -94,6 +103,15 @@ public sealed record ClientLaunchOptions(
 
                 case "--map":
                     mapId = ReadRequiredValue(args, ref index, "--map");
+                    mapIdExplicit = true;
+                    break;
+
+                case "--map-file":
+                    mapFile = ResolveFile(ReadRequiredValue(args, ref index, "--map-file"), "--map-file");
+                    break;
+
+                case "--asset-root":
+                    assetRoot = ResolveAssetRoot(ReadRequiredValue(args, ref index, "--asset-root"));
                     break;
 
                 case "--camera-mode":
@@ -179,7 +197,31 @@ public sealed record ClientLaunchOptions(
             cameraPosition,
             cameraLookAt,
             screenshotPath,
-            screenshotAfterFrames);
+            screenshotAfterFrames)
+        {
+            MapFile = mapFile,
+            AssetRoot = assetRoot,
+            RequireMapIdMatch = mapIdExplicit,
+        };
+    }
+
+    private static string ResolveFile(string path, string optionName)
+    {
+        string fullPath = Path.GetFullPath(path, Environment.CurrentDirectory);
+        if (!File.Exists(fullPath))
+            throw new ArgumentException($"{optionName} file '{fullPath}' does not exist.");
+        return fullPath;
+    }
+
+    private static string ResolveAssetRoot(string path)
+    {
+        string fullPath = Path.GetFullPath(path, Environment.CurrentDirectory);
+        if (!Directory.Exists(fullPath))
+            throw new ArgumentException($"--asset-root directory '{fullPath}' does not exist.");
+        string manifestPath = Path.Combine(fullPath, ContentCatalog.ModelAssetManifestFileName);
+        if (!File.Exists(manifestPath))
+            throw new ArgumentException($"--asset-root directory '{fullPath}' does not contain '{ContentCatalog.ModelAssetManifestFileName}'.");
+        return fullPath;
     }
 
     private static RenderViewMode ParseRenderViewMode(string value) => value switch

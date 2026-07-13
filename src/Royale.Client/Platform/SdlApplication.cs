@@ -22,6 +22,7 @@ using Royale.Client.UI;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;
+using Royale.Content.Runtime;
 using Royale.Content.Weapons;
 using Royale.Platform.Desktop;
 using Royale.Platform.Input;
@@ -207,14 +208,27 @@ public sealed unsafe class SdlApplication : ISdlDesktopApplication, IDisposable
             return;
 
         logger.ZLogInformation($"Loading map {options.MapId}.");
-        GameMap map = MapCatalog.LoadById(options.MapId);
+        RuntimeContentSelection content = RuntimeContentSelection.Load(
+            options.MapId,
+            options.MapFile,
+            options.RequireMapIdMatch,
+            options.AssetRoot);
+        GameMap map = content.Map;
         loadedMap = map;
         if (options.Mode == ClientLaunchMode.Offline)
-            localPlayer = LocalPlayerController.Create(map);
+            localPlayer = LocalPlayerController.Create(map, assetRoot: content.AssetRoot);
         else
-            networkClient = NetworkClientRuntime.Connect(options.ConnectHost!, options.Port);
+            networkClient = NetworkClientRuntime.Connect(
+                options.ConnectHost!,
+                options.Port,
+                loadPredictionMap: requestedMapId => string.Equals(requestedMapId, map.Id, StringComparison.Ordinal)
+                    ? map
+                    : throw new InvalidDataException(
+                        $"Server requested prediction map '{requestedMapId}', but the client loaded '{map.Id}'."),
+                createPredictionCollisionWorld: predictionMap =>
+                    MapStaticCollisionWorld.Create(predictionMap, content.AssetRoot));
 
-        StaticMeshAssetCache assetCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
+        StaticMeshAssetCache assetCache = StaticMeshAssetCache.LoadAssetRoot(content.AssetRoot.FullName);
         staticMeshAssetCache = assetCache;
         Dictionary<string, StaticMeshAsset> mapAssets = map.StaticModels
             .Select(model => model.AssetId)

@@ -43,6 +43,40 @@ public sealed class ServerLaunchOptionsTests
     }
 
     [Fact]
+    public void ParseResolvesMapFileAndDirectAssetRoot()
+    {
+        string root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string map = Path.Combine(root, "map.json");
+        File.WriteAllText(map, "{}");
+        File.WriteAllText(Path.Combine(root, ContentCatalog.ModelAssetManifestFileName), "{}");
+        try
+        {
+            ServerLaunchOptions options = ServerLaunchOptions.Parse([
+                "--map", "custom",
+                "--map-file", map,
+                "--asset-root", root,
+            ]);
+
+            Assert.Equal(Path.GetFullPath(map), options.MapFile);
+            Assert.Equal(Path.GetFullPath(root), options.AssetRoot);
+            Assert.True(options.RequireMapIdMatch);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ParseRejectsMissingOverridePaths()
+    {
+        string missing = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Assert.Throws<ArgumentException>(() => ServerLaunchOptions.Parse(["--map-file", missing]));
+        Assert.Throws<ArgumentException>(() => ServerLaunchOptions.Parse(["--asset-root", missing]));
+    }
+
+    [Fact]
     public void ParseAcceptsRunTicks()
     {
         ServerLaunchOptions options = ServerLaunchOptions.Parse(["--run-ticks", "5"]);
@@ -135,6 +169,8 @@ public sealed class ServerLaunchOptionsTests
     [Theory]
     [InlineData("--port")]
     [InlineData("--map")]
+    [InlineData("--map-file")]
+    [InlineData("--asset-root")]
     [InlineData("--run-ticks")]
     [InlineData("--minimum-players")]
     [InlineData("--target-players")]

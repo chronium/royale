@@ -22,6 +22,7 @@ using Royale.Protocol.Handshake;
 using Royale.Protocol.Input;
 using Royale.Protocol.Snapshots;
 using Royale.Simulation.Movement;
+using Royale.Simulation.World;
 
 using Royale.Client.Tests.Infrastructure;
 
@@ -339,6 +340,29 @@ public sealed class NetworkClientRuntimeTests
         Assert.False(runtime.PredictionSeeded);
         Assert.False(runtime.PredictionActive);
         Assert.False(runtime.TryGetPredictedLocalPlayer(out _));
+    }
+
+    [Fact]
+    public void AcceptedMapUsesConfiguredPredictionCollisionFactory()
+    {
+        FakeNetworkTransport transport = new();
+        GameMap map = CreatePredictionMap("prediction-custom-assets");
+        bool collisionFactoryCalled = false;
+        using var runtime = new NetworkClientRuntime(
+            transport,
+            new NetworkEndpoint("127.0.0.1", 7777),
+            loadPredictionMap: LoadMap(map),
+            createPredictionCollisionWorld: predictionMap =>
+            {
+                collisionFactoryCalled = true;
+                Assert.Same(map, predictionMap);
+                return MapStaticCollisionWorld.Create(predictionMap);
+            });
+
+        AcceptHandshake(runtime, transport, Accept(map.Id));
+
+        Assert.True(collisionFactoryCalled);
+        Assert.True(runtime.PredictionMapAvailable);
     }
 
     [Fact]

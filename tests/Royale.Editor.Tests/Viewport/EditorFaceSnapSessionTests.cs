@@ -6,8 +6,11 @@ using Royale.Editor.Viewport.FaceSnap;
 using Royale.Editor.Projects;
 using Royale.Simulation.World;
 
+using Royale.Editor.Tests.Infrastructure;
+
 namespace Royale.Editor.Tests.Viewport;
 
+[Collection(Box3DNativeTestCollection.Name)]
 public sealed class EditorFaceSnapSessionTests
 {
     [Fact]

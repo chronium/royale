@@ -37,12 +37,15 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
         INetworkTransport transport,
         NetworkEndpoint serverEndpoint,
         PlayerLookSettings? lookSettings = null,
-        Func<string, GameMap>? loadPredictionMap = null)
+        Func<string, GameMap>? loadPredictionMap = null,
+        Func<GameMap, MapStaticCollisionWorld>? createPredictionCollisionWorld = null)
     {
         this.transport = transport;
         this.serverEndpoint = serverEndpoint;
         this.lookSettings = lookSettings ?? PlayerLookSettings.Default;
-        prediction = new ClientMovementPrediction(loadPredictionMap ?? MapCatalog.LoadById);
+        prediction = new ClientMovementPrediction(
+            loadPredictionMap ?? MapCatalog.LoadById,
+            createPredictionCollisionWorld);
         serverPeerId = transport.Connect(serverEndpoint);
     }
 
@@ -98,14 +101,22 @@ public sealed class NetworkClientRuntime : INetworkEventHandler, IDisposable
 
     public NetworkPeerStatistics? LastTransportStatistics { get; private set; }
 
-    public static NetworkClientRuntime Connect(string host, int port)
+    public static NetworkClientRuntime Connect(
+        string host,
+        int port,
+        Func<string, GameMap>? loadPredictionMap = null,
+        Func<GameMap, MapStaticCollisionWorld>? createPredictionCollisionWorld = null)
     {
         var transport = new LiteNetLibNetworkTransport();
         transport.Start(port: 0);
 
         try
         {
-            return new NetworkClientRuntime(transport, new NetworkEndpoint(host, port));
+            return new NetworkClientRuntime(
+                transport,
+                new NetworkEndpoint(host, port),
+                loadPredictionMap: loadPredictionMap,
+                createPredictionCollisionWorld: createPredictionCollisionWorld);
         }
         catch
         {

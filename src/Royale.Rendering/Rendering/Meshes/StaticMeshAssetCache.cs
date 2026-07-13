@@ -22,7 +22,13 @@ public sealed class StaticMeshAssetCache
     public static StaticMeshAssetCache Load(string baseDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
-        string assetRoot = Path.Combine(baseDirectory, "assets");
+        return LoadAssetRoot(Path.Combine(baseDirectory, "assets"));
+    }
+
+    public static StaticMeshAssetCache LoadAssetRoot(string assetRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetRoot);
+        assetRoot = Path.GetFullPath(assetRoot);
         string manifestPath = Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName);
         return new StaticMeshAssetCache(assetRoot, ModelAssetManifestLoader.LoadGenerated(manifestPath));
     }

@@ -98,11 +98,14 @@ public sealed class LocalPlayerController : IDisposable
         PlayerLookSettings? lookSettings = null,
         KinematicCharacterController? characterController = null,
         PlayerViewSettings? viewSettings = null,
-        TrainingDummy? trainingDummy = null)
+        TrainingDummy? trainingDummy = null,
+        DirectoryInfo? assetRoot = null)
     {
         ArgumentNullException.ThrowIfNull(map);
 
-        MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+        MapStaticCollisionWorld collisionWorld = assetRoot is null
+            ? MapStaticCollisionWorld.Create(map)
+            : MapStaticCollisionWorld.Create(map, assetRoot);
 
         try
         {

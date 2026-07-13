@@ -17,6 +17,7 @@ internal sealed class ClientMovementPrediction : IDisposable
     private const int MaxPendingInputCount = 128;
 
     private readonly Func<string, GameMap> loadMap;
+    private readonly Func<GameMap, MapStaticCollisionWorld> createCollisionWorld;
     private readonly KinematicCharacterController characterController = new();
     private readonly Queue<PlayerInputCommand> pendingInputs = [];
     private MapStaticCollisionWorld? collisionWorld;
@@ -26,9 +27,12 @@ internal sealed class ClientMovementPrediction : IDisposable
     private bool seeded;
     private bool disposed;
 
-    public ClientMovementPrediction(Func<string, GameMap> loadMap)
+    public ClientMovementPrediction(
+        Func<string, GameMap> loadMap,
+        Func<GameMap, MapStaticCollisionWorld>? createCollisionWorld = null)
     {
         this.loadMap = loadMap ?? throw new ArgumentNullException(nameof(loadMap));
+        this.createCollisionWorld = createCollisionWorld ?? MapStaticCollisionWorld.Create;
     }
 
     public bool MapAvailable => collisionWorld is not null;
@@ -63,7 +67,7 @@ internal sealed class ClientMovementPrediction : IDisposable
         try
         {
             GameMap map = loadMap(mapId);
-            collisionWorld = MapStaticCollisionWorld.Create(map);
+            collisionWorld = createCollisionWorld(map);
             StaticColliderCount = collisionWorld.ColliderCount;
         }
         catch

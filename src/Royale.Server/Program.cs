@@ -14,6 +14,7 @@ using Royale.Server.Observability;
 using Royale.Server.Sessions;
 using Royale.Server.Simulation;
 using Royale.Simulation.World;
+using Royale.Content.Runtime;
 using ZLogger;
 
 using RoyaleTelemetry telemetry = RoyaleTelemetry.CreateServer(LogLevel.Information);
@@ -31,9 +32,15 @@ Console.CancelKeyPress += (_, eventArgs) =>
 try
 {
     ServerLaunchOptions options = ServerLaunchOptions.Parse(args);
+    RuntimeContentSelection content = RuntimeContentSelection.Load(
+        options.MapId,
+        options.MapFile,
+        options.RequireMapIdMatch,
+        options.AssetRoot);
     var descriptor = ServerDescriptor.Create();
     using NetworkServerRuntime runtime = NetworkServerRuntime.Listen(
-        options.MapId,
+        content.Map,
+        content.AssetRoot,
         options.Port,
         new MatchStartSettings(
             options.MinimumPlayers,
@@ -41,6 +48,8 @@ try
             options.WaitingSeconds,
             options.PreparationSeconds),
         observability);
+    Console.Out.WriteLine($"ROYALE_SERVER_READY map={runtime.MapId} port={options.Port}");
+    Console.Out.Flush();
     string runMode = options.RunTicks is int runTicks
         ? $"finite {runTicks} ticks"
         : "until shutdown";

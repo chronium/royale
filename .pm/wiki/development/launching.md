@@ -1,7 +1,7 @@
 ---
 title: Development Launch Scripts
 createdAt: 2026-07-13T06:30:02.0969700Z
-modifiedAt: 2026-07-13T06:30:02.0969700Z
+modifiedAt: 2026-07-13T17:02:01.8811810Z
 ---
 
 ## Purpose
@@ -27,6 +27,14 @@ launch/client-offline.sh --map prototype-arena
 launch/client-connected.sh --connect 192.0.2.10 --port 7788 --map prototype-arena
 launch/editor.sh --project /path/to/arena.royaleproject
 ```
+
+## Runtime content overrides
+
+Both client and server accept `--map-file <path>` and `--asset-root <path>`. `--map-file` loads a standalone runtime map document; when `--map` is also present, its ID must match the loaded document. `--asset-root` points directly to the audience-specific directory containing `model-assets.json`. Without overrides, map lookup and packaged `AppContext.BaseDirectory/assets` behavior are unchanged.
+
+The server emits the stable line `ROYALE_SERVER_READY map=<id> port=<port>` after UDP binding and authoritative simulation, collision, navigation, and spawn content initialization have succeeded. Development launch supervisors may use this marker before starting a connected client.
+
+The editor's managed Save and Launch workflow invokes the existing scripts with explicit matching map file, client/server asset roots, host, and port. Paths are passed as discrete process arguments, so spaces do not require editor-side shell quoting.
 
 ## Observability
 

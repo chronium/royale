@@ -95,6 +95,48 @@ public sealed class ClientLaunchOptionsTests
     }
 
     [Fact]
+    public void ParseResolvesMapFileAndDirectAssetRoot()
+    {
+        string root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string map = Path.Combine(root, "map.json");
+        File.WriteAllText(map, "{}");
+        File.WriteAllText(Path.Combine(root, ContentCatalog.ModelAssetManifestFileName), "{}");
+        try
+        {
+            ClientLaunchOptions options = ClientLaunchOptions.Parse([
+                "--map", "custom",
+                "--map-file", map,
+                "--asset-root", root,
+            ]);
+
+            Assert.Equal(Path.GetFullPath(map), options.MapFile);
+            Assert.Equal(Path.GetFullPath(root), options.AssetRoot);
+            Assert.True(options.RequireMapIdMatch);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ParseMapFileAloneDoesNotRequireDefaultMapId()
+    {
+        string map = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(map, "{}");
+        try
+        {
+            ClientLaunchOptions options = ClientLaunchOptions.Parse(["--map-file", map]);
+            Assert.False(options.RequireMapIdMatch);
+        }
+        finally
+        {
+            File.Delete(map);
+        }
+    }
+
+    [Fact]
     public void ParseAcceptsFreecamCameraMode()
     {
         ClientLaunchOptions options = ClientLaunchOptions.Parse(["--camera-mode", "freecam"]);
@@ -248,6 +290,8 @@ public sealed class ClientLaunchOptionsTests
     [InlineData("--connect")]
     [InlineData("--port")]
     [InlineData("--map")]
+    [InlineData("--map-file")]
+    [InlineData("--asset-root")]
     [InlineData("--camera-mode")]
     [InlineData("--camera-position")]
     [InlineData("--camera-look-at")]

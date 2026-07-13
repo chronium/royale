@@ -31,7 +31,7 @@ internal static unsafe class ImGuizmoViewportAdapter
         Matrix4x4 view = EditorMatrixConverter.ToImGuizmo(camera.CreateViewMatrix());
         Matrix4x4 projection = EditorMatrixConverter.ToImGuizmo(camera.CreateProjectionMatrix(viewportWidth, viewportHeight));
         Matrix4x4 matrix = EditorMatrixConverter.ToImGuizmo(transform.CreateMatrix());
-        float snap = settings.GetSnapIncrement(operation);
+        Vector3 snap = settings.GetSnapVector(operation);
 
         ImguizmoNative.ImGuizmo_SetDrawlist(ImguiNative.igGetWindowDrawList());
         ImguizmoNative.ImGuizmo_SetOrthographic(false);
@@ -40,7 +40,7 @@ internal static unsafe class ImGuizmoViewportAdapter
         Matrix4x4* viewPointer = &view;
         Matrix4x4* projectionPointer = &projection;
         Matrix4x4* matrixPointer = &matrix;
-        float* snapPointer = settings.SnappingEnabled ? &snap : null;
+        float* snapPointer = settings.SnappingEnabled ? (float*)&snap : null;
         changed = ImguizmoNative.ImGuizmo_Manipulate(
             (float*)viewPointer,
             (float*)projectionPointer,

@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -53,6 +54,9 @@ public sealed record EditorTransformSettings
         EditorTransformOperation.Scale => ScaleIncrement,
         _ => GridSpacing,
     };
+
+    public Vector3 GetSnapVector(EditorTransformOperation operation) =>
+        new(GetSnapIncrement(operation));
 
     private static bool IsInRange(float value, float minimum, float maximum) =>
         float.IsFinite(value) && value >= minimum && value <= maximum;

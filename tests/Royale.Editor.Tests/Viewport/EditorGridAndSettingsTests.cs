@@ -95,5 +95,6 @@ public sealed class EditorGridAndSettingsTests
 
         Assert.Equal(0.25f, settings.ActiveSnapIncrement);
         Assert.Equal(2.0f, settings.GetSnapIncrement(EditorTransformOperation.Translate));
+        Assert.Equal(new System.Numerics.Vector3(2.0f), settings.GetSnapVector(EditorTransformOperation.Translate));
     }
 }

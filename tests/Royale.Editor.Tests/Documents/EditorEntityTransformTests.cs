@@ -127,6 +127,29 @@ public sealed class EditorEntityTransformTests
         AssertMatrixClose(matrix, decomposed.CreateMatrix());
     }
 
+    [Fact]
+    public void ImGuizmoMatrixLayoutKeepsTranslationInTheFourthRow()
+    {
+        Matrix4x4 converted = EditorMatrixConverter.ToImGuizmo(Matrix4x4.CreateTranslation(4, -2, 7));
+
+        Assert.Equal(4, converted.M41);
+        Assert.Equal(-2, converted.M42);
+        Assert.Equal(7, converted.M43);
+        Assert.Equal(0, converted.M14);
+        Assert.Equal(0, converted.M24);
+        Assert.Equal(0, converted.M34);
+    }
+
+    [Fact]
+    public void ImGuizmoProjectionLayoutKeepsPerspectiveDivideInExpectedSlot()
+    {
+        Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 16.0f / 9.0f, 0.1f, 100.0f);
+        Matrix4x4 converted = EditorMatrixConverter.ToImGuizmo(projection);
+
+        Assert.Equal(-1, converted.M34);
+        Assert.True(converted.M43 < 0);
+    }
+
     private static EditorMapDocument CreateDocument() => new(new GameMap
     {
         Id = "test",

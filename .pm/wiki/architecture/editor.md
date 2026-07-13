@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T09:10:27.4136410Z
+modifiedAt: 2026-07-13T11:40:54.5795800Z
 ---
 
 ## Purpose
@@ -190,13 +190,17 @@ Validation on 2026-07-13 completed the documented formatter check, a zero-warnin
 
 ## Face Snapping
 
-Face snapping is mandatory for the first editor.
+`EDITOR-007` adds Face Snap as a viewport-toolbar mode for every selected spatial entity: static boxes, static models, spawn points, loot points, and navigation waypoints. Navigation links remain non-spatial. The editor now directly references `Royale.Simulation` and `Royale.Box3D`; this supersedes the earlier `EDITOR-003` dependency statement while preserving the prohibition on Client, Server, Protocol, and Network dependencies. Editor build and publish output includes the Box3D native library.
 
-The user enters face-snap mode and selects a target collision surface. The editor places the selected object's oriented bounds flush against the hit plane and ignores the selected object's own collider.
+Entering the mode creates one retained `MapStaticCollisionWorld`. A project document first rebuilds `generated/server` from its source asset manifest through `AssetPipelineProcessor`, including valid empty manifests for box-only projects, then loads collision from that generated asset root. A standalone JSON document loads packaged collision assets. Box3D raycasts return the managed collider, point, normal, and fraction. The selected static box or model content ID is filtered in the general callback so a ray can continue to geometry behind it.
 
-Rotation is preserved by default. An optional alignment mode rotates a selected local attachment axis to the target surface normal. The editor displays a preview before commit, and the final placement is one undoable command.
+Placement uses the existing oriented picking bounds for boxes and models and the existing axis-aligned editor proxy bounds for spawn, loot, and navigation markers. The support distance along the hit normal places the nearest bound point exactly on the target plane. Face Snap deliberately ignores translation-grid quantization because post-placement rounding would break exact contact.
 
-Face snapping is bounds-based for the initial version; it does not promise arbitrary mesh-to-mesh feature matching.
+Rotation is preserved by default. Optional alignment rotates one selected local attachment axis (`+X`, `-X`, `+Y`, `-Y`, `+Z`, or `-Z`) onto the target normal before support distance is calculated; alignment defaults off with `+Y` selected and handles parallel and anti-parallel directions. Spawn rotations may align while their marker proxy remains axis-aligned. Loot points and navigation waypoints are translation-only, so alignment controls are disabled for them.
+
+While active, cursor raycasts update the entity preview without adding document history and draw the hit point, normal, and a small target-plane indicator. Normal viewport picking, transform gizmos and hotkeys, translation snapping, and right-mouse camera capture are suppressed. A miss restores the original transform and cannot commit. Left click commits the current hit as one `SetEntityTransformCommand`; Escape, right click, toolbar cancellation, selection or document edits, document transitions, save, replacement, and editor shutdown restore the original preview state and dispose the collision world. Undo and redo operate on the complete committed transform.
+
+Collision generation or Box3D failures restore the document, exit the mode, and report actionable text in Validation and Log plus the structured logger. Automated coverage includes floor, wall, rotated surfaces, non-uniform and proxy bounds, all alignment axes, anti-parallel rotation, preview/miss/cancel, one-command undo/redo, project collision regeneration, and a native filtered-ray test that skips the selected collider.
 
 ## Playtesting
 

@@ -43,40 +43,20 @@ public static class EditorViewportPresentationBuilder
                 continue;
 
             EditorEntityTransform transform = EditorEntityTransforms.Get(document, identity);
-            Matrix4x4 world = transform.CreateMatrix();
-            Vector3 minimum;
-            Vector3 maximum;
+            EditorPickTarget target = CreatePickTarget(document, meshCache, identity);
             switch (identity.Kind)
             {
-                case EditorEntityKind.StaticBox:
-                    minimum = new Vector3(-0.5f);
-                    maximum = new Vector3(0.5f);
-                    break;
-                case EditorEntityKind.StaticModel:
-                    (minimum, maximum) = EditorViewportPicking.GetMeshBounds(
-                        meshCache.GetRequired(document.Map.StaticModels[identity.Index].AssetId));
-                    break;
                 case EditorEntityKind.SpawnPoint:
-                    minimum = new Vector3(-EditorViewportPicking.SpawnProxyRadius);
-                    maximum = new Vector3(EditorViewportPicking.SpawnProxyRadius);
-                    world = Matrix4x4.CreateTranslation(transform.Position);
                     AddSpawnMarker(debug, transform);
                     break;
                 case EditorEntityKind.LootPoint:
-                    minimum = new Vector3(-EditorViewportPicking.LootProxyRadius);
-                    maximum = new Vector3(EditorViewportPicking.LootProxyRadius);
-                    world = Matrix4x4.CreateTranslation(transform.Position);
                     AddLootMarker(debug, transform.Position);
                     break;
-                default:
-                    minimum = new Vector3(-EditorViewportPicking.NavigationProxyRadius);
-                    maximum = new Vector3(EditorViewportPicking.NavigationProxyRadius);
-                    world = Matrix4x4.CreateTranslation(transform.Position);
+                case EditorEntityKind.NavigationWaypoint:
                     AddNavigationMarker(debug, transform.Position);
                     break;
             }
 
-            var target = new EditorPickTarget(identity, world, minimum, maximum);
             targets.Add(target);
             if (selectedEditorId == identity.EditorId)
                 AddSelectionHighlight(debug, target);
@@ -84,6 +64,47 @@ public static class EditorViewportPresentationBuilder
 
         return new EditorViewportPresentation(debug, targets);
     }
+
+    public static EditorPickTarget CreatePickTarget(
+        EditorMapDocument document,
+        StaticMeshAssetCache meshCache,
+        EditorEntityIdentity identity)
+    {
+        EditorEntityTransform transform = EditorEntityTransforms.Get(document, identity);
+        return identity.Kind switch
+        {
+            EditorEntityKind.StaticBox => new EditorPickTarget(
+                identity,
+                transform.CreateMatrix(),
+                new Vector3(-0.5f),
+                new Vector3(0.5f)),
+            EditorEntityKind.StaticModel => CreateModelTarget(document, meshCache, identity, transform),
+            EditorEntityKind.SpawnPoint => CreateProxyTarget(identity, transform.Position, EditorViewportPicking.SpawnProxyRadius),
+            EditorEntityKind.LootPoint => CreateProxyTarget(identity, transform.Position, EditorViewportPicking.LootProxyRadius),
+            EditorEntityKind.NavigationWaypoint => CreateProxyTarget(identity, transform.Position, EditorViewportPicking.NavigationProxyRadius),
+            _ => throw new InvalidOperationException("Navigation links do not have picking bounds."),
+        };
+    }
+
+    private static EditorPickTarget CreateModelTarget(
+        EditorMapDocument document,
+        StaticMeshAssetCache meshCache,
+        EditorEntityIdentity identity,
+        EditorEntityTransform transform)
+    {
+        (Vector3 minimum, Vector3 maximum) = EditorViewportPicking.GetMeshBounds(
+            meshCache.GetRequired(document.Map.StaticModels[identity.Index].AssetId));
+        return new EditorPickTarget(identity, transform.CreateMatrix(), minimum, maximum);
+    }
+
+    private static EditorPickTarget CreateProxyTarget(
+        EditorEntityIdentity identity,
+        Vector3 position,
+        float radius) => new(
+            identity,
+            Matrix4x4.CreateTranslation(position),
+            new Vector3(-radius),
+            new Vector3(radius));
 
     private static void AddSpawnMarker(DebugPrimitiveList debug, EditorEntityTransform transform)
     {

@@ -258,6 +258,42 @@ public sealed class MapStaticCollisionWorldTests
     }
 
     [Fact]
+    public void FilteredRaycastSkipsExcludedColliderAndReturnsNextClosestSurface()
+    {
+        var map = new GameMap
+        {
+            Id = "filtered-ray",
+            StaticBoxes =
+            [
+                new StaticBoxDefinition
+                {
+                    Id = "selected",
+                    Position = new MapVector3(0.0f, 0.0f, -2.0f),
+                    Size = new MapVector3(2.0f, 2.0f, 1.0f),
+                },
+                new StaticBoxDefinition
+                {
+                    Id = "behind",
+                    Position = new MapVector3(0.0f, 0.0f, -6.0f),
+                    Size = new MapVector3(4.0f, 4.0f, 1.0f),
+                },
+            ],
+        };
+        using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(map);
+
+        MapStaticRayHit? hit = collisionWorld.CastRayFiltered(
+            Vector3.Zero,
+            -Vector3.UnitZ * 10.0f,
+            "selected");
+
+        Assert.NotNull(hit);
+        Assert.Equal("behind", hit.Value.Collider.ContentId);
+        Assert.InRange(hit.Value.Point.Z, -5.501f, -5.499f);
+        Assert.InRange(hit.Value.Fraction, 0.549f, 0.551f);
+        Assert.True(Vector3.Dot(hit.Value.Normal, Vector3.UnitZ) > 0.999f);
+    }
+
+    [Fact]
     public void OverlapAabbAroundCoverFindsStaticShape()
     {
         using MapStaticCollisionWorld collisionWorld = MapStaticCollisionWorld.Create(MapCatalog.LoadDefault());

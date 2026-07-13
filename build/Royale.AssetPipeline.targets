@@ -5,7 +5,8 @@
     <RoyaleAssetSourceRoot>$(RoyaleRepositoryRoot)assets</RoyaleAssetSourceRoot>
     <RoyaleAssetManifest>$(RoyaleAssetSourceRoot)/model-assets.json</RoyaleAssetManifest>
     <RoyaleAssetIntermediate>$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/royale-assets/$(RoyaleAssetAudience)</RoyaleAssetIntermediate>
-    <RoyaleAssetPipelineAssembly>$(RoyaleRepositoryRoot)tools/Royale.AssetPipeline/bin/$(Configuration)/net10.0/Royale.AssetPipeline.Cli.dll</RoyaleAssetPipelineAssembly>
+    <RoyaleAssetPipelineRuntimeSubdirectory Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)/</RoyaleAssetPipelineRuntimeSubdirectory>
+    <RoyaleAssetPipelineAssembly>$(RoyaleRepositoryRoot)tools/Royale.AssetPipeline/bin/$(Configuration)/net10.0/$(RoyaleAssetPipelineRuntimeSubdirectory)Royale.AssetPipeline.Cli.dll</RoyaleAssetPipelineAssembly>
   </PropertyGroup>
 
   <ItemGroup>

@@ -19,11 +19,12 @@ public static class AssetPipelineProcessor
         string manifestPath,
         string sourceRoot,
         string outputRoot,
-        AssetPipelineAudience audience)
+        AssetPipelineAudience audience,
+        bool requireAssets = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
 
-        ModelAssetManifest source = ModelAssetManifestLoader.LoadSource(manifestPath, sourceRoot);
+        ModelAssetManifest source = ModelAssetManifestLoader.LoadSource(manifestPath, sourceRoot, requireAssets);
         string fullOutputRoot = Path.GetFullPath(outputRoot);
 
         if (Directory.Exists(fullOutputRoot))

@@ -16,6 +16,7 @@ namespace Royale.Simulation.World;
 public sealed unsafe class MapStaticCollisionWorld : IDisposable
 {
     private static readonly B3OverlapResultFcn OverlapCallback = OnOverlapResult;
+    private static readonly B3CastResultFcn RayCastCallback = OnRayCastResult;
     private static readonly B3PlaneResultFcn PlaneCallback = OnPlaneResult;
     private static readonly B3CreateDebugShapeFcn CreateDebugShapeCallback = OnCreateDebugShape;
     private static readonly B3DestroyDebugShapeFcn DestroyDebugShapeCallback = OnDestroyDebugShape;
@@ -42,12 +43,19 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
 
     public bool IsDisposed => disposed;
 
-    public static MapStaticCollisionWorld Create(GameMap map) => Create(map, AppContext.BaseDirectory);
+    public static MapStaticCollisionWorld Create(GameMap map) =>
+        Create(map, new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "assets")));
 
     public static MapStaticCollisionWorld Create(GameMap map, string baseDirectory)
     {
-        ArgumentNullException.ThrowIfNull(map);
         ArgumentException.ThrowIfNullOrWhiteSpace(baseDirectory);
+        return Create(map, new DirectoryInfo(Path.Combine(baseDirectory, "assets")));
+    }
+
+    public static MapStaticCollisionWorld Create(GameMap map, DirectoryInfo assetRoot)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(assetRoot);
 
         B3WorldDef worldDef = Box3DBindingSurface.b3DefaultWorldDef();
         worldDef.Gravity = ToB3Vector(Vector3.Zero);
@@ -66,7 +74,7 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
                 collisionWorld.CreateStaticBoxCollider(staticBox);
 
             if (map.StaticModels.Count > 0)
-                collisionWorld.CreateStaticModelColliders(map, baseDirectory);
+                collisionWorld.CreateStaticModelColliders(map, assetRoot.FullName);
 
             return collisionWorld;
         }
@@ -87,6 +95,29 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
             ToB3Position(origin),
             ToB3Vector(translation),
             Box3DBindingSurface.b3DefaultQueryFilter());
+    }
+
+    public MapStaticRayHit? CastRayFiltered(
+        Vector3 origin,
+        Vector3 translation,
+        string? excludedContentId = null)
+    {
+        ThrowIfDisposed();
+        if (!IsFinite(origin))
+            throw new ArgumentException("Ray origin must contain only finite values.", nameof(origin));
+        if (!IsFinite(translation) || translation.LengthSquared() <= 0.0f)
+            throw new ArgumentException("Ray translation must be finite and non-zero.", nameof(translation));
+
+        var context = new RayCastQueryContext(this, excludedContentId);
+        using CallbackHandle handle = new(context);
+        Box3DBindingSurface.b3World_CastRay(
+            WorldId,
+            new B3Pos { X = origin.X, Y = origin.Y, Z = origin.Z },
+            ToB3Vector(translation),
+            Box3DBindingSurface.b3DefaultQueryFilter(),
+            RayCastCallback,
+            handle.Pointer);
+        return context.Hit;
     }
 
     public void Step(float timeStep, int subStepCount)
@@ -201,9 +232,8 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
         collidersByShape.Add(shape.Id, collider);
     }
 
-    private void CreateStaticModelColliders(GameMap map, string baseDirectory)
+    private void CreateStaticModelColliders(GameMap map, string assetRoot)
     {
-        string assetRoot = Path.Combine(baseDirectory, "assets");
         string manifestPath = Path.Combine(assetRoot, ContentCatalog.ModelAssetManifestFileName);
         ModelAssetManifest manifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
         Dictionary<string, ModelAssetDefinition> assets = manifest.Assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
@@ -308,6 +338,33 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
         return true;
     }
 
+    private static float OnRayCastResult(
+        B3ShapeId shapeId,
+        B3Pos point,
+        B3Vec3 normal,
+        float fraction,
+        ulong userMaterialId,
+        int triangleIndex,
+        int childIndex,
+        nint context)
+    {
+        var callbackContext = (RayCastQueryContext)GCHandle.FromIntPtr(context).Target!;
+        if (!callbackContext.World.collidersByShape.TryGetValue(shapeId, out MapStaticCollider? collider))
+            return 1.0f;
+        if (callbackContext.ExcludedContentId is not null &&
+            string.Equals(collider.ContentId, callbackContext.ExcludedContentId, StringComparison.Ordinal))
+            return 1.0f;
+        if (callbackContext.Hit is null || fraction < callbackContext.Hit.Value.Fraction)
+        {
+            callbackContext.Hit = new MapStaticRayHit(
+                collider,
+                new Vector3(point.X, point.Y, point.Z),
+                ToVector3(normal),
+                fraction);
+        }
+        return fraction;
+    }
+
     private static nint OnCreateDebugShape(B3DebugShape* debugShape, nint context)
     {
         if (debugShape is null)
@@ -387,6 +444,9 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
 
     private static Vector3 ToVector3(B3Vec3 vector) => new(vector.X, vector.Y, vector.Z);
 
+    private static bool IsFinite(Vector3 vector) =>
+        float.IsFinite(vector.X) && float.IsFinite(vector.Y) && float.IsFinite(vector.Z);
+
     private static B3Quat ToB3Quaternion(Quaternion quaternion)
     {
         Quaternion normalized = Quaternion.Normalize(quaternion);
@@ -406,6 +466,15 @@ public sealed unsafe class MapStaticCollisionWorld : IDisposable
     private sealed class OverlapQueryContext
     {
         public List<B3ShapeId> ShapeIds { get; } = [];
+    }
+
+    private sealed class RayCastQueryContext(MapStaticCollisionWorld world, string? excludedContentId)
+    {
+        public MapStaticCollisionWorld World { get; } = world;
+
+        public string? ExcludedContentId { get; } = excludedContentId;
+
+        public MapStaticRayHit? Hit { get; set; }
     }
 
     private sealed class PlaneQueryContext(MapStaticCollisionWorld world)

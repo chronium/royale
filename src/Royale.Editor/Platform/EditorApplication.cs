@@ -11,6 +11,7 @@ using Royale.Editor.Persistence;
 using Royale.Editor.Projects;
 using Royale.Editor.Projects.Assets;
 using Royale.Editor.Viewport;
+using Royale.Editor.Viewport.FaceSnap;
 using Royale.Editor.Workspace;
 using Royale.Editor.Workspace.Assets;
 using Royale.Platform.Desktop;
@@ -20,6 +21,7 @@ using Royale.Rendering.Meshes;
 using Royale.Rendering.Platform;
 using Royale.Rendering.Screenshots;
 using Royale.Rendering.UI;
+using Royale.Simulation.World;
 using SDL;
 
 namespace Royale.Editor.Platform;
@@ -85,6 +87,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool viewportFocused;
     private bool gizmoUsing;
     private bool gizmoHovered;
+    private EditorFaceSnapSession? faceSnapSession;
+    private EditorFaceSnapSettings faceSnapSettings = new();
     private bool mapNameEdited;
     private Guid? inspectorEditorId;
     private long inspectorRevision = -1;
@@ -168,7 +172,17 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         ProcessShortcuts();
         UpdateWindowTitle();
 
+        if (faceSnapSession is not null &&
+            (document is null ||
+             selection.SelectedEditorId != faceSnapSession.EditorId ||
+             !faceSnapSession.IsDocumentCurrent))
+            CancelFaceSnap("Cancelled face snap because the selection or document changed.");
+
         bool escape = host.Input.WasKeyPressed((int)SDL_Keycode.SDLK_ESCAPE);
+        bool faceSnapWasActive = faceSnapSession is not null;
+        if (faceSnapWasActive &&
+            (escape || host.Input.WasMouseButtonPressed(SDL3.SDL_BUTTON_RIGHT)))
+            CancelFaceSnap(escape ? "Cancelled face snap." : "Cancelled face snap with right click.");
         if (escape && document is not null && manipulation.Cancel(document))
         {
             ImGuiEditorNative.ClearActiveId();
@@ -176,7 +190,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             RebuildScene();
             log.Add("Cancelled entity transform.");
         }
-        bool right = host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
+        bool right = !faceSnapWasActive && host.Input.IsMouseButtonDown(SDL3.SDL_BUTTON_RIGHT);
         ViewportInputState viewportState =
             (viewportHovered ? ViewportInputState.Hovered : 0) |
             (workspace.ViewportVisible ? ViewportInputState.Visible : 0) |
@@ -281,6 +295,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             selection.SelectedEditorId,
             transformSettings.GridVisible,
             transformSettings.GridSpacing);
+        if (faceSnapSession?.Hit is MapStaticRayHit faceSnapHit)
+            EditorFaceSnapDebug.Add(viewportPresentation.DebugPrimitives, faceSnapHit);
         gpu.RenderOffscreen(target, new RenderFrame(
             camera.ToRenderCamera(),
             scene,
@@ -589,6 +605,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void TryExecute(Func<IEditorDocumentCommand> commandFactory, Guid? select = null)
     {
+        CancelFaceSnap("Cancelled face snap because the document changed.");
         try
         {
             IEditorDocumentCommand command = commandFactory();
@@ -632,6 +649,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void BuildViewport(SdlGpuOffscreenTarget viewport)
     {
+        if (faceSnapSession is not null &&
+            (selection.SelectedEditorId != faceSnapSession.EditorId || !faceSnapSession.IsDocumentCurrent))
+            CancelFaceSnap("Cancelled face snap because the selection or document changed.");
         BuildViewportToolbar();
         Vector2 available = ImguiNative.igGetContentRegionAvail();
         Vector2 imagePosition = ImguiNative.igGetCursorScreenPos();
@@ -665,7 +685,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             }
             ImguiNative.igEndDragDropTarget();
         }
-        HandleTransformHotkeys();
+        if (faceSnapSession is null)
+            HandleTransformHotkeys();
+
+        if (faceSnapSession is not null)
+        {
+            HandleFaceSnap(io->MousePos, imagePosition, available);
+            return;
+        }
 
         gizmoHovered = false;
         EditorEntityIdentity? selected = selection.Resolve(document!);
@@ -779,7 +806,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             string label = $"{EditorEntityTransforms.GetDisplayId(document, identity)}##{identity.EditorId:N}";
             bool isSelected = selection.SelectedEditorId == identity.EditorId;
             if (ImguiNative.igSelectable_Bool(label, isSelected, ImGuiSelectableFlags.None, default))
+            {
+                CancelFaceSnap("Cancelled face snap because the selection changed.");
                 selection.Select(document, identity.EditorId);
+            }
         }
     }
 
@@ -1034,6 +1064,133 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             };
             UpdateTransformSettings(updated);
         }
+
+        ImguiNative.igSameLine(0, 10);
+        bool canFaceSnap = selected is EditorEntityIdentity selectedIdentity &&
+            EditorEntityTransforms.HasSpatialTransform(selectedIdentity.Kind);
+        ImguiNative.igBeginDisabled(!canFaceSnap || manipulation.IsActive);
+        if (ImguiNative.igButton(faceSnapSession is null ? "Face Snap" : "Cancel Face Snap", new Vector2(116, 0)))
+        {
+            if (faceSnapSession is null && selected is EditorEntityIdentity targetIdentity)
+                BeginFaceSnap(targetIdentity);
+            else
+                CancelFaceSnap("Cancelled face snap.");
+        }
+        ImguiNative.igEndDisabled();
+
+        if (faceSnapSession is not null && selected is EditorEntityIdentity faceSnapIdentity)
+            BuildFaceSnapAlignmentControls(faceSnapIdentity);
+    }
+
+    private void BuildFaceSnapAlignmentControls(EditorEntityIdentity identity)
+    {
+        bool supportsAlignment = identity.Kind is not EditorEntityKind.LootPoint and not EditorEntityKind.NavigationWaypoint;
+        ImguiNative.igSameLine(0, 8);
+        byte align = faceSnapSettings.AlignmentEnabled && supportsAlignment ? (byte)1 : (byte)0;
+        ImguiNative.igBeginDisabled(!supportsAlignment);
+        if (ImguiNative.igCheckbox("Align", &align))
+            faceSnapSettings = faceSnapSettings with { AlignmentEnabled = align != 0 };
+        ImguiNative.igSameLine(0, 4);
+        string axisLabel = FaceSnapAxisLabel(faceSnapSettings.AlignmentAxis);
+        ImguiNative.igSetNextItemWidth(62);
+        if (ImguiNative.igBeginCombo("##FaceSnapAxis", axisLabel, ImGuiComboFlags.None))
+        {
+            foreach (EditorFaceSnapAxis axis in Enum.GetValues<EditorFaceSnapAxis>())
+            {
+                if (ImguiNative.igSelectable_Bool(
+                    FaceSnapAxisLabel(axis),
+                    faceSnapSettings.AlignmentAxis == axis,
+                    ImGuiSelectableFlags.None,
+                    default))
+                    faceSnapSettings = faceSnapSettings with { AlignmentAxis = axis };
+            }
+            ImguiNative.igEndCombo();
+        }
+        ImguiNative.igEndDisabled();
+    }
+
+    private static string FaceSnapAxisLabel(EditorFaceSnapAxis axis) => axis switch
+    {
+        EditorFaceSnapAxis.PositiveX => "+X",
+        EditorFaceSnapAxis.NegativeX => "-X",
+        EditorFaceSnapAxis.PositiveY => "+Y",
+        EditorFaceSnapAxis.NegativeY => "-Y",
+        EditorFaceSnapAxis.PositiveZ => "+Z",
+        EditorFaceSnapAxis.NegativeZ => "-Z",
+        _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+    };
+
+    private void BeginFaceSnap(EditorEntityIdentity identity)
+    {
+        MapStaticCollisionWorld? collisionWorld = null;
+        try
+        {
+            EditorPickTarget bounds = EditorViewportPresentationBuilder.CreatePickTarget(document!, meshCache!, identity);
+            collisionWorld = EditorFaceSnapCollisionWorldFactory.Create(document!, projectSession);
+            faceSnapSession = new EditorFaceSnapSession(document!, identity, bounds, collisionWorld);
+            collisionWorld = null;
+            ReleaseViewportInput();
+            log.Add($"Face snap started for {EditorEntityTransforms.GetDisplayId(document!, identity)}.");
+        }
+        catch (Exception ex)
+        {
+            collisionWorld?.Dispose();
+            ReportFaceSnapFailure("Could not start face snap", ex);
+        }
+    }
+
+    private void HandleFaceSnap(Vector2 mousePosition, Vector2 imagePosition, Vector2 imageSize)
+    {
+        if (faceSnapSession is null || !viewportHovered)
+            return;
+        try
+        {
+            EditorRay ray = EditorViewportPicking.CreateRay(
+                camera.ToRenderCamera(),
+                mousePosition.X - imagePosition.X,
+                mousePosition.Y - imagePosition.Y,
+                imageSize.X,
+                imageSize.Y);
+            faceSnapSession.TryPreview(ray, faceSnapSettings);
+            RebuildScene();
+            if (ImguiNative.igIsMouseClicked_Bool(ImGuiMouseButton.Left, false) && faceSnapSession.HasPreview)
+            {
+                Guid editorId = faceSnapSession.EditorId;
+                bool committed = faceSnapSession.Commit();
+                faceSnapSession = null;
+                RebuildScene();
+                if (committed)
+                {
+                    EditorEntityIdentity identity = document!.GetIdentity(editorId);
+                    log.Add($"Face snapped {EditorEntityTransforms.GetDisplayId(document, identity)}.");
+                    RefreshValidation();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportFaceSnapFailure("Face snap failed", ex);
+        }
+    }
+
+    private void CancelFaceSnap(string message)
+    {
+        if (faceSnapSession is null)
+            return;
+        faceSnapSession.Cancel();
+        faceSnapSession = null;
+        RebuildScene();
+        log.Add(message);
+    }
+
+    private void ReportFaceSnapFailure(string prefix, Exception exception)
+    {
+        faceSnapSession?.Cancel();
+        faceSnapSession = null;
+        RebuildScene();
+        validationMessage = $"{prefix}: {exception.Message}";
+        log.Add(validationMessage);
+        logger.LogError(exception, "{FaceSnapFailure}", validationMessage);
     }
 
     private void ToolbarOperation(
@@ -1175,6 +1332,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         ModelAssetManifest candidateManifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
         StaticMeshAssetCache candidateCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
         StaticMeshScene candidateScene = CreateScene(candidateDocument.Map, candidateCache);
+        CancelFaceSnap("Cancelled face snap because the document changed.");
         DisposeAssetPreviewProvider();
         projectSession = null;
         document = candidateDocument;
@@ -1195,6 +1353,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         EditorProjectSession candidate = EditorProjectSession.Load(root);
         StaticMeshAssetCache candidateCache = StaticMeshAssetCache.LoadSource(candidate.Project.Paths.Sources, candidate.Project.AssetManifest);
         StaticMeshScene candidateScene = CreateScene(candidate.Document.Map, candidateCache);
+        CancelFaceSnap("Cancelled face snap because the document changed.");
         DisposeAssetPreviewProvider();
         projectSession = candidate;
         document = candidate.Document;
@@ -1308,6 +1467,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (string.Equals(value.Trim(), document.Map.Name, StringComparison.Ordinal))
             return;
 
+        CancelFaceSnap("Cancelled face snap because the document changed.");
         document.Execute(new SetMapNameCommand(document.Map.Name, value));
         SetNameBuffer(document.Map.Name);
         RefreshValidation();
@@ -1316,6 +1476,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void Undo()
     {
+        CancelFaceSnap("Cancelled face snap before undo.");
         if (document?.Undo() != true)
             return;
 
@@ -1329,6 +1490,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void Redo()
     {
+        CancelFaceSnap("Cancelled face snap before redo.");
         if (document?.Redo() != true)
             return;
 
@@ -1342,6 +1504,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void RequestTransition(EditorDocumentTransition transition)
     {
+        CancelFaceSnap("Cancelled face snap because a document transition was requested.");
         ApplyDocumentWorkflowResult(documentWorkflow.Request(transition, document?.IsDirty == true));
     }
 
@@ -1357,6 +1520,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     {
         if (document is null)
             return;
+
+        CancelFaceSnap("Cancelled face snap before save.");
 
         if (projectSession is not null)
         {
@@ -1875,6 +2040,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     public void Dispose()
     {
+        faceSnapSession?.Dispose();
+        faceSnapSession = null;
         ReleaseViewportInput();
         DisposeAssetPreviewProvider();
         target?.Dispose();

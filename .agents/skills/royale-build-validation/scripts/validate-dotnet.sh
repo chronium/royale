@@ -18,7 +18,7 @@ fi
 
 solution="${solutions[0]}"
 echo "Building $solution"
-dotnet build "$solution" -m:1 --no-restore
+dotnet build "$solution" --no-restore
 
 echo "Testing $solution"
-dotnet test "$solution" -m:1 --no-restore
+dotnet test "$solution" --no-restore

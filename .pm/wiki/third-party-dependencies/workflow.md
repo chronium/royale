@@ -1,7 +1,7 @@
 ---
 title: Third-Party Dependency Workflow
 createdAt: 2026-07-05T16:15:06.4438470Z
-modifiedAt: 2026-07-12T19:09:04.2653930Z
+modifiedAt: 2026-07-13T09:23:20.2704470Z
 ---
 
 ## Fetch Scripts
@@ -69,8 +69,8 @@ dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
 This avoids requiring Android workloads for the SDL3-CS Android target during desktop client work. After restore has produced assets files, the normal no-restore build and test commands remain:
 
 ```sh
-dotnet build Royale.slnx -m:1 --no-restore
-dotnet test Royale.slnx -m:1 --no-restore
+dotnet build Royale.slnx --no-restore
+dotnet test Royale.slnx --no-restore
 ```
 
 When a client project consumes SDL3-CS from source by project reference, it must explicitly copy the runtime-native SDL library from `thirdparty/repos/SDL3-CS/native/<rid>/` into the client output. Project references build the managed binding but do not automatically place the native package asset beside the consuming executable.
@@ -167,7 +167,7 @@ Box3D runtime-native copy rules live in `Royale.Box3D`, so clients, servers, and
 For Linux x64 validation from an Apple Silicon host, use OrbStack Docker with an amd64 .NET SDK container:
 
 ```sh
-docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work mcr.microsoft.com/dotnet/sdk:10.0 sh -lc 'sh thirdparty/build-box3d-linux.sh && dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1 && dotnet build Royale.slnx -m:1 --no-restore && dotnet test Royale.slnx -m:1 --no-restore'
+docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work mcr.microsoft.com/dotnet/sdk:10.0 sh -lc 'sh thirdparty/build-box3d-linux.sh && dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1 && dotnet build Royale.slnx --no-restore && dotnet test Royale.slnx --no-restore'
 ```
 
 The SDK image may need CMake and C/C++ build tools installed before running `build-box3d-linux.sh`. Build the relevant Box3D artifact before running solution tests on a fresh checkout or after cleaning ignored build outputs.

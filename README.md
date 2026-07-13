@@ -88,13 +88,13 @@ dotnet restore Royale.slnx -p:CI_DONT_TARGET_ANDROID=1
 Build:
 
 ```sh
-dotnet build Royale.slnx -m:1 --no-restore
+dotnet build Royale.slnx --no-restore
 ```
 
 Test:
 
 ```sh
-dotnet test Royale.slnx -m:1 --no-restore
+dotnet test Royale.slnx --no-restore
 ```
 
 Verify formatting for the editor sources and tests:
@@ -105,7 +105,7 @@ dotnet format Royale.slnx --no-restore --verify-no-changes --include src/Royale.
 
 Apply the formatting policy to that scope with the same command after removing `--verify-no-changes`.
 
-The `-m:1 --no-restore` flags are intentional for Codex/sandboxed sessions and are also fine for local deterministic builds after restore.
+The `--no-restore` flag is intentional after restore.
 
 ## Running The Client
 

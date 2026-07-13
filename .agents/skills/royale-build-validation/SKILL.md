@@ -10,8 +10,8 @@ description: Build, test, restore, run, package, or validate Royale. Use for .NE
 Dependencies already restored:
 
 ```bash
-dotnet build Royale.slnx -m:1 --no-restore
-dotnet test Royale.slnx -m:1 --no-restore
+dotnet build Royale.slnx --no-restore
+dotnet test Royale.slnx --no-restore
 ```
 
 Restore, including fetched SDL3-CS without Android workloads:

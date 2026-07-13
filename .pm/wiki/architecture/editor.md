@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T05:29:31.2600510Z
+modifiedAt: 2026-07-13T08:16:32.6996040Z
 ---
 
 ## Purpose
@@ -103,7 +103,11 @@ Startup accepts `--map-file <path>` for an explicit file. For `--map <id>`, the 
 
 Save validates the in-memory map, checks the current source SHA-256 fingerprint against the loaded or last-saved fingerprint, writes a uniquely named temporary file in the destination directory, flushes it to disk, reloads and validates the temporary output, and atomically moves it over the destination. Failures preserve the original and remove the temporary file. Save As requires a `.json` filename whose stem exactly matches the unchanged runtime map ID. Packaged origins cannot be saved in place.
 
-The title is `Royale Editor - <filename>` with `*` while dirty. File provides Open, Save, and Save As; Edit provides Undo and Redo. Shortcuts are Cmd/Ctrl+O, Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Z, and Cmd/Ctrl+Shift+Z. Open and desktop close requests with unsaved changes show Save / Discard / Cancel. A failed save leaves the document open and dirty and reports the error in Validation and Log. New remains disabled until a default-new-map contract is defined.
+The title is `Royale Editor - <filename>` with `*` while dirty. File provides Open, Save, and Save As; Edit provides Undo and Redo. Shortcuts are Cmd/Ctrl+O, Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Z, and Cmd/Ctrl+Shift+Z. Open and desktop close requests with unsaved changes show Save / Discard / Cancel. A failed save leaves the document open and dirty and reports the error in Validation and Log.
+
+`DEBT-009` routes New Project, Open Project, Open Map JSON, Convert Map to Project, and Close through a deterministic `EditorDocumentWorkflow` owned by the Documents domain. The workflow is idle, awaiting an unsaved decision, or awaiting save completion; it tells the application to show the prompt, save, continue the original transition, or do nothing. Clean documents continue immediately. For dirty documents, Save continues only after persistence succeeds, Discard continues without saving, and Cancel abandons the transition. Save failure and Save As cancellation return to the unsaved prompt with the original transition retained. Repeated requests cannot replace a transition already in progress.
+
+SDL dialogs, ImGui popup rendering, persistence, logging, and host exit remain application concerns. New Project and Convert use separate destination-dialog state, which is cleared on cancellation, dialog error, completion, or operation failure. Cancelled or failed Open, New, and Convert operations leave the active document and its presentation resources intact.
 
 `BUG-012` defines display-name completion as either Enter submission or deactivation after editing, so clicking elsewhere commits one document command and immediately updates dirty state. Cmd/Ctrl document shortcuts are resolved from SDL key events and consumed before ImGui text editing; Undo and Redo therefore operate on document history consistently regardless of text-field focus.
 

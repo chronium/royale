@@ -88,6 +88,7 @@ public sealed class ProjectLifecycleTests
         session.Document.Execute(new SetMapNameCommand("Before", "After"));
         File.AppendAllText(project.Paths.Manifest, " ");
         Assert.Throws<IOException>(session.Save);
+        Assert.True(session.Document.IsDirty);
         Assert.Equal("Before", RoyaleProjectLoader.Load(project.Paths.Root).Map.Name);
 
         Directory.Delete(root, true);

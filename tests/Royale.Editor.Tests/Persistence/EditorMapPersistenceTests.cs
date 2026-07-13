@@ -52,6 +52,8 @@ public sealed class EditorMapPersistenceTests
 
         Assert.Throws<IOException>(() => EditorMapPersistence.Save(document, path, true));
         Assert.True(document.IsDirty);
+        Assert.Equal("Edited", document.Map.Name);
+        Assert.NotEqual("Edited", MapCatalog.LoadFile(path).Name);
         Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
         Directory.Delete(directory, true);
     }

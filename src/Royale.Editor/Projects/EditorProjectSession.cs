@@ -28,9 +28,19 @@ public sealed class EditorProjectSession
     {
         RequireUnchanged(Project.Paths.Manifest, ManifestFingerprint, "project manifest");
         RequireUnchanged(Project.Paths.AssetManifest, AssetManifestFingerprint, "source asset manifest");
-        EditorMapPersistence.Save(Document, Project.Paths.Map, checkExternalChange: true);
-        Project = RoyaleProjectLoader.Load(Project.Paths.Root);
-        RefreshFingerprints();
+        string mapFingerprint = EditorMapPersistence.Save(
+            Document,
+            Project.Paths.Map,
+            checkExternalChange: true,
+            markDocumentSaved: false);
+        LoadedRoyaleProject project = RoyaleProjectLoader.Load(Project.Paths.Root);
+        string manifestFingerprint = EditorMapPersistence.Fingerprint(project.Paths.Manifest);
+        string assetManifestFingerprint = EditorMapPersistence.Fingerprint(project.Paths.AssetManifest);
+
+        Project = project;
+        ManifestFingerprint = manifestFingerprint;
+        AssetManifestFingerprint = assetManifestFingerprint;
+        Document.MarkSaved(Project.Paths.Map, mapFingerprint);
     }
 
     public void ImportAssets(string destinationFolder, IReadOnlyList<PendingAssetImport> pending)

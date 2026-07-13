@@ -20,7 +20,11 @@ public static class EditorMapPersistence
         return null;
     }
 
-    public static void Save(EditorMapDocument document, string path, bool checkExternalChange)
+    public static string Save(
+        EditorMapDocument document,
+        string path,
+        bool checkExternalChange,
+        bool markDocumentSaved = true)
     {
         ArgumentNullException.ThrowIfNull(document);
         string fullPath = Path.GetFullPath(path);
@@ -46,7 +50,10 @@ public static class EditorMapPersistence
             }
             MapCatalog.LoadFile(temporary, document.Map.Id);
             File.Move(temporary, fullPath, true);
-            document.MarkSaved(fullPath, Fingerprint(fullPath));
+            string fingerprint = Fingerprint(fullPath);
+            if (markDocumentSaved)
+                document.MarkSaved(fullPath, fingerprint);
+            return fingerprint;
         }
         finally
         {

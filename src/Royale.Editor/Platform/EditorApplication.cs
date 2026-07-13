@@ -75,7 +75,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private Action? pendingAssetOperation;
     private string? importError;
     private bool closeImportModalRequested;
-    private PendingOperation pendingOperation;
+    private readonly EditorDocumentWorkflow documentWorkflow = new();
+    private ProjectDestinationOperation projectDestinationOperation;
     private EditorKeyboardShortcut pendingShortcut;
     private string validationMessage = "Runtime map loading: successful";
     private EditorTransformSettings transformSettings;
@@ -249,11 +250,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 break;
             case SDL_EventType.SDL_EVENT_QUIT:
             case SDL_EventType.SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-                if (document?.IsDirty == true)
-                {
-                    host.CancelExit();
-                    RequestPending(PendingOperation.Close);
-                }
+                host.CancelExit();
+                RequestTransition(EditorDocumentTransition.Close);
                 break;
         }
     }
@@ -459,13 +457,13 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             return;
 
         if (ImguiNative.igMenuItem_Bool("New Project", "", false, true))
-            RequestTransition(PendingOperation.NewProject);
+            RequestTransition(EditorDocumentTransition.NewProject);
         if (ImguiNative.igMenuItem_Bool("Open Project", "Cmd/Ctrl+O", false, true))
-            RequestTransition(PendingOperation.OpenProject);
+            RequestTransition(EditorDocumentTransition.OpenProject);
         if (ImguiNative.igMenuItem_Bool("Open Map JSON", "", false, true))
-            RequestTransition(PendingOperation.OpenMap);
+            RequestTransition(EditorDocumentTransition.OpenMap);
         if (ImguiNative.igMenuItem_Bool("Convert Map to Project", "", false, projectSession is null && document is not null))
-            RequestTransition(PendingOperation.Convert);
+            RequestTransition(EditorDocumentTransition.Convert);
         if (ImguiNative.igMenuItem_Bool("Save", "Cmd/Ctrl+S", false, document is not null))
             Save(false);
         if (ImguiNative.igMenuItem_Bool("Save As", "Cmd/Ctrl+Shift+S", false, document is not null && projectSession is null))
@@ -746,12 +744,12 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void LoadDocument(string path, bool requiresSaveAs)
     {
-        DisposeAssetPreviewProvider();
         EditorMapDocument candidateDocument = EditorMapPersistence.Load(path, requiresSaveAs);
         string manifestPath = Path.Combine(AppContext.BaseDirectory, "assets", ContentCatalog.ModelAssetManifestFileName);
         ModelAssetManifest candidateManifest = ModelAssetManifestLoader.LoadGenerated(manifestPath);
         StaticMeshAssetCache candidateCache = StaticMeshAssetCache.Load(AppContext.BaseDirectory);
         StaticMeshScene candidateScene = CreateScene(candidateDocument.Map, candidateCache);
+        DisposeAssetPreviewProvider();
         projectSession = null;
         document = candidateDocument;
         manifest = candidateManifest;
@@ -768,10 +766,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void LoadProject(string root, bool recordRecent)
     {
-        DisposeAssetPreviewProvider();
         EditorProjectSession candidate = EditorProjectSession.Load(root);
         StaticMeshAssetCache candidateCache = StaticMeshAssetCache.LoadSource(candidate.Project.Paths.Sources, candidate.Project.AssetManifest);
         StaticMeshScene candidateScene = CreateScene(candidate.Document.Map, candidateCache);
+        DisposeAssetPreviewProvider();
         projectSession = candidate;
         document = candidate.Document;
         manifest = candidate.Project.AssetManifest;
@@ -910,31 +908,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         log.Add($"Redo: {document.UndoDescription}.");
     }
 
-    private void RequestTransition(PendingOperation operation)
+    private void RequestTransition(EditorDocumentTransition transition)
     {
-        if (document?.IsDirty == true)
-            RequestPending(operation);
-        else
-            ContinueOperation(operation);
+        ApplyDocumentWorkflowResult(documentWorkflow.Request(transition, document?.IsDirty == true));
     }
 
     private void RequestClose()
     {
-        if (document?.IsDirty == true)
-        {
-            host.CancelExit();
-            RequestPending(PendingOperation.Close);
-        }
-        else
-        {
-            host.RequestExit();
-        }
-    }
-
-    private void RequestPending(PendingOperation operation)
-    {
-        pendingOperation = operation;
-        modalOpenRequested = true;
+        host.CancelExit();
+        RequestTransition(EditorDocumentTransition.Close);
     }
 
     private void ShowOpenMapDialog() => dialogs.ShowOpenJsonDialog(host.Window!.NativeHandle);
@@ -951,13 +933,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 projectSession.Save();
                 validationMessage = "Project map validation and persistence: successful";
                 log.Add($"Saved project map to {projectSession.Project.Paths.Map}.");
-                ContinuePending();
+                ApplyDocumentWorkflowResult(documentWorkflow.SaveSucceeded());
             }
             catch (Exception ex)
             {
                 validationMessage = ex.Message;
                 log.Add($"Save failed: {ex.Message}");
                 logger.LogError(ex, "Editor project save failed.");
+                ApplyDocumentWorkflowResult(documentWorkflow.SaveFailed());
             }
             return;
         }
@@ -978,7 +961,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             EditorMapPersistence.Save(document!, path, checkExternal);
             validationMessage = "Map validation and persistence: successful";
             log.Add($"Saved map to {path}.");
-            ContinuePending();
+            ApplyDocumentWorkflowResult(documentWorkflow.SaveSucceeded());
             return true;
         }
         catch (Exception ex)
@@ -986,6 +969,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             validationMessage = ex.Message;
             log.Add($"Save failed: {ex.Message}");
             logger.LogError(ex, "Editor map save failed.");
+            ApplyDocumentWorkflowResult(documentWorkflow.SaveFailed());
             return false;
         }
     }
@@ -996,13 +980,23 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         {
             if (result.Error is not null)
             {
+                if (result.Kind == EditorFileDialogKind.DestinationParent)
+                    projectDestinationOperation = ProjectDestinationOperation.None;
+                if (result.Kind == EditorFileDialogKind.SaveMap)
+                    ApplyDocumentWorkflowResult(documentWorkflow.SaveFailed());
                 validationMessage = result.Error;
                 log.Add($"File dialog failed: {result.Error}");
                 continue;
             }
 
             if (result.Path is null)
+            {
+                if (result.Kind == EditorFileDialogKind.DestinationParent)
+                    projectDestinationOperation = ProjectDestinationOperation.None;
+                if (result.Kind == EditorFileDialogKind.SaveMap)
+                    ApplyDocumentWorkflowResult(documentWorkflow.SaveAsCancelled());
                 continue;
+            }
 
             if (result.Kind == EditorFileDialogKind.ImportModels)
             {
@@ -1040,17 +1034,26 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                     LoadProject(result.Path, recordRecent: true);
                 else if (result.Kind == EditorFileDialogKind.DestinationParent)
                 {
-                    LoadedRoyaleProject created = pendingOperation == PendingOperation.NewProjectDestination
-                        ? RoyaleProjectFactory.Create(result.Path, BufferText(newProjectIdBuffer), BufferText(newProjectNameBuffer))
-                        : RoyaleProjectFactory.Convert(document!.SourcePath!, result.Path);
+                    ProjectDestinationOperation destinationOperation = projectDestinationOperation;
+                    projectDestinationOperation = ProjectDestinationOperation.None;
+                    LoadedRoyaleProject created = destinationOperation switch
+                    {
+                        ProjectDestinationOperation.NewProject => RoyaleProjectFactory.Create(
+                            result.Path,
+                            BufferText(newProjectIdBuffer),
+                            BufferText(newProjectNameBuffer)),
+                        ProjectDestinationOperation.Convert => RoyaleProjectFactory.Convert(document!.SourcePath!, result.Path),
+                        _ => throw new InvalidOperationException("A project destination operation was not pending."),
+                    };
                     LoadProject(created.Paths.Root, recordRecent: true);
                 }
                 else
                     LoadDocument(result.Path, false);
-                pendingOperation = PendingOperation.None;
             }
             catch (Exception ex)
             {
+                if (result.Kind == EditorFileDialogKind.DestinationParent)
+                    projectDestinationOperation = ProjectDestinationOperation.None;
                 validationMessage = ex.Message;
                 log.Add($"Project operation failed: {ex.Message}");
                 logger.LogError(ex, "Editor project operation failed.");
@@ -1058,31 +1061,41 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         }
     }
 
-    private void ContinuePending()
+    private void ApplyDocumentWorkflowResult(EditorDocumentWorkflowResult result)
     {
-        PendingOperation operation = pendingOperation;
-        pendingOperation = PendingOperation.None;
-        ContinueOperation(operation);
+        switch (result.Action)
+        {
+            case EditorDocumentWorkflowAction.ShowUnsavedPrompt:
+                modalOpenRequested = true;
+                break;
+            case EditorDocumentWorkflowAction.SaveDocument:
+                Save(saveAs: false);
+                break;
+            case EditorDocumentWorkflowAction.ContinueTransition:
+                ContinueTransition(result.Transition
+                    ?? throw new InvalidOperationException("The workflow did not specify a transition to continue."));
+                break;
+        }
     }
 
-    private void ContinueOperation(PendingOperation operation)
+    private void ContinueTransition(EditorDocumentTransition transition)
     {
-        switch (operation)
+        switch (transition)
         {
-            case PendingOperation.OpenProject:
+            case EditorDocumentTransition.OpenProject:
                 dialogs.ShowOpenProjectDialog(host.Window!.NativeHandle);
                 break;
-            case PendingOperation.OpenMap:
+            case EditorDocumentTransition.OpenMap:
                 ShowOpenMapDialog();
                 break;
-            case PendingOperation.Convert:
-                pendingOperation = PendingOperation.ConvertDestination;
+            case EditorDocumentTransition.Convert:
+                projectDestinationOperation = ProjectDestinationOperation.Convert;
                 dialogs.ShowDestinationParentDialog(host.Window!.NativeHandle);
                 break;
-            case PendingOperation.NewProject:
+            case EditorDocumentTransition.NewProject:
                 newProjectModalRequested = true;
                 break;
-            case PendingOperation.Close:
+            case EditorDocumentTransition.Close:
                 host.RequestExit();
                 break;
         }
@@ -1109,14 +1122,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         bool valid = BufferText(newProjectIdBuffer).Length > 0 && BufferText(newProjectNameBuffer).Length > 0;
         if (ImguiNative.igButton("Choose Parent", new Vector2(120, 0)) && valid)
         {
-            pendingOperation = PendingOperation.NewProjectDestination;
+            projectDestinationOperation = ProjectDestinationOperation.NewProject;
             dialogs.ShowDestinationParentDialog(host.Window!.NativeHandle);
             ImguiNative.igCloseCurrentPopup();
         }
         ImguiNative.igSameLine(0, -1);
         if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
         {
-            pendingOperation = PendingOperation.None;
+            projectDestinationOperation = ProjectDestinationOperation.None;
             ImguiNative.igCloseCurrentPopup();
         }
         ImguiNative.igEndPopup();
@@ -1337,7 +1350,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
     private void BuildUnsavedModal()
     {
-        if (pendingOperation == PendingOperation.None)
+        if (documentWorkflow.State != EditorDocumentWorkflowState.AwaitingUnsavedDecision)
             return;
 
         if (modalOpenRequested)
@@ -1351,20 +1364,23 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         Text("Save changes before continuing?");
         if (ImguiNative.igButton("Save", new Vector2(90, 0)))
-            Save(false);
+        {
+            ImguiNative.igCloseCurrentPopup();
+            ApplyDocumentWorkflowResult(documentWorkflow.Save());
+        }
 
         ImguiNative.igSameLine(0, -1);
         if (ImguiNative.igButton("Discard", new Vector2(90, 0)))
         {
             ImguiNative.igCloseCurrentPopup();
-            ContinuePending();
+            ApplyDocumentWorkflowResult(documentWorkflow.Discard());
         }
 
         ImguiNative.igSameLine(0, -1);
         if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
         {
-            pendingOperation = PendingOperation.None;
             ImguiNative.igCloseCurrentPopup();
+            ApplyDocumentWorkflowResult(documentWorkflow.Cancel());
         }
 
         ImguiNative.igEndPopup();
@@ -1382,7 +1398,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         switch (shortcut)
         {
             case EditorKeyboardShortcut.Open:
-                RequestTransition(PendingOperation.OpenProject);
+                RequestTransition(EditorDocumentTransition.OpenProject);
                 break;
             case EditorKeyboardShortcut.Save:
                 Save(false);
@@ -1435,15 +1451,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         host.Dispose();
     }
 
-    private enum PendingOperation
+    private enum ProjectDestinationOperation
     {
         None,
-        OpenProject,
-        OpenMap,
-        Convert,
-        ConvertDestination,
         NewProject,
-        NewProjectDestination,
-        Close,
+        Convert,
     }
 }

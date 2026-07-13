@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-12T19:35:25.3069590Z
+modifiedAt: 2026-07-13T04:57:40.9018590Z
 ---
 
 ## Purpose
@@ -155,6 +155,12 @@ Convert Map to Project retains the map ID and display name. It discovers the nea
 A project session owns the loaded project, mutable map document, source manifest, resolved paths, and SHA-256 fingerprints for `project.json`, the source manifest, and map. Candidate projects load and build their source-model mesh cache and scene completely before replacing the active session. Generated collision or render outputs are not required for editor presentation. The Inspector exposes project root, map, source manifest, generated client/server, and thumbnail-cache paths; the window title uses the package name and dirty marker.
 
 Project Save is in-place only. It rejects external changes to any authoritative fingerprint, atomically saves and validates the map, reloads project metadata, and refreshes fingerprints. Standalone JSON retains Save As. New, Open Project, Open Map JSON, Convert, and Close all pass through Save / Discard / Cancel protection, and failed creation, opening, conversion, validation, or save leaves the current document intact.
+
+## Grid and Transform Snapping
+
+`EDITOR-005` adds a toggleable world-space construction grid on the XZ plane at `Y = 0`. Grid visibility and transform snapping are independent controls. Translation snapping uses the configurable grid spacing; rotation and scale use independently configurable increments.
+
+The defaults are 1 metre for translation, 15 degrees for rotation, and 0.1 for scale. Grid visibility, snapping toggles, and increments are per-user editor preferences stored outside project source, so they persist across sessions without changing map or project data. A completed ImGuizmo manipulation remains one undoable document command regardless of snapping.
 
 ## Face Snapping
 

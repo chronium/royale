@@ -45,6 +45,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly EditorTransformSettingsStore transformSettingsStore = new();
     private readonly IEditorFileDialogService dialogs;
     private readonly EditorUtf8InputBuffer nameInput = new(256);
+    private readonly EditorUtf8InputBuffer entityIdInput = new(256);
     private readonly byte[] newProjectIdBuffer = new byte[128];
     private readonly byte[] newProjectNameBuffer = new byte[256];
     private readonly byte[] assetFolderNameBuffer = new byte[128];
@@ -85,6 +86,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private bool gizmoUsing;
     private bool gizmoHovered;
     private bool mapNameEdited;
+    private Guid? inspectorEditorId;
+    private long inspectorRevision = -1;
+    private long rootInspectorRevision = -1;
+    private object? inspectorDefinition;
+    private MapBounds inspectorBounds = new();
+    private SafeZoneDefinition inspectorSafeZone = new();
+    private Guid? pendingDeleteEditorId;
+    private bool deleteModalRequested;
+    private Guid? deletedSelectionForUndo;
 
     public EditorApplication(EditorLaunchOptions options, ILogger<EditorApplication> logger, IEditorFileDialogService? dialogs = null)
     {
@@ -331,17 +341,32 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         BuildNewProjectModal();
         BuildImportModal();
         BuildFolderModal();
+        BuildDeleteModal();
     }
 
     private void BuildHierarchy()
     {
         if (document is null)
             return;
+        EditorEntityIdentity? selected = selection.Resolve(document);
+        ImguiNative.igBeginDisabled(selected is null || selected.Value.Kind == EditorEntityKind.NavigationLink);
+        if (ImguiNative.igButton("Duplicate", new Vector2(82, 0)) && selected is EditorEntityIdentity duplicate)
+            DuplicateEntity(duplicate);
+        ImguiNative.igEndDisabled();
+        ImguiNative.igSameLine(0, 6);
+        ImguiNative.igBeginDisabled(selected is null);
+        if (ImguiNative.igButton("Delete", new Vector2(70, 0)) && selected is EditorEntityIdentity deleted)
+        {
+            pendingDeleteEditorId = deleted.EditorId;
+            deleteModalRequested = true;
+        }
+        ImguiNative.igEndDisabled();
         Group("Static Boxes", EditorEntityKind.StaticBox);
         Group("Static Models", EditorEntityKind.StaticModel);
         Group("Spawn Points", EditorEntityKind.SpawnPoint);
         Group("Loot Points", EditorEntityKind.LootPoint);
         Group("Navigation Nodes", EditorEntityKind.NavigationWaypoint);
+        Group("Navigation Links", EditorEntityKind.NavigationLink);
     }
 
     private void BuildInspector(GameMap map)
@@ -349,17 +374,15 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         EditorEntityIdentity? selected = document is null ? null : selection.Resolve(document);
         if (selected is EditorEntityIdentity identity)
         {
-            EditorEntityTransform transform = EditorEntityTransforms.Get(document!, identity);
+            SynchronizeInspector(identity);
             Text($"Selected: {identity.Kind}");
-            Text($"ID: {EditorEntityTransforms.GetDisplayId(document!, identity)}");
-            Text($"Position: {Format(transform.Position)}");
-            if (EditorEntityTransforms.GetCapabilities(identity.Kind).HasFlag(EditorTransformCapabilities.Rotate))
-                Text($"Rotation: {Format(transform.RotationDegrees)} degrees");
-            if (identity.Kind == EditorEntityKind.StaticBox)
-                Text($"Size: {Format(transform.ScaleOrSize)}");
-            else if (identity.Kind == EditorEntityKind.StaticModel)
-                Text($"Scale: {Format(transform.ScaleOrSize)}");
+            BuildEntityInspector(identity);
             ImguiNative.igSeparator();
+        }
+        else
+        {
+            inspectorEditorId = null;
+            inspectorDefinition = null;
         }
 
         Text($"Map ID: {map.Id}");
@@ -381,12 +404,27 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (nameInput.WasTruncated)
             TextWrapped(MapNameTruncationWarning);
 
-        MapVector3 min = map.WorldBounds.Min;
-        MapVector3 max = map.WorldBounds.Max;
-        MapVector3 zone = map.SafeZone.Center;
-        Text($"Bounds min: {min.X:0.##}, {min.Y:0.##}, {min.Z:0.##}");
-        Text($"Bounds max: {max.X:0.##}, {max.Y:0.##}, {max.Z:0.##}");
-        Text($"Safe zone: {zone.X:0.##}, {zone.Y:0.##}, {zone.Z:0.##}; r {map.SafeZone.Radius:0.##}");
+        SynchronizeRootInspector();
+        Vector3 boundsMin = ToUi(inspectorBounds.Min);
+        if (ImguiNative.igDragFloat3("Bounds minimum", &boundsMin, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
+            inspectorBounds = inspectorBounds with { Min = ToMap(boundsMin) };
+        if (ImguiNative.igIsItemDeactivatedAfterEdit())
+            TryExecute(() => new SetWorldBoundsCommand(map.WorldBounds, inspectorBounds));
+        Vector3 boundsMax = ToUi(inspectorBounds.Max);
+        if (ImguiNative.igDragFloat3("Bounds maximum", &boundsMax, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
+            inspectorBounds = inspectorBounds with { Max = ToMap(boundsMax) };
+        if (ImguiNative.igIsItemDeactivatedAfterEdit())
+            TryExecute(() => new SetWorldBoundsCommand(map.WorldBounds, inspectorBounds));
+        Vector3 safeCenter = ToUi(inspectorSafeZone.Center);
+        if (ImguiNative.igDragFloat3("Safe-zone centre", &safeCenter, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
+            inspectorSafeZone = inspectorSafeZone with { Center = ToMap(safeCenter) };
+        if (ImguiNative.igIsItemDeactivatedAfterEdit())
+            TryExecute(() => new SetSafeZoneCommand(map.SafeZone, inspectorSafeZone));
+        float safeRadius = inspectorSafeZone.Radius;
+        if (ImguiNative.igDragFloat("Safe-zone radius", &safeRadius, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
+            inspectorSafeZone = inspectorSafeZone with { Radius = safeRadius };
+        if (ImguiNative.igIsItemDeactivatedAfterEdit())
+            TryExecute(() => new SetSafeZoneCommand(map.SafeZone, inspectorSafeZone));
 
         EditorMapSummary summary = EditorMapSummary.Create(map);
         Text($"Boxes {summary.StaticBoxes}; models {summary.StaticModels}");
@@ -409,6 +447,181 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             TextWrapped(MapNameTruncationWarning);
         Text("Model manifest loading: successful");
         Text($"Map content: {map.StaticBoxes.Count + map.StaticModels.Count} static objects");
+    }
+
+    private void SynchronizeInspector(EditorEntityIdentity identity)
+    {
+        if (inspectorEditorId == identity.EditorId && inspectorRevision == document!.Revision)
+            return;
+        inspectorEditorId = identity.EditorId;
+        inspectorRevision = document!.Revision;
+        inspectorDefinition = document.GetDefinition(identity.EditorId);
+        string id = inspectorDefinition switch
+        {
+            StaticBoxDefinition value => value.Id,
+            StaticModelDefinition value => value.Id,
+            MapSpawnPoint value => value.Id,
+            MapLootPoint value => value.Id,
+            MapNavigationWaypoint value => value.Id,
+            _ => string.Empty,
+        };
+        entityIdInput.SetValue(id);
+    }
+
+    private void SynchronizeRootInspector()
+    {
+        if (rootInspectorRevision == document!.Revision)
+            return;
+        rootInspectorRevision = document.Revision;
+        inspectorBounds = document.Map.WorldBounds;
+        inspectorSafeZone = document.Map.SafeZone;
+    }
+
+    private void BuildEntityInspector(EditorEntityIdentity identity)
+    {
+        if (identity.Kind != EditorEntityKind.NavigationLink)
+        {
+            bool submitted;
+            fixed (byte* buffer = entityIdInput.Buffer)
+                submitted = ImguiNative.igInputText("ID", buffer, (uint)entityIdInput.Capacity, ImGuiInputTextFlags.EnterReturnsTrue, null, null);
+            if (submitted || ImguiNative.igIsItemDeactivatedAfterEdit())
+            {
+                inspectorDefinition = inspectorDefinition switch
+                {
+                    StaticBoxDefinition value => value with { Id = entityIdInput.Value },
+                    StaticModelDefinition value => value with { Id = entityIdInput.Value },
+                    MapSpawnPoint value => value with { Id = entityIdInput.Value },
+                    MapLootPoint value => value with { Id = entityIdInput.Value },
+                    MapNavigationWaypoint value => value with { Id = entityIdInput.Value },
+                    _ => inspectorDefinition,
+                };
+                CommitEntityDefinition(identity);
+            }
+        }
+
+        switch (inspectorDefinition)
+        {
+            case StaticBoxDefinition box:
+                EditVector("Position", box.Position, value => inspectorDefinition = box with { Position = value }, identity);
+                box = (StaticBoxDefinition)inspectorDefinition;
+                EditVector("Rotation", box.RotationEuler, value => inspectorDefinition = box with { RotationEuler = value }, identity);
+                box = (StaticBoxDefinition)inspectorDefinition;
+                EditVector("Size", box.Size, value => inspectorDefinition = box with { Size = value }, identity);
+                break;
+            case StaticModelDefinition model:
+                if (ImguiNative.igBeginCombo("Asset", model.AssetId, ImGuiComboFlags.None))
+                {
+                    foreach (ModelAssetDefinition candidate in manifest!.Assets.Where(value => value.Render is not null).OrderBy(value => value.Id, StringComparer.Ordinal))
+                    {
+                        if (ImguiNative.igSelectable_Bool(candidate.Id, candidate.Id == model.AssetId, ImGuiSelectableFlags.None, default))
+                        {
+                            inspectorDefinition = model with { AssetId = candidate.Id };
+                            CommitEntityDefinition(identity);
+                        }
+                    }
+                    ImguiNative.igEndCombo();
+                }
+                model = (StaticModelDefinition)inspectorDefinition;
+                EditVector("Position", model.Position, value => inspectorDefinition = model with { Position = value }, identity);
+                model = (StaticModelDefinition)inspectorDefinition;
+                EditVector("Rotation", model.RotationEuler, value => inspectorDefinition = model with { RotationEuler = value }, identity);
+                model = (StaticModelDefinition)inspectorDefinition;
+                EditVector("Scale", model.Scale, value => inspectorDefinition = model with { Scale = value }, identity);
+                break;
+            case MapSpawnPoint spawn:
+                EditVector("Position", spawn.Position, value => inspectorDefinition = spawn with { Position = value }, identity);
+                spawn = (MapSpawnPoint)inspectorDefinition;
+                EditVector("Rotation", spawn.RotationEuler, value => inspectorDefinition = spawn with { RotationEuler = value }, identity);
+                break;
+            case MapLootPoint loot:
+                EditVector("Position", loot.Position, value => inspectorDefinition = loot with { Position = value }, identity);
+                break;
+            case MapNavigationWaypoint waypoint:
+                EditVector("Position", waypoint.Position, value => inspectorDefinition = waypoint with { Position = value }, identity);
+                break;
+            case MapNavigationLink link:
+                BuildEndpointCombo("From", identity, link, true);
+                link = (MapNavigationLink)inspectorDefinition;
+                BuildEndpointCombo("To", identity, link, false);
+                break;
+        }
+    }
+
+    private void EditVector(string label, MapVector3 current, Action<MapVector3> update, EditorEntityIdentity identity)
+    {
+        Vector3 value = ToUi(current);
+        if (ImguiNative.igDragFloat3(label, &value, .05f, 0, 0, "%.3f", ImGuiSliderFlags.None))
+            update(ToMap(value));
+        if (ImguiNative.igIsItemDeactivatedAfterEdit())
+            CommitEntityDefinition(identity);
+    }
+
+    private void BuildEndpointCombo(string label, EditorEntityIdentity identity, MapNavigationLink link, bool from)
+    {
+        string current = from ? link.From : link.To;
+        if (!ImguiNative.igBeginCombo(label, current, ImGuiComboFlags.None))
+            return;
+        foreach (MapNavigationWaypoint waypoint in document!.Map.Navigation.Waypoints)
+        {
+            if (ImguiNative.igSelectable_Bool(waypoint.Id, waypoint.Id == current, ImGuiSelectableFlags.None, default))
+            {
+                inspectorDefinition = from ? link with { From = waypoint.Id } : link with { To = waypoint.Id };
+                CommitEntityDefinition(identity);
+            }
+        }
+        ImguiNative.igEndCombo();
+    }
+
+    private void CommitEntityDefinition(EditorEntityIdentity identity)
+    {
+        object before = document!.GetDefinition(identity.EditorId);
+        object after = inspectorDefinition!;
+        if (Equals(before, after))
+            return;
+        if (before is MapNavigationWaypoint oldWaypoint && after is MapNavigationWaypoint newWaypoint &&
+            !string.Equals(oldWaypoint.Id, newWaypoint.Id, StringComparison.Ordinal))
+        {
+            TryExecute(() => new RenameWaypointCommand(identity.EditorId, oldWaypoint.Id, newWaypoint.Id));
+            return;
+        }
+        TryExecute(() => new ReplaceEntityCommand(identity.EditorId, before, after));
+    }
+
+    private void TryExecute(Func<IEditorDocumentCommand> commandFactory, Guid? select = null)
+    {
+        try
+        {
+            IEditorDocumentCommand command = commandFactory();
+            document!.Execute(command);
+            if (select is Guid editorId)
+                selection.Select(document, editorId);
+            RebuildScene();
+            RefreshValidation();
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            validationMessage = ex.Message;
+            log.Add($"Edit rejected: {ex.Message}");
+            inspectorRevision = -1;
+            rootInspectorRevision = -1;
+        }
+    }
+
+    private static Vector3 ToUi(MapVector3 value) => new(value.X, value.Y, value.Z);
+    private static MapVector3 ToMap(Vector3 value) => new(value.X, value.Y, value.Z);
+    private static MapVector3 ToMap(System.Numerics.Vector3 value) => new(value.X, value.Y, value.Z);
+
+    private void RefreshValidation()
+    {
+        try
+        {
+            MapCatalog.Validate(document!.Map);
+            validationMessage = "In-memory map validation: successful";
+        }
+        catch (Exception ex) when (ex is InvalidDataException or ArgumentException)
+        {
+            validationMessage = ex.Message;
+        }
     }
 
     private void BuildLog()
@@ -435,6 +648,23 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             new Vector2(1, 1));
         viewportHovered = ImguiNative.igIsItemHovered(ImGuiHoveredFlags.None);
         viewportFocused = ImguiNative.igIsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
+        if (ImguiNative.igBeginDragDropTarget())
+        {
+            ImGuiPayload* payload = ImguiNative.igAcceptDragDropPayload("ROYALE_MODEL_ASSET", ImGuiDragDropFlags.None);
+            if (payload is not null && payload->Delivery != 0)
+            {
+                int length = Math.Max(0, payload->DataSize - 1);
+                string assetId = System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(payload->Data, length));
+                EditorRay ray = EditorViewportPicking.CreateRay(
+                    camera.ToRenderCamera(),
+                    io->MousePos.X - imagePosition.X,
+                    io->MousePos.Y - imagePosition.Y,
+                    available.X,
+                    available.Y);
+                PlaceModel(assetId, ray);
+            }
+            ImguiNative.igEndDragDropTarget();
+        }
         HandleTransformHotkeys();
 
         gizmoHovered = false;
@@ -539,6 +769,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (!ImguiNative.igCollapsingHeader_TreeNodeFlags(name, ImGuiTreeNodeFlags.DefaultOpen))
             return;
 
+        if (ImguiNative.igSmallButton($"+ Add##{kind}"))
+            AddEntity(kind);
+
         foreach (EditorEntityIdentity identity in document!.Identities.Where(candidate => candidate.Kind == kind))
         {
             string label = $"{EditorEntityTransforms.GetDisplayId(document, identity)}##{identity.EditorId:N}";
@@ -546,6 +779,184 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             if (ImguiNative.igSelectable_Bool(label, isSelected, ImGuiSelectableFlags.None, default))
                 selection.Select(document, identity.EditorId);
         }
+    }
+
+    private void AddEntity(EditorEntityKind kind)
+    {
+        if (document is null)
+            return;
+        MapVector3 position = ToMap(ResolvePlacement(null));
+        object? definition = kind switch
+        {
+            EditorEntityKind.StaticBox => new StaticBoxDefinition
+            {
+                Id = EditorMapEditing.CreateUniqueId(document, kind, "box"),
+                Position = position,
+                Size = new MapVector3(1, 1, 1),
+            },
+            EditorEntityKind.StaticModel => CreateModelDefinition(
+                assetBrowser?.SelectedAssetId ?? manifest?.Assets.FirstOrDefault(asset => asset.Render is not null)?.Id,
+                position),
+            EditorEntityKind.SpawnPoint => new MapSpawnPoint
+            {
+                Id = EditorMapEditing.CreateUniqueId(document, kind, "spawn"),
+                Position = position,
+            },
+            EditorEntityKind.LootPoint => new MapLootPoint
+            {
+                Id = EditorMapEditing.CreateUniqueId(document, kind, "loot"),
+                Position = position,
+            },
+            EditorEntityKind.NavigationWaypoint => new MapNavigationWaypoint
+            {
+                Id = EditorMapEditing.CreateUniqueId(document, kind, "waypoint"),
+                Position = position,
+            },
+            EditorEntityKind.NavigationLink => CreateAvailableLink(),
+            _ => null,
+        };
+        if (definition is null)
+        {
+            validationMessage = kind == EditorEntityKind.StaticModel
+                ? "No render-capable model asset is available."
+                : "No valid pair of unlinked navigation waypoints is available.";
+            log.Add(validationMessage);
+            return;
+        }
+
+        Guid editorId = Guid.NewGuid();
+        int index = EntityCount(kind);
+        TryExecute(() => new AddEntityCommand(kind, index, definition, editorId), editorId);
+    }
+
+    private StaticModelDefinition? CreateModelDefinition(string? assetId, MapVector3 position)
+    {
+        if (assetId is null || manifest?.Assets.Any(asset => asset.Id == assetId && asset.Render is not null) != true)
+            return null;
+        return new StaticModelDefinition
+        {
+            Id = EditorMapEditing.CreateUniqueId(document!, EditorEntityKind.StaticModel, assetId),
+            AssetId = assetId,
+            Position = position,
+            Scale = new MapVector3(1, 1, 1),
+        };
+    }
+
+    private void PlaceModelAtViewportCenter(string assetId)
+    {
+        float width = Math.Max(1, requestedSize.Width);
+        float height = Math.Max(1, requestedSize.Height);
+        EditorRay ray = EditorViewportPicking.CreateRay(camera.ToRenderCamera(), width * .5f, height * .5f, width, height);
+        PlaceModel(assetId, ray);
+    }
+
+    private void PlaceModel(string assetId, EditorRay ray)
+    {
+        StaticModelDefinition? definition = CreateModelDefinition(assetId, ToMap(ResolvePlacement(ray)));
+        if (definition is null)
+        {
+            validationMessage = $"Asset '{assetId}' is not render-capable.";
+            log.Add(validationMessage);
+            return;
+        }
+        Guid editorId = Guid.NewGuid();
+        TryExecute(
+            () => new AddEntityCommand(EditorEntityKind.StaticModel, document!.Map.StaticModels.Count, definition, editorId),
+            editorId);
+    }
+
+    private System.Numerics.Vector3 ResolvePlacement(EditorRay? ray)
+    {
+        float width = Math.Max(1, requestedSize.Width);
+        float height = Math.Max(1, requestedSize.Height);
+        EditorRay placementRay = ray ?? EditorViewportPicking.CreateRay(
+            camera.ToRenderCamera(),
+            width * .5f,
+            height * .5f,
+            width,
+            height);
+        return EditorPlacementResolver.Resolve(
+            placementRay,
+            document!.Map.WorldBounds,
+            transformSettings.SnappingEnabled,
+            transformSettings.GridSpacing);
+    }
+
+    private MapNavigationLink? CreateAvailableLink()
+    {
+        IReadOnlyList<MapNavigationWaypoint> waypoints = document!.Map.Navigation.Waypoints;
+        for (int first = 0; first < waypoints.Count; first++)
+        for (int second = first + 1; second < waypoints.Count; second++)
+        {
+            var candidate = new MapNavigationLink { From = waypoints[first].Id, To = waypoints[second].Id };
+            try
+            {
+                EditorMapEditing.ValidateDefinition(document, EditorEntityKind.NavigationLink, candidate);
+                return candidate;
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+        return null;
+    }
+
+    private void DuplicateEntity(EditorEntityIdentity identity)
+    {
+        object duplicate = EditorMapEditing.DuplicateDefinition(document!, identity);
+        Guid editorId = Guid.NewGuid();
+        TryExecute(() => new AddEntityCommand(identity.Kind, identity.Index + 1, duplicate, editorId), editorId);
+    }
+
+    private int EntityCount(EditorEntityKind kind) => kind switch
+    {
+        EditorEntityKind.StaticBox => document!.Map.StaticBoxes.Count,
+        EditorEntityKind.StaticModel => document!.Map.StaticModels.Count,
+        EditorEntityKind.SpawnPoint => document!.Map.SpawnPoints.Count,
+        EditorEntityKind.LootPoint => document!.Map.LootPoints.Count,
+        EditorEntityKind.NavigationWaypoint => document!.Map.Navigation.Waypoints.Count,
+        EditorEntityKind.NavigationLink => document!.Map.Navigation.Links.Count,
+        _ => 0,
+    };
+
+    private void BuildDeleteModal()
+    {
+        if (deleteModalRequested)
+        {
+            ImguiNative.igOpenPopup_Str("Delete Entity", ImGuiPopupFlags.None);
+            deleteModalRequested = false;
+        }
+        if (!ImguiNative.igBeginPopupModal("Delete Entity", null, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+        EditorEntityIdentity? identity = pendingDeleteEditorId is Guid editorId && document!.TryGetIdentity(editorId, out EditorEntityIdentity found)
+            ? found
+            : null;
+        if (identity is EditorEntityIdentity value)
+        {
+            Text($"Delete {EditorEntityTransforms.GetDisplayId(document!, value)}?");
+            if (value.Kind == EditorEntityKind.NavigationWaypoint)
+            {
+                string id = document!.Map.Navigation.Waypoints[value.Index].Id;
+                int incident = document.Map.Navigation.Links.Count(link => link.From == id || link.To == id);
+                Text($"This also removes {incident} incident link{(incident == 1 ? string.Empty : "s")}.");
+            }
+            if (ImguiNative.igButton("Delete", new Vector2(90, 0)))
+            {
+                Guid deletedId = value.EditorId;
+                TryExecute(() => new RemoveEntityCommand(deletedId));
+                deletedSelectionForUndo = deletedId;
+                selection.Clear();
+                pendingDeleteEditorId = null;
+                ImguiNative.igCloseCurrentPopup();
+            }
+            ImguiNative.igSameLine(0, 8);
+        }
+        if (ImguiNative.igButton("Cancel", new Vector2(90, 0)))
+        {
+            pendingDeleteEditorId = null;
+            ImguiNative.igCloseCurrentPopup();
+        }
+        ImguiNative.igEndPopup();
     }
 
     private void HandleTransformHotkeys()
@@ -670,7 +1081,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (wasUsing && !result.IsUsing && manipulation.IsActive)
         {
             if (manipulation.Complete(document!, out string? error))
+            {
                 log.Add($"Transformed {EditorEntityTransforms.GetDisplayId(document!, identity)}.");
+                RefreshValidation();
+            }
             else if (error is not null)
             {
                 validationMessage = error;
@@ -830,7 +1244,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             assetBrowser,
             assetPreviewProvider,
             RequestAssetImport,
-            () => folderModalRequested = true);
+            () => folderModalRequested = true,
+            PlaceModelAtViewportCenter);
     }
 
     private void ReportThumbnailFailure(string message)
@@ -893,7 +1308,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         document.Execute(new SetMapNameCommand(document.Map.Name, value));
         SetNameBuffer(document.Map.Name);
-        validationMessage = "In-memory map validation: successful";
+        RefreshValidation();
         log.Add("Renamed map.");
     }
 
@@ -904,6 +1319,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         SetNameBuffer(document.Map.Name);
         RebuildScene();
+        if (deletedSelectionForUndo is Guid editorId && document.TryGetIdentity(editorId, out _))
+            selection.Select(document, editorId);
+        RefreshValidation();
         log.Add($"Undo: {document.RedoDescription}.");
     }
 
@@ -914,6 +1332,9 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         SetNameBuffer(document.Map.Name);
         RebuildScene();
+        if (selection.Resolve(document) is null)
+            selection.Clear();
+        RefreshValidation();
         log.Add($"Redo: {document.UndoDescription}.");
     }
 

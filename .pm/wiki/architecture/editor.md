@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T08:31:25.1470290Z
+modifiedAt: 2026-07-13T09:10:27.4136410Z
 ---
 
 ## Purpose
@@ -112,6 +112,18 @@ SDL dialogs, ImGui popup rendering, persistence, logging, and host exit remain a
 `BUG-012` defines display-name completion as either Enter submission or deactivation after editing, so clicking elsewhere commits one document command and immediately updates dirty state. Cmd/Ctrl document shortcuts are resolved from SDL key events and consumed before ImGui text editing; Undo and Redo therefore operate on document history consistently regardless of text-field focus.
 
 `BUG-013` treats the Inspector display-name control as a fixed 256-byte ImGui UTF-8 field: 255 payload bytes plus the required null terminator. Synchronizing a longer runtime map name preserves the authoritative `GameMap.Name` and presents only the longest prefix composed of complete UTF-8 sequences. Inspector and Validation warn that the source name is preserved and that editing and committing the field will replace it with the visible prefix. Loading, undo/redo synchronization, focusing, or leaving the field without editing does not create a rename command. The limit belongs only to this editor control; runtime map loading and `SetMapNameCommand` remain unrestricted.
+
+## Complete Map Schema Editing
+
+`EDITOR-006` makes every existing `GameMap` field authorable without changing the runtime JSON schema. Hierarchy groups provide Add for static boxes, static models, spawn points, loot points, navigation waypoints, and navigation links. Links are hierarchy-selectable but remain non-spatial and never receive a transform gizmo. A selected spatial entity can be duplicated in place; navigation links cannot be duplicated because an exact copy would violate undirected-link uniqueness. Delete always confirms, and waypoint confirmation reports the number of incident links that will also be removed.
+
+The Inspector edits box ID/position/rotation/size; model ID/asset/position/rotation/scale; spawn ID/position/rotation; loot ID/position; waypoint ID/position; link endpoints; map display name; world bounds; and safe-zone centre/radius. The runtime map ID remains read-only. A completed text, vector, numeric, combo, or drag interaction contributes one document command. Blank or duplicate IDs, non-finite values, non-positive box sizes and safe-zone radii, zero model scales, unknown or identical link endpoints, and duplicate undirected links are rejected without entering history.
+
+Structural commands preserve editor GUIDs and array order across undo/redo while reindexing identities after insertion and removal. Static boxes and models share their runtime-ID namespace. Generated IDs are lowercase portable slugs and use `-2`, `-3`, and later suffixes. Duplication copies every authored property but assigns a new runtime ID and editor GUID. Waypoint rename rewrites all referencing link endpoints in the same command. Waypoint deletion removes incident links in the same command; undo restores the waypoint, links, order, and original GUIDs. Newly added or duplicated entities become selected and rebuild scene and picking presentation immediately.
+
+The Asset Browser exposes `Place Selected` for render-capable model entries and starts a model drag payload from render-capable tiles. A viewport drop resolves the cursor ray against the `Y = 0` grid plane; button and hierarchy placement use the viewport-centre ray. Placement uses active translation snapping, clamps the result to world bounds, and falls back to the bounds centre when the ray has no forward grid-plane intersection. New models use unit scale and an asset-derived unique ID; new boxes are one-metre cubes. Other new spatial entities use the same placement resolver.
+
+Document editing intentionally permits temporary runtime invalidity, including removing required entities, inverting bounds, or leaving navigation disconnected. After every document command, the Validation panel refreshes a lightweight `MapCatalog.Validate` attempt and shows the first current error. Save and project persistence continue to run authoritative runtime validation and reject invalid final state. Face snapping, physics-assisted placement, scripting, and advanced validation/playtest tooling remain owned by their follow-up work.
 
 ## Map Project Format
 

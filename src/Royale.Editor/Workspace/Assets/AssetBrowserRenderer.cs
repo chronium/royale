@@ -14,17 +14,20 @@ public sealed unsafe class AssetBrowserRenderer
     private readonly byte[] filterBuffer = new byte[128];
     private readonly Action? requestImport;
     private readonly Action? requestFolderMenu;
+    private readonly Action<string>? placeAsset;
 
     public AssetBrowserRenderer(
         AssetBrowserModel model,
         IAssetPreviewProvider? previews = null,
         Action? requestImport = null,
-        Action? requestFolderMenu = null)
+        Action? requestFolderMenu = null,
+        Action<string>? placeAsset = null)
     {
         this.model = model;
         this.previews = previews;
         this.requestImport = requestImport;
         this.requestFolderMenu = requestFolderMenu;
+        this.placeAsset = placeAsset;
         int count = Encoding.UTF8.GetBytes(model.Filter, filterBuffer);
         if (count == filterBuffer.Length)
             filterBuffer[^1] = 0;
@@ -32,6 +35,12 @@ public sealed unsafe class AssetBrowserRenderer
 
     public void Render()
     {
+        bool canPlace = model.SelectedAssetId is not null;
+        ImguiNative.igBeginDisabled(!canPlace);
+        if (ImguiNative.igButton("Place Selected", new Vector2(112f, 0f)) && model.SelectedAssetId is string selected)
+            placeAsset?.Invoke(selected);
+        ImguiNative.igEndDisabled();
+        ImguiNative.igSameLine(0, 6f);
         if (ImguiNative.igButton("Import Assets...", new Vector2(118f, 0f)))
             requestImport?.Invoke();
         ImguiNative.igSameLine(0, 6f);
@@ -124,6 +133,15 @@ public sealed unsafe class AssetBrowserRenderer
         if (hovered && entry.Kind == AssetBrowserEntryKind.Folder
             && ImguiNative.igIsMouseDoubleClicked_Nil(ImGuiMouseButton.Left))
             model.Navigate(entry.RelativePath);
+
+        if (entry.Kind == AssetBrowserEntryKind.Model && entry.HasRender && ImguiNative.igBeginDragDropSource(ImGuiDragDropFlags.None))
+        {
+            byte[] payload = Encoding.UTF8.GetBytes((entry.AssetId ?? entry.Id) + "\0");
+            fixed (byte* data = payload)
+                ImguiNative.igSetDragDropPayload("ROYALE_MODEL_ASSET", data, (uint)payload.Length, ImGuiCond.Once);
+            ImguiNative.igTextUnformatted(entry.AssetId ?? entry.Id, null);
+            ImguiNative.igEndDragDropSource();
+        }
 
         DrawPreview(entry, origin, selected, hovered, focused);
         DrawLabel(entry, origin, hovered);

@@ -22,6 +22,7 @@ public sealed class AssetBrowserTests
         Assert.Equal(AssetBrowserContentClassification.RenderAndCollision, model.Entries[1].Classification);
         Assert.Equal(AssetBrowserContentClassification.CollisionOnly, model.Entries[2].Classification);
         Assert.False(model.Entries[2].IsEnabled);
+        Assert.False(model.Select("z-collision"));
     }
 
     [Fact]

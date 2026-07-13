@@ -10,9 +10,7 @@ public sealed class EditorSelectionState
 
     public void Select(EditorMapDocument document, Guid editorId)
     {
-        EditorEntityIdentity identity = document.GetIdentity(editorId);
-        if (EditorEntityTransforms.GetCapabilities(identity.Kind) == EditorTransformCapabilities.None)
-            throw new InvalidOperationException("The requested editor entity is not spatially selectable.");
+        document.GetIdentity(editorId);
         SelectedEditorId = editorId;
     }
 

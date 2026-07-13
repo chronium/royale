@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T17:02:01.8538800Z
+modifiedAt: 2026-07-13T19:08:55.6718370Z
 ---
 
 ## Purpose
@@ -219,6 +219,14 @@ Project validation builds isolated temporary client and server outputs directly 
 **Save and Launch** cancels active transform and face-snap previews, validates, saves with the existing external-change checks, replaces any managed playtest pair, and starts `launch/server.sh` followed by `launch/client-connected.sh`. The editor waits up to 15 seconds for `ROYALE_SERVER_READY`, emitted only after UDP binding and simulation initialization. Child stdout and stderr are prefixed into Log. Timeout, startup failure, or an unexpected child exit stops the pair; **Stop Playtest**, relaunch, and editor shutdown terminate both process trees and release temporary outputs. A standalone Save As resumes launch only after a successful destination save.
 
 The workflow uses fixed development host/port `127.0.0.1:7777`, existing development profiles, and their OTLP environment behavior. It is a POSIX source-checkout workflow requiring existing build outputs. Windows process launching and launch-profile editing remain deferred.
+
+## MCP Workspace Architecture
+
+`EDITOR-010` adds a concrete `EditorMcpWorkspace` owned by `EditorApplication`. The application supplies live active-document, project, manifest, mesh-cache, selection, preview-busy, presentation-refresh, and validation-report hooks. This keeps live graphical state and UI refresh behavior in the editor composition root while MCP request/response records remain transport-only data.
+
+Attributed `EditorMcpTools` methods are registered through the official MCP SDK. Every invocation, including reads and runtime-equivalent validation, enters `EditorMainThreadDispatcher`; request cancellation reaches queued work. The workspace then coordinates existing document commands, stable editor GUIDs, validation, project or standalone persistence, viewport bounds, collision-world construction, and face-snap sessions. Expected input, revision, busy-state, entity, asset, transform, and save failures are translated to controlled MCP errors at the tool boundary.
+
+This is an editor-only development surface. It does not add a project boundary or make rendering, SDL, Box3D, ImGui, or editor state dependencies of the server. MCP edits the same authoring document as the human and cannot mutate authoritative running-game state.
 
 ## Deferred Capabilities
 

@@ -1,23 +1,23 @@
+using System.Globalization;
 using Evergine.Bindings.Imgui;
 using Evergine.Mathematics;
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Royale.Content;
 using Royale.Content.Maps;
 using Royale.Content.Models;
-using Royale.Editor.Launch;
-using Royale.Editor.Mcp;
 using Royale.Editor.Dialogs;
 using Royale.Editor.Documents;
+using Royale.Editor.Launch;
+using Royale.Editor.Mcp;
 using Royale.Editor.Persistence;
 using Royale.Editor.Playtest;
 using Royale.Editor.Projects;
 using Royale.Editor.Projects.Assets;
+using Royale.Editor.Validation;
 using Royale.Editor.Viewport;
 using Royale.Editor.Viewport.FaceSnap;
 using Royale.Editor.Workspace;
 using Royale.Editor.Workspace.Assets;
-using Royale.Editor.Validation;
 using Royale.Platform.Desktop;
 using Royale.Rendering;
 using Royale.Rendering.Cameras;
@@ -54,6 +54,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private readonly EditorPlaytestLauncher playtest;
     private readonly EditorSaveAndLaunchCoordinator saveAndLaunch;
     private readonly EditorMainThreadDispatcher mainThreadDispatcher = new();
+    private readonly EditorMcpWorkspace? mcpWorkspace;
     private readonly EditorMcpServer? mcpServer;
     private readonly EditorUtf8InputBuffer nameInput = new(256);
     private readonly EditorUtf8InputBuffer entityIdInput = new(256);
@@ -126,9 +127,30 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         if (options.McpEnabled)
         {
             loggerFactory ??= Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+            mcpWorkspace = new EditorMcpWorkspace(
+                () => document,
+                () => projectSession,
+                () => manifest,
+                () => meshCache,
+                () => selection.SelectedEditorId,
+                () => manipulation.IsActive || faceSnapSession is not null || gizmoFaceSnapSession is not null,
+                editorId =>
+                {
+                    if (editorId is Guid value && document is not null)
+                        selection.Select(document, value);
+                    else
+                        selection.Clear();
+                },
+                RefreshAfterMcpMutation,
+                report =>
+                {
+                    fullValidationReport = report;
+                    ReportFullValidation(report);
+                });
             mcpServer = new EditorMcpServer(
                 options.McpPort,
                 mainThreadDispatcher,
+                mcpWorkspace,
                 loggerFactory.CreateLogger<EditorMcpServer>());
             workspace.McpStatusVisible = true;
         }
@@ -462,22 +484,34 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         SynchronizeRootInspector();
         Vector3 boundsMin = ToUi(inspectorBounds.Min);
         if (ImguiNative.igDragFloat3("Bounds minimum", &boundsMin, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
-            inspectorBounds = inspectorBounds with { Min = ToMap(boundsMin) };
+            inspectorBounds = inspectorBounds with
+            {
+                Min = ToMap(boundsMin)
+            };
         if (ImguiNative.igIsItemDeactivatedAfterEdit())
             TryExecute(() => new SetWorldBoundsCommand(map.WorldBounds, inspectorBounds));
         Vector3 boundsMax = ToUi(inspectorBounds.Max);
         if (ImguiNative.igDragFloat3("Bounds maximum", &boundsMax, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
-            inspectorBounds = inspectorBounds with { Max = ToMap(boundsMax) };
+            inspectorBounds = inspectorBounds with
+            {
+                Max = ToMap(boundsMax)
+            };
         if (ImguiNative.igIsItemDeactivatedAfterEdit())
             TryExecute(() => new SetWorldBoundsCommand(map.WorldBounds, inspectorBounds));
         Vector3 safeCenter = ToUi(inspectorSafeZone.Center);
         if (ImguiNative.igDragFloat3("Safe-zone centre", &safeCenter, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
-            inspectorSafeZone = inspectorSafeZone with { Center = ToMap(safeCenter) };
+            inspectorSafeZone = inspectorSafeZone with
+            {
+                Center = ToMap(safeCenter)
+            };
         if (ImguiNative.igIsItemDeactivatedAfterEdit())
             TryExecute(() => new SetSafeZoneCommand(map.SafeZone, inspectorSafeZone));
         float safeRadius = inspectorSafeZone.Radius;
         if (ImguiNative.igDragFloat("Safe-zone radius", &safeRadius, .1f, 0, 0, "%.3f", ImGuiSliderFlags.None))
-            inspectorSafeZone = inspectorSafeZone with { Radius = safeRadius };
+            inspectorSafeZone = inspectorSafeZone with
+            {
+                Radius = safeRadius
+            };
         if (ImguiNative.igIsItemDeactivatedAfterEdit())
             TryExecute(() => new SetSafeZoneCommand(map.SafeZone, inspectorSafeZone));
 
@@ -593,7 +627,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                     {
                         if (ImguiNative.igSelectable_Bool(candidate.Id, candidate.Id == model.AssetId, ImGuiSelectableFlags.None, default))
                         {
-                            inspectorDefinition = model with { AssetId = candidate.Id };
+                            inspectorDefinition = model with
+                            {
+                                AssetId = candidate.Id
+                            };
                             CommitEntityDefinition(identity);
                         }
                     }
@@ -643,7 +680,13 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         {
             if (ImguiNative.igSelectable_Bool(waypoint.Id, waypoint.Id == current, ImGuiSelectableFlags.None, default))
             {
-                inspectorDefinition = from ? link with { From = waypoint.Id } : link with { To = waypoint.Id };
+                inspectorDefinition = from ? link with
+                {
+                    From = waypoint.Id
+                } : link with
+                {
+                    To = waypoint.Id
+                };
                 CommitEntityDefinition(identity);
             }
         }
@@ -701,6 +744,18 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         {
             validationMessage = ex.Message;
         }
+    }
+
+    private void RefreshAfterMcpMutation()
+    {
+        if (document is null)
+            return;
+
+        SetNameBuffer(document.Map.Name);
+        inspectorRevision = -1;
+        rootInspectorRevision = -1;
+        RebuildScene();
+        RefreshValidation();
     }
 
     private void ValidateMap()
@@ -1038,18 +1093,18 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     {
         IReadOnlyList<MapNavigationWaypoint> waypoints = document!.Map.Navigation.Waypoints;
         for (int first = 0; first < waypoints.Count; first++)
-        for (int second = first + 1; second < waypoints.Count; second++)
-        {
-            var candidate = new MapNavigationLink { From = waypoints[first].Id, To = waypoints[second].Id };
-            try
+            for (int second = first + 1; second < waypoints.Count; second++)
             {
-                EditorMapEditing.ValidateDefinition(document, EditorEntityKind.NavigationLink, candidate);
-                return candidate;
+                var candidate = new MapNavigationLink { From = waypoints[first].Id, To = waypoints[second].Id };
+                try
+                {
+                    EditorMapEditing.ValidateDefinition(document, EditorEntityKind.NavigationLink, candidate);
+                    return candidate;
+                }
+                catch (ArgumentException)
+                {
+                }
             }
-            catch (ArgumentException)
-            {
-            }
-        }
         return null;
     }
 
@@ -1136,7 +1191,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             _ => EditorTransformCapabilities.Translate,
         };
         if (capabilities.HasFlag(required))
-            UpdateTransformSettings(transformSettings with { Operation = operation.Value });
+            UpdateTransformSettings(transformSettings with
+            {
+                Operation = operation.Value
+            });
     }
 
     private void BuildViewportToolbar()
@@ -1167,11 +1225,17 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
 
         byte grid = transformSettings.GridVisible ? (byte)1 : (byte)0;
         if (ImguiNative.igCheckbox("Grid", &grid))
-            UpdateTransformSettings(transformSettings with { GridVisible = grid != 0 });
+            UpdateTransformSettings(transformSettings with
+            {
+                GridVisible = grid != 0
+            });
         ImguiNative.igSameLine(0, 8);
         byte snap = transformSettings.SnappingEnabled ? (byte)1 : (byte)0;
         if (ImguiNative.igCheckbox("Snap", &snap))
-            UpdateTransformSettings(transformSettings with { SnappingEnabled = snap != 0 });
+            UpdateTransformSettings(transformSettings with
+            {
+                SnappingEnabled = snap != 0
+            });
         ImguiNative.igSameLine(0, 8);
         byte face = transformSettings.FaceSnappingEnabled ? (byte)1 : (byte)0;
         ImguiNative.igBeginDisabled(
@@ -1180,7 +1244,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
             manipulation.IsActive ||
             faceSnapSession is not null);
         if (ImguiNative.igCheckbox("Face", &face))
-            UpdateTransformSettings(transformSettings with { FaceSnappingEnabled = face != 0 });
+            UpdateTransformSettings(transformSettings with
+            {
+                FaceSnappingEnabled = face != 0
+            });
         ImguiNative.igEndDisabled();
         ImguiNative.igSameLine(0, 8);
 
@@ -1219,7 +1286,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         byte align = faceSnapSettings.AlignmentEnabled && supportsAlignment ? (byte)1 : (byte)0;
         ImguiNative.igBeginDisabled(!supportsAlignment);
         if (ImguiNative.igCheckbox("Align", &align))
-            faceSnapSettings = faceSnapSettings with { AlignmentEnabled = align != 0 };
+            faceSnapSettings = faceSnapSettings with
+            {
+                AlignmentEnabled = align != 0
+            };
         ImguiNative.igSameLine(0, 4);
         string axisLabel = FaceSnapAxisLabel(faceSnapSettings.AlignmentAxis);
         ImguiNative.igSetNextItemWidth(62);
@@ -1232,7 +1302,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                     faceSnapSettings.AlignmentAxis == axis,
                     ImGuiSelectableFlags.None,
                     default))
-                    faceSnapSettings = faceSnapSettings with { AlignmentAxis = axis };
+                    faceSnapSettings = faceSnapSettings with
+                    {
+                        AlignmentAxis = axis
+                    };
             }
             ImguiNative.igEndCombo();
         }
@@ -1349,7 +1422,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         bool disabled = !available.HasFlag(required) || manipulation.IsActive;
         ImguiNative.igBeginDisabled(disabled);
         if (ImguiNative.igRadioButton_Bool(label, effective == operation))
-            UpdateTransformSettings(transformSettings with { Operation = operation });
+            UpdateTransformSettings(transformSettings with
+            {
+                Operation = operation
+            });
         ImguiNative.igEndDisabled();
     }
 
@@ -1427,7 +1503,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 DisposeGizmoFaceSnap();
                 ImGuiEditorNative.ClearActiveId();
                 gizmoUsing = false;
-                UpdateTransformSettings(transformSettings with { FaceSnappingEnabled = false });
+                UpdateTransformSettings(transformSettings with
+                {
+                    FaceSnappingEnabled = false
+                });
                 validationMessage = $"Gizmo face snap failed: {ex.Message}";
                 log.Add(validationMessage);
                 logger.LogError(ex, "Gizmo face snap failed during a translate manipulation.");
@@ -1471,7 +1550,10 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         catch (Exception ex)
         {
             collisionWorld?.Dispose();
-            UpdateTransformSettings(transformSettings with { FaceSnappingEnabled = false });
+            UpdateTransformSettings(transformSettings with
+            {
+                FaceSnappingEnabled = false
+            });
             validationMessage = $"Could not start gizmo face snap: {ex.Message}";
             log.Add(validationMessage);
             logger.LogError(ex, "Gizmo face snap initialization failed.");

@@ -19,16 +19,22 @@ public sealed class EditorMcpServer : IAsyncDisposable
 
     private readonly int port;
     private readonly EditorMainThreadDispatcher dispatcher;
+    private readonly EditorMcpWorkspace workspace;
     private readonly ILogger logger;
     private WebApplication? application;
 
-    public EditorMcpServer(int port, EditorMainThreadDispatcher dispatcher, ILogger<EditorMcpServer> logger)
+    public EditorMcpServer(
+        int port,
+        EditorMainThreadDispatcher dispatcher,
+        EditorMcpWorkspace workspace,
+        ILogger<EditorMcpServer> logger)
     {
         if (port is < 1 or > 65535)
             throw new ArgumentOutOfRangeException(nameof(port));
 
         this.port = port;
         this.dispatcher = dispatcher;
+        this.workspace = workspace;
         this.logger = logger;
         Status = new($"http://127.0.0.1:{port}{Path}");
     }
@@ -106,14 +112,8 @@ public sealed class EditorMcpServer : IAsyncDisposable
                     Name = "royale-editor",
                     Version = "1.0.0",
                 };
-                options.Handlers = new()
-                {
-                    ListToolsHandler = (_, _) => ValueTask.FromResult(new ListToolsResult
-                    {
-                        Tools = [],
-                    }),
-                };
             })
+            .WithTools(new EditorMcpTools(dispatcher, workspace))
             .WithHttpTransport(options =>
             {
                 options.Stateless = true;

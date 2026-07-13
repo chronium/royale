@@ -1,7 +1,7 @@
 ---
 title: Editor MCP
 createdAt: 2026-07-11T18:49:21.0289030Z
-modifiedAt: 2026-07-13T18:39:21.6733340Z
+modifiedAt: 2026-07-13T19:08:47.2027610Z
 ---
 
 ## Purpose
@@ -22,29 +22,34 @@ All future MCP operations that read or mutate editor, document, rendering, or GP
 
 ## Document Safety
 
-Every mutation includes the expected editor document revision. A stale revision fails clearly instead of overwriting newer human or agent work.
+Every mutation and explicit validation call includes `expectedRevision`. The operation runs only when it matches the active document's committed revision; stale failures report both expected and current revisions and make no change. Reads and mutations are rejected while a transform gizmo, standalone face-snap preview, or constrained face-snap preview is active, so MCP never observes or overwrites transient presentation state.
 
-MCP mutations use the same editor command system as interactive actions and are undoable. Save uses the same runtime validation, external-change detection, and atomic replacement as the UI.
+MCP targets only the active map document. It does not open, replace, close, convert, or Save As documents. Stable editor GUIDs identify entities for the lifetime of that document. Entity mutations use the normal editor command history, preserve human selection unless its selected entity is deleted, and refresh scene and lightweight validation presentation. No-op replacements and transforms do not enter history or increment the revision.
 
-Opening or replacing a map is rejected while the current document has unsaved changes. The first version does not expose a force-discard tool.
+`save` is in-place only and does not increment the document revision. Project documents use project fingerprint checks and project save; standalone documents use their existing JSON path and fingerprint. Both paths run runtime map validation, temporary-file verification, and atomic replacement. A document without an existing writable destination reports that Save As is required. External source, project-manifest, or asset-manifest changes report a conflict rather than overwriting them.
 
 ## Tool Surface
 
-`EDITOR-009` exposes MCP initialization and an empty `tools/list` response. It intentionally ships no inspection or mutation tools.
+`EDITOR-010` registers attributed tools through the official SDK. Every tool advertises an input schema, structured output schema, a closed-world hint, and an accurate read-only/destructive hint.
 
-Follow-on editor MCP tasks own the planned tool surface:
+Read-only inspection tools are:
 
-- Editor and active-document status
-- Map and asset listing
-- Entity listing and inspection
-- Validation
-- Entity creation, duplication, update, and deletion
-- Transform updates and face snapping
-- Undo and redo
-- Save
-- Model contact-sheet capture
+- `get_editor_status`: document type/path, map ID/name, revision, dirty and undo/redo state, selection, and source-manifest fingerprint when the active document is a project.
+- `get_map`: map name, immutable ID, world bounds, safe zone, entity counts, and revision.
+- `list_assets`: model IDs plus relative render source/resources and collision mode/source/artifact.
+- `list_entities`: stable GUID, kind, display ID, and collection index, with an optional kind filter.
+- `get_entity`: complete kind-specific definition, complete transform where spatial, transform capabilities, and revision.
+- `validate_map`: runtime-equivalent staged validation for `expectedRevision`; it also publishes the report to the editor Validation panel.
 
-Tools operate on intent and editor documents. They do not bypass runtime validation or mutate authoritative game state.
+Mutation tools are `set_map_name`, `set_world_bounds`, `set_safe_zone`, `create_entity`, `duplicate_entity`, `replace_entity`, `set_entity_transform`, `delete_entity`, `snap_entity_to_face`, `undo`, `redo`, and `save`. Each requires `expectedRevision`. Entity definitions form a discriminated union using `kind`: `staticBox`, `staticModel`, `spawnPoint`, `lootPoint`, `navigationWaypoint`, or `navigationLink`. Vectors always use explicit `x`, `y`, and `z` fields.
+
+Create appends to the relevant collection. Duplicate inserts after its source and uses the editor's existing unique-ID behavior; navigation links cannot be duplicated. Replacement must retain entity kind. Waypoint runtime-ID replacement rewrites incident links as part of the same revision. Waypoint deletion cascades to incident links. Static-model creation and replacement require a render-capable asset in the active manifest.
+
+`set_entity_transform` accepts the complete position, rotation, and scale-or-size transform. Unsupported rotation or scale changes are rejected; position-only and position/rotation entities must echo their unchanged unsupported components. Complete-transform no-ops are suppressed.
+
+`snap_entity_to_face` accepts a stable entity GUID, world-space ray origin and direction, positive finite maximum distance, alignment enabled, and one alignment axis: `positiveX`, `negativeX`, `positiveY`, `negativeY`, `positiveZ`, or `negativeZ`. It reuses the collision-backed face-snap session, excludes the selected box/model collider, and returns hit point, normal, fraction, and collider metadata. A miss succeeds without changing revision; a changed hit creates one transform command.
+
+Expected failures return controlled MCP errors for stale revisions, active previews, invalid definitions, missing entities or assets, unsupported transforms, save destinations, and fingerprint conflicts. Internal exception details are not exposed. Contact-sheet capture, asset import or mutation, document opening or replacement, Save As, and force-discard remain outside this tool set.
 
 ## Model Contact Sheets
 

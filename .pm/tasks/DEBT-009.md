@@ -7,7 +7,7 @@ priority: medium
 dependsOn:
 - EDITOR-004
 createdAt: 2026-07-12T09:00:35.7743010Z
-modifiedAt: 2026-07-13T08:17:35.5506640Z
+modifiedAt: 2026-07-13T08:21:02.2487640Z
 ---
 
 Move pending Open and Close coordination, Save/Discard/Cancel decisions, dialog cancellation, save failures, and continuation behavior out of private SDL/ImGui orchestration into a deterministic testable component. Add coverage that protects unsaved map data across every workflow outcome.
@@ -19,3 +19,4 @@ Move pending Open and Close coordination, Save/Discard/Cancel decisions, dialog 
   Automated validation (2026-07-13): `dotnet test tests/Royale.Editor.Tests/Royale.Editor.Tests.csproj -m:1 --no-restore` passed 154/154; `dotnet build Royale.slnx -m:1 --no-restore` succeeded with 0 warnings and 0 errors; `dotnet test Royale.slnx -m:1 --no-restore` passed all 1,141 tests; `dotnet format Royale.slnx --no-restore --verify-no-changes --include src/Royale.Editor tests/Royale.Editor.Tests` passed (workspace-load warning only); `git diff --check` passed.
 
   Owner validation requested and pending for native Open/Close behavior and Save As cancellation because these flows depend on ImGui and platform-native dialogs.
+- 2026-07-13 08:21 UTC - Owner validation completed on 2026-07-13: the native editor booted successfully with the graybox map and 12 manifest assets, and the owner confirmed the Open/Close and Save As cancellation behavior looks correct. The editor then exited normally with process status 0.

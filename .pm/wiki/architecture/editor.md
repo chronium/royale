@@ -1,7 +1,7 @@
 ---
 title: Game and Map Editor
 createdAt: 2026-07-11T18:49:21.0208000Z
-modifiedAt: 2026-07-13T19:08:55.6718370Z
+modifiedAt: 2026-07-14T12:07:18.4065610Z
 ---
 
 ## Purpose
@@ -227,6 +227,10 @@ The workflow uses fixed development host/port `127.0.0.1:7777`, existing develop
 Attributed `EditorMcpTools` methods are registered through the official MCP SDK. Every invocation, including reads and runtime-equivalent validation, enters `EditorMainThreadDispatcher`; request cancellation reaches queued work. The workspace then coordinates existing document commands, stable editor GUIDs, validation, project or standalone persistence, viewport bounds, collision-world construction, and face-snap sessions. Expected input, revision, busy-state, entity, asset, transform, and save failures are translated to controlled MCP errors at the tool boundary.
 
 This is an editor-only development surface. It does not add a project boundary or make rendering, SDL, Box3D, ImGui, or editor state dependencies of the server. MCP edits the same authoring document as the human and cannot mutate authoritative running-game state.
+
+`EDITOR-011` adds an editor-owned `ModelContactSheetCaptureService` behind the workspace rather than placing GPU state in MCP transport code. A request resolves and retains a render-capable manifest asset's isolated material-aware scene, normalized bounds, and offscreen target. The frame loop submits at most one of the requested six axis and/or eight diagonal views per frame. SDL fence waiting and final Stb PNG composition run on workers; the main thread only polls completion and keeps ordinary viewport presentation active.
+
+The service permits one active request, propagates MCP cancellation, stops new submissions after cancellation, drains in-flight GPU work, and releases targets/readbacks on success, failure, cancellation, or shutdown. Contact sheets are on-demand inspection artifacts with no cache, persistence, document revision, command-history entry, or map-state dependency. The MCP tool returns manual annotated image blocks plus structured framing, layout, direction, and content-index metadata.
 
 ## Deferred Capabilities
 

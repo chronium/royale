@@ -8,7 +8,10 @@ public readonly record struct RenderCamera(
     float PitchRadians,
     float VerticalFieldOfViewRadians,
     float NearPlane,
-    float FarPlane)
+    float FarPlane,
+    RenderProjectionMode ProjectionMode = RenderProjectionMode.Perspective,
+    float OrthographicVerticalSize = 1.0f,
+    Vector3 UpDirection = default)
 {
     public const float DefaultVerticalFieldOfViewRadians = MathF.PI / 3.0f;
     public const float DefaultNearPlane = 0.1f;
@@ -38,18 +41,34 @@ public readonly record struct RenderCamera(
         }
     }
 
-    public Matrix4x4 CreateViewMatrix() => Matrix4x4.CreateLookAt(Position, Position + Forward, Vector3.UnitY);
+    public Vector3 EffectiveUpDirection => UpDirection.LengthSquared() > 0.0f
+        ? Vector3.Normalize(UpDirection)
+        : Vector3.UnitY;
 
-    public Matrix4x4 CreateProjectionMatrix(uint renderWidth, uint renderHeight) =>
-        Matrix4x4.CreatePerspectiveFieldOfView(
-            VerticalFieldOfViewRadians,
-            GetAspectRatio(renderWidth, renderHeight),
-            NearPlane,
-            FarPlane);
+    public Matrix4x4 CreateViewMatrix() =>
+        Matrix4x4.CreateLookAt(Position, Position + Forward, EffectiveUpDirection);
+
+    public Matrix4x4 CreateProjectionMatrix(uint renderWidth, uint renderHeight)
+    {
+        float aspect = GetAspectRatio(renderWidth, renderHeight);
+        return ProjectionMode == RenderProjectionMode.Orthographic
+            ? Matrix4x4.CreateOrthographic(OrthographicVerticalSize * aspect, OrthographicVerticalSize, NearPlane, FarPlane)
+            : Matrix4x4.CreatePerspectiveFieldOfView(
+                VerticalFieldOfViewRadians,
+                aspect,
+                NearPlane,
+                FarPlane);
+    }
 
     public Matrix4x4 CreateTransposedWorldViewProjection(Matrix4x4 world, uint renderWidth, uint renderHeight) =>
         Matrix4x4.Transpose(world * CreateViewMatrix() * CreateProjectionMatrix(renderWidth, renderHeight));
 
     public static float GetAspectRatio(uint renderWidth, uint renderHeight) =>
         renderWidth == 0 || renderHeight == 0 ? 1.0f : renderWidth / (float)renderHeight;
+}
+
+public enum RenderProjectionMode
+{
+    Perspective,
+    Orthographic,
 }

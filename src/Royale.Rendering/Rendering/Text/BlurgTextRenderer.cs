@@ -62,7 +62,7 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
 
     public void RenderSmokeLabel(SDL_GPUCommandBuffer* commandBuffer, SDL_GPUTexture* swapchainTexture, uint width, uint height)
     {
-        RenderLabels(commandBuffer, swapchainTexture, width, height, default, null);
+        RenderLabels(commandBuffer, swapchainTexture, width, height, default, null, null, showSmokeLabel: true);
     }
 
     public void RenderLabels(
@@ -71,13 +71,17 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
         uint width,
         uint height,
         RenderCamera camera,
-        IReadOnlyList<WorldTextBillboard>? worldBillboards)
+        IReadOnlyList<WorldTextBillboard>? worldBillboards,
+        IReadOnlyList<ScreenTextLabel>? screenLabels,
+        bool showSmokeLabel)
     {
         ThrowIfDisposed();
 
         queuedSources.Clear();
         queuedProjectedSources.Clear();
-        QueueSmokeLabel();
+        if (showSmokeLabel)
+            QueueSmokeLabel();
+        QueueScreenLabels(screenLabels);
         QueueWorldLabels(camera, width, height, worldBillboards);
 
         FlushAtlasUpdates(commandBuffer);
@@ -124,6 +128,18 @@ internal sealed unsafe class BlurgTextRenderer : IDisposable
         TextSmokeLabelState label = TextSmokeLabelState.CreateDefault();
         QueueString(label.Text, label.Position + label.ShadowOffset, label.FontSize, label.Shadow);
         QueueString(label.Text, label.Position, label.FontSize, label.Foreground);
+    }
+
+    private void QueueScreenLabels(IReadOnlyList<ScreenTextLabel>? labels)
+    {
+        if (labels is null)
+            return;
+
+        foreach (ScreenTextLabel label in labels)
+        {
+            QueueString(label.Text, label.Position + label.ShadowOffset, label.FontSize, label.Shadow);
+            QueueString(label.Text, label.Position, label.FontSize, label.Foreground);
+        }
     }
 
     private void QueueString(string text, Vector2 position, float fontSize, BlurgColor color)

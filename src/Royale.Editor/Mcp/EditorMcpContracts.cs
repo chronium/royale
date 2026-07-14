@@ -136,6 +136,31 @@ public sealed record EditorMcpFaceSnapResult(
     string? ColliderKind,
     string? ColliderAssetId);
 
+public sealed record EditorMcpDimensions(int Width, int Height);
+
+public sealed record EditorMcpContactSheetInfo(
+    string ViewSet,
+    EditorMcpDimensions Dimensions,
+    int ContentIndex);
+
+public sealed record EditorMcpContactSheetView(
+    string ViewSet,
+    string Label,
+    int Row,
+    int Column,
+    int ContentIndex,
+    EditorMcpVector3 CameraFromDirection,
+    EditorMcpVector3 UpDirection);
+
+public sealed record EditorMcpContactSheetResult(
+    string AssetId,
+    string ManifestFingerprint,
+    EditorMcpBounds ModelBounds,
+    float OrthographicSize,
+    EditorMcpDimensions TileDimensions,
+    IReadOnlyList<EditorMcpContactSheetInfo> Sheets,
+    IReadOnlyList<EditorMcpContactSheetView> Views);
+
 public enum EditorMcpFaceSnapAxis
 {
     PositiveX,

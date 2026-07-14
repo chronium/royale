@@ -33,7 +33,7 @@ public sealed class EditorMcpServerTests
 
         string[] expectedNames =
         [
-            "create_entity", "delete_entity", "duplicate_entity", "get_editor_status", "get_entity", "get_map",
+            "capture_model_contact_sheets", "create_entity", "delete_entity", "duplicate_entity", "get_editor_status", "get_entity", "get_map",
             "list_assets", "list_entities", "redo", "replace_entity", "save", "set_entity_transform",
             "set_map_name", "set_safe_zone", "set_world_bounds", "snap_entity_to_face", "undo", "validate_map",
         ];
@@ -44,8 +44,12 @@ public sealed class EditorMcpServerTests
             Assert.NotNull(tool.ProtocolTool.OutputSchema);
             Assert.False(tool.ProtocolTool.Annotations?.OpenWorldHint);
         });
-        foreach (string name in new[] { "get_editor_status", "get_entity", "get_map", "list_assets", "list_entities", "validate_map" })
+        foreach (string name in new[] { "capture_model_contact_sheets", "get_editor_status", "get_entity", "get_map", "list_assets", "list_entities", "validate_map" })
             Assert.True(tools.Single(tool => tool.Name == name).ProtocolTool.Annotations?.ReadOnlyHint);
+        McpClientTool contactSheets = tools.Single(tool => tool.Name == "capture_model_contact_sheets");
+        Assert.False(contactSheets.ProtocolTool.Annotations?.DestructiveHint);
+        Assert.Contains("axis", contactSheets.ProtocolTool.InputSchema.GetProperty("properties").GetProperty("viewSet").GetProperty("description").GetString());
+        Assert.True(contactSheets.ProtocolTool.OutputSchema!.Value.GetProperty("properties").TryGetProperty("views", out _));
         Assert.False(tools.Single(tool => tool.Name == "create_entity").ProtocolTool.Annotations?.DestructiveHint);
         Assert.True(tools.Single(tool => tool.Name == "delete_entity").ProtocolTool.Annotations?.DestructiveHint);
         Assert.Equal(EditorMcpServerState.Listening, server.Status.Snapshot.State);

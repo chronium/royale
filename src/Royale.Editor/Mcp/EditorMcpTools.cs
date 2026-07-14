@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Text.Json;
 using ModelContextProtocol;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace Royale.Editor.Mcp;
@@ -30,6 +32,55 @@ public sealed class EditorMcpTools
     [Description("Lists model assets and their relative render, resource, and collision metadata.")]
     public Task<EditorMcpAssetListResult> ListAssets(CancellationToken cancellationToken) =>
         Invoke(workspace.ListAssets, cancellationToken);
+
+    [McpServerTool(
+        Name = "capture_model_contact_sheets",
+        ReadOnly = true,
+        Destructive = false,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(EditorMcpContactSheetResult))]
+    [Description("Renders a manifest model as labelled axis, diagonal, or combined orthographic PNG contact sheets.")]
+    public async Task<CallToolResult> CaptureModelContactSheets(
+        [Description("Render-capable asset ID from list_assets.")] string assetId,
+        [Description("View set: axis, diagonal, or both. Defaults to both.")] string viewSet = "both",
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            Task<ModelContactSheetCapture> pending = await dispatcher.DispatchAsync(
+                () => workspace.CaptureModelContactSheets(assetId, viewSet, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+            ModelContactSheetCapture capture = await pending.ConfigureAwait(false);
+            ContentBlock[] content = capture.PngImages.Select(image =>
+            {
+                ImageContentBlock block = ImageContentBlock.FromBytes(image, "image/png");
+                block.Annotations = new Annotations
+                {
+                    Audience = [Role.User, Role.Assistant],
+                    Priority = 1.0f,
+                };
+                return (ContentBlock)block;
+            }).ToArray();
+            return new CallToolResult
+            {
+                Content = content,
+                StructuredContent = JsonSerializer.SerializeToElement(capture.Metadata),
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            InvalidOperationException or
+            KeyNotFoundException or
+            IOException)
+        {
+            throw new McpException(exception.Message);
+        }
+    }
 
     [McpServerTool(Name = "list_entities", ReadOnly = true, Destructive = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Lists stable editor entity identities, optionally filtered by entity kind.")]

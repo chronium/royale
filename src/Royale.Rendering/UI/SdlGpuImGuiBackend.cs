@@ -163,6 +163,13 @@ public sealed unsafe class SdlGpuImGuiBackend : IDisposable
         SDL.SDL3.SDL_EndGPURenderPass(renderPass);
     }
 
+    public void EndFrameWithoutRendering()
+    {
+        ThrowIfDisposed();
+        ImguiNative.igSetCurrentContext(context);
+        ImguiNative.igEndFrame();
+    }
+
     public void Dispose()
     {
         if (sdlGpuInitialized)

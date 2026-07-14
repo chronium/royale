@@ -12,7 +12,9 @@ public sealed record RenderFrame(
     RenderViewMode RenderViewMode,
     DebugPrimitiveList? DebugPrimitives = null,
     IReadOnlyList<WorldTextBillboard>? WorldText = null,
-    SDL_FColor ClearColor = default)
+    SDL_FColor ClearColor = default,
+    IReadOnlyList<ScreenTextLabel>? ScreenText = null,
+    bool ShowSmokeLabel = true)
 {
     public SDL_FColor EffectiveClearColor => ClearColor.a == 0.0f
         ? new SDL_FColor { r = 0.03f, g = 0.04f, b = 0.06f, a = 1.0f }

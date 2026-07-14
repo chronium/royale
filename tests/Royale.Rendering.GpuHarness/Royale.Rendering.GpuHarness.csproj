@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RoyaleAssetAudience>client</RoyaleAssetAudience>
     <RoyaleEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
     <RoyaleEffectiveRuntimeIdentifier Condition="'$(RoyaleEffectiveRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RoyaleEffectiveRuntimeIdentifier>
   </PropertyGroup>
@@ -22,4 +23,5 @@
           DestinationFiles="@(RenderingShaderAsset->'$(OutputPath)shaders/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
+  <Import Project="..\..\build\Royale.AssetPipeline.targets" />
 </Project>

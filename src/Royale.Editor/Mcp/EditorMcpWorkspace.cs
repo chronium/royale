@@ -23,6 +23,7 @@ public sealed class EditorMcpWorkspace
     private readonly Action<Guid?> setSelection;
     private readonly Action refreshPresentation;
     private readonly Action<EditorMapValidationReport> publishValidation;
+    private readonly Func<IModelContactSheetCaptureService?> getContactSheetCaptureService;
 
     public EditorMcpWorkspace(
         Func<EditorMapDocument?> getDocument,
@@ -33,7 +34,8 @@ public sealed class EditorMcpWorkspace
         Func<bool> isPreviewActive,
         Action<Guid?> setSelection,
         Action refreshPresentation,
-        Action<EditorMapValidationReport> publishValidation)
+        Action<EditorMapValidationReport> publishValidation,
+        Func<IModelContactSheetCaptureService?>? getContactSheetCaptureService = null)
     {
         this.getDocument = getDocument;
         this.getProjectSession = getProjectSession;
@@ -44,6 +46,7 @@ public sealed class EditorMcpWorkspace
         this.setSelection = setSelection;
         this.refreshPresentation = refreshPresentation;
         this.publishValidation = publishValidation;
+        this.getContactSheetCaptureService = getContactSheetCaptureService ?? (() => null);
     }
 
     public EditorMcpStatusResult GetStatus()
@@ -145,6 +148,16 @@ public sealed class EditorMcpWorkspace
             validation.Report.AssetManifestFingerprint,
             validation.Report.Stages.Select(stage =>
                 new EditorMcpValidationStage(stage.Category, stage.Success, stage.Message)).ToArray());
+    }
+
+    public Task<ModelContactSheetCapture> CaptureModelContactSheets(
+        string assetId,
+        string? viewSet,
+        CancellationToken cancellationToken)
+    {
+        IModelContactSheetCaptureService service = getContactSheetCaptureService()
+            ?? throw new InvalidOperationException("Model contact-sheet capture is unavailable because rendering is not initialized.");
+        return service.CaptureAsync(assetId, viewSet, cancellationToken);
     }
 
     public EditorMcpMutationResult SetMapName(long expectedRevision, string name)

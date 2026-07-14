@@ -74,6 +74,7 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
     private AssetBrowserModel? assetBrowser;
     private AssetBrowserRenderer? assetBrowserRenderer;
     private ProjectAssetPreviewProvider? assetPreviewProvider;
+    private ModelContactSheetCaptureService? contactSheetCaptureService;
     private StaticMeshAssetCache? meshCache;
     private int frames;
     private ViewportPixelSize requestedSize = new(1, 1);
@@ -146,7 +147,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 {
                     fullValidationReport = report;
                     ReportFullValidation(report);
-                });
+                },
+                () => contactSheetCaptureService);
             mcpServer = new EditorMcpServer(
                 options.McpPort,
                 mainThreadDispatcher,
@@ -201,6 +203,12 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
                 gpu,
                 new SdlGpuImGuiSettings(true, layout));
             ReloadAssetBrowser();
+            contactSheetCaptureService = new ModelContactSheetCaptureService(
+                gpu,
+                () => manifest,
+                () => meshCache,
+                () => projectSession,
+                logger);
 
             if (!File.Exists(layout))
                 workspace.RequestLayoutReset();
@@ -364,13 +372,14 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         ImGuizmoViewportAdapter.BeginFrame();
         BuildWorkspace(target, document.Map);
 
+        assetPreviewProvider?.ProcessFrame();
+        contactSheetCaptureService?.ProcessFrame();
         frames++;
         bool capture = options.ScreenshotPath is not null && frames == options.ScreenshotAfterFrames;
         GpuImageReadback? image = gpu.PresentFrame(
             new RenderFrame(camera.ToRenderCamera(), new StaticMeshScene([], []), RenderViewMode.Normal),
             imgui,
             capture);
-        assetPreviewProvider?.ProcessFrame();
 
         if (capture && image is not null)
         {
@@ -2463,6 +2472,8 @@ public sealed unsafe class EditorApplication : ISdlDesktopApplication, IDisposab
         DisposeGizmoFaceSnap();
         ReleaseViewportInput();
         DisposeAssetPreviewProvider();
+        contactSheetCaptureService?.Dispose();
+        contactSheetCaptureService = null;
         target?.Dispose();
         imgui?.Dispose();
         gpu?.Dispose();

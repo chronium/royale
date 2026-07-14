@@ -1,7 +1,7 @@
 ---
 title: Content and Rendering
 createdAt: 2026-07-05T16:11:12.3546390Z
-modifiedAt: 2026-07-12T19:09:04.2488670Z
+modifiedAt: 2026-07-14T12:07:09.7671540Z
 ---
 
 ## Content and Map Data
@@ -255,6 +255,8 @@ The crate is drawn by the same basic static mesh shader, depth target, and flat 
 
 SDL GPU exposes synchronous readback for one-shot process-exiting screenshots and a separate fence-backed asynchronous offscreen readback for progressive editor work. Following SDL's download guidance, thumbnail fence waits run on a worker thread; later frames consume at most one completed RGBA readback and upload at most one sampled texture, so ImGui interaction never performs a synchronous GPU wait. Owned transfer buffers, fences, offscreen targets, and uploaded sampled textures are released on completion, failure, replacement, or shutdown.
 
+`EDITOR-011` reuses this StbImageWriteSharp codec for generated contact sheets; SixLabors ImageSharp is not part of the rendering dependency path. `GpuImageReadbackRequest` exposes fence-backed offscreen completion without synchronously blocking the editor frame. On Metal, a signaled query is followed by the SDL fence wait before CPU mapping so downloaded bytes are visible. Long-running editor captures perform that fence wait on a worker and poll its completion from later editor frames, matching the established thumbnail lifecycle.
+
 ### Manifest-Addressed Model Rendering
 
 `StaticMeshAssetCache` reads the generated client `assets/model-assets.json` catalog and caches loaded assets by stable ID. `SimpleMeshStaticMeshLoader` uses `Model.FromFile` so relative and embedded GLB image resources populate `Model.Images`; node transforms are applied to positions and inverse-transpose normals, while UVs, triangle-group material boundaries, linear base-color factors, and referenced image bytes are preserved as small project-owned render primitives.
@@ -262,6 +264,8 @@ SDL GPU exposes synchronous readback for one-shot process-exiting screenshots an
 The static mesh vertex layout carries position, normal, and one UV set. The SDL GPU mesh pipeline binds one base-color texture and sampler per material batch, multiplies the sampled color by the material factor and directional lighting, and uses a shared white fallback for untextured gray-box geometry. PNG/JPEG bytes are decoded through SDL3 `SDL_LoadSurface_IO`, converted to RGBA32, uploaded as sRGB SDL GPU textures, cached for shared material image data, and disposed with the renderer. The Kenney nearest-filtered atlas uses repeat addressing. This is intentionally limited to opaque base-color materials; it does not add a material graph, PBR pipeline, animation, skinning, or server dependency.
 
 `GAME-011` supplies model instances exclusively from shared map content. The deterministic crate validation uses freecam position `(8, 2.2, 8)` looking at `(6, 0.5, 5)`, captures after five frames, and verifies the textured map-authored crate plus aligned Box3D debug hull without human validation.
+
+`RenderCamera` supports explicit perspective and orthographic projection while preserving the existing perspective constructors. Orthographic cameras specify vertical size and a configurable up direction; the contact-sheet framing helper assigns stable non-degenerate up vectors for the `+Y` and `-Y` views. All six axis and eight corner directions use one normalized-bounds scale with 15% padding. `RenderFrame` can carry screen-space Blurg labels and independently suppress the smoke label, so offscreen inspection tiles receive explicit signed labels without changing ordinary viewport or thumbnail behavior.
 
 ## Shader Build Pipeline
 
@@ -282,6 +286,8 @@ The client build requires `shadercross` to be available on `PATH`. After `Royale
 The harness renders an indexed unit box to a 128×96 offscreen target, validates normalized opaque RGBA readback against a distinctive clear color, resizes the same target to 79×61, and repeats. Its output packages the macOS ARM64 SDL, ImGui, and Blurg native libraries plus Rendering-owned HLSL, MSL, and SPIR-V shaders in the same runtime layout as graphical consumers.
 
 Run the built harness directly with `dotnet tests/Royale.Rendering.GpuHarness/bin/Debug/net10.0/Royale.Rendering.GpuHarness.dll`. The environment-gated `SdlGpuIntegrationTests` wrapper executes the packaged DLL from the Rendering test output when `ROYALE_GPU_TESTS=1`, captures both output streams, enforces a 30-second timeout, kills the process tree on timeout, and requires both exit code zero and `GPU_HARNESS_SUCCESS`. Without the environment variable, the wrapper does not touch SDL.
+
+The opt-in harness also loads the real `kenney-crate` asset and captures all fourteen contact-sheet directions through the asynchronous SDL GPU readback path. It requires every tile to be opaque, nonblank, framed away from tile edges, and materially distinct across the view set.
 
 ## Render Sequence
 

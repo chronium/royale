@@ -1,7 +1,7 @@
 ---
 title: Editor MCP
 createdAt: 2026-07-11T18:49:21.0289030Z
-modifiedAt: 2026-07-13T19:08:47.2027610Z
+modifiedAt: 2026-07-14T12:06:54.4862950Z
 ---
 
 ## Purpose
@@ -40,6 +40,7 @@ Read-only inspection tools are:
 - `list_entities`: stable GUID, kind, display ID, and collection index, with an optional kind filter.
 - `get_entity`: complete kind-specific definition, complete transform where spatial, transform capabilities, and revision.
 - `validate_map`: runtime-equivalent staged validation for `expectedRevision`; it also publishes the report to the editor Validation panel.
+- `capture_model_contact_sheets`: on-demand isolated orthographic PNG inspection for a render-capable manifest asset. It does not inspect map state and therefore takes no document revision.
 
 Mutation tools are `set_map_name`, `set_world_bounds`, `set_safe_zone`, `create_entity`, `duplicate_entity`, `replace_entity`, `set_entity_transform`, `delete_entity`, `snap_entity_to_face`, `undo`, `redo`, and `save`. Each requires `expectedRevision`. Entity definitions form a discriminated union using `kind`: `staticBox`, `staticModel`, `spawnPoint`, `lootPoint`, `navigationWaypoint`, or `navigationLink`. Vectors always use explicit `x`, `y`, and `z` fields.
 
@@ -49,17 +50,14 @@ Create appends to the relevant collection. Duplicate inserts after its source an
 
 `snap_entity_to_face` accepts a stable entity GUID, world-space ray origin and direction, positive finite maximum distance, alignment enabled, and one alignment axis: `positiveX`, `negativeX`, `positiveY`, `negativeY`, `positiveZ`, or `negativeZ`. It reuses the collision-backed face-snap session, excludes the selected box/model collider, and returns hit point, normal, fraction, and collider metadata. A miss succeeds without changing revision; a changed hit creates one transform command.
 
-Expected failures return controlled MCP errors for stale revisions, active previews, invalid definitions, missing entities or assets, unsupported transforms, save destinations, and fingerprint conflicts. Internal exception details are not exposed. Contact-sheet capture, asset import or mutation, document opening or replacement, Save As, and force-discard remain outside this tool set.
+Expected failures return controlled MCP errors for stale revisions, active previews, invalid definitions, missing entities or assets, unsupported transforms, save destinations, fingerprint conflicts, uninitialized rendering, collision-only contact-sheet assets, concurrent contact-sheet capture, GPU/readback failure, cancellation, and editor shutdown. Internal exception details are not exposed. Asset import or mutation, document opening or replacement, Save As, context-mode contact sheets, and force-discard remain outside this tool set.
 
 ## Model Contact Sheets
 
-Model inspection supports two modes:
+`capture_model_contact_sheets` accepts a render-capable `assetId` from the active manifest and optional `viewSet` of `axis`, `diagonal`, or `both` (default). It is read-only, closed-world, generated on demand, and neither persisted nor cached.
 
-- Isolated asset mode renders only the selected asset.
-- Context mode renders a selected map instance with configurable nearby geometry, selection highlighting, and an optional collision overlay.
+Every tile is 384×384 with a neutral-gray background, shared lighting, internal separators, and a top-left Blurg label using explicit axis signs. All requested views share one bounds-derived orthographic vertical size with 15% padding. The 1152×768 axis sheet places `+X/+Y/+Z` on the first row and `-X/-Y/-Z` on the second. The 1536×768 diagonal sheet places the four positive-Y corners on the first row and their matching negative-Y corners on the second. Axis content precedes diagonal content when both are requested.
 
-The editor produces one labelled orthographic PNG sheet for the six axis views and one for the eight corner-diagonal views. Views use consistent framing, lighting, background, and scale derived from model bounds.
+The manual MCP result contains one or two annotated `image/png` blocks plus advertised structured content: asset ID, active manifest fingerprint, normalized model bounds, common orthographic size, tile and sheet dimensions, each sheet's content index, and each view's label, row, column, camera-from direction, and up direction. The tool needs no `expectedRevision` because it does not inspect or mutate map state.
 
-Offscreen rendering uses the shared SDL GPU rendering path. GPU readback is encoded as PNG with ImageSharp. MCP returns up to two `image/png` content items plus structured view and framing metadata.
-
-Model contact sheets are inspection artifacts and do not modify the map document.
+An editor-owned capture service retains the isolated material-aware scene and one offscreen target for the request. It submits at most one view per editor frame. SDL fence waiting runs on a worker, while later frames poll completion and continue normal viewport presentation; final sheet composition and StbImageWriteSharp PNG encoding also run in the background. One request may be active at a time. Cancellation stops new submissions and safely drains in-flight work, and shutdown releases retained targets and readbacks.

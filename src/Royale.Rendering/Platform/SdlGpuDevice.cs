@@ -183,7 +183,12 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         uint swapchainWidth;
         uint swapchainHeight;
 
-        if (!SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, (SDL_Window*)window.NativeHandle, &swapchainTexture, &swapchainWidth, &swapchainHeight))
+        if (!SDL_WaitAndAcquireGPUSwapchainTexture(
+                commandBuffer,
+                (SDL_Window*)window.NativeHandle,
+                &swapchainTexture,
+                &swapchainWidth,
+                &swapchainHeight))
             throw new InvalidOperationException($"SDL GPU swapchain texture acquisition failed: {SDL_GetError()}");
 
         SDL_GPUTextureFormat swapchainFormat = SDL_GPUTextureFormat.SDL_GPU_TEXTUREFORMAT_INVALID;
@@ -234,7 +239,15 @@ public sealed unsafe class SdlGpuDevice : IDisposable
                 debugLineRenderer?.Render(commandBuffer, renderPass, swapchainWidth, swapchainHeight, frame.Camera);
             SDL_EndGPURenderPass(renderPass);
 
-            blurgTextRenderer.RenderLabels(commandBuffer, swapchainTexture, swapchainWidth, swapchainHeight, frame.Camera, frame.WorldText);
+            blurgTextRenderer.RenderLabels(
+                commandBuffer,
+                swapchainTexture,
+                swapchainWidth,
+                swapchainHeight,
+                frame.Camera,
+                frame.WorldText,
+                frame.ScreenText,
+                frame.ShowSmokeLabel);
 
             imguiBackend?.Render(commandBuffer, swapchainTexture);
 
@@ -248,6 +261,8 @@ public sealed unsafe class SdlGpuDevice : IDisposable
 
         if (screenshotTransferBuffer is null)
         {
+            if (swapchainTexture is null)
+                imguiBackend?.EndFrameWithoutRendering();
             if (!SDL_SubmitGPUCommandBuffer(commandBuffer))
                 throw new InvalidOperationException($"SDL GPU command buffer submission failed: {SDL_GetError()}");
 
@@ -303,7 +318,15 @@ public sealed unsafe class SdlGpuDevice : IDisposable
         if (frame.RenderViewMode.ShouldRenderDebugWireframes())
             debugLineRenderer?.Render(commandBuffer, renderPass, width, height, frame.Camera);
         SDL_EndGPURenderPass(renderPass);
-        blurgTextRenderer.RenderLabels(commandBuffer, target.ColorTexture, width, height, frame.Camera, frame.WorldText);
+        blurgTextRenderer.RenderLabels(
+            commandBuffer,
+            target.ColorTexture,
+            width,
+            height,
+            frame.Camera,
+            frame.WorldText,
+            frame.ScreenText,
+            frame.ShowSmokeLabel);
         imguiBackend?.Render(commandBuffer, target.ColorTexture);
 
         if (!readback)
@@ -354,6 +377,20 @@ public sealed unsafe class SdlGpuDevice : IDisposable
             throw new InvalidOperationException($"SDL GPU thumbnail render pass creation failed: {SDL_GetError()}");
         staticMeshRenderer.Render(commandBuffer, renderPass, width, height, frame.Camera, frame.StaticScene);
         SDL_EndGPURenderPass(renderPass);
+
+        if (frame.ScreenText is { Count: > 0 } || frame.WorldText is { Count: > 0 })
+        {
+            blurgTextRenderer ??= new BlurgTextRenderer(Handle, target.ColorFormat, PreferredShaderFormat.Value);
+            blurgTextRenderer.RenderLabels(
+                commandBuffer,
+                target.ColorTexture,
+                width,
+                height,
+                frame.Camera,
+                frame.WorldText,
+                frame.ScreenText,
+                frame.ShowSmokeLabel);
+        }
 
         uint byteCount = checked(width * height * 4);
         SDL_GPUTransferBuffer* transferBuffer = CreateScreenshotTransferBuffer(byteCount);

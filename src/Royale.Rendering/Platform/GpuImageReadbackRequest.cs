@@ -34,20 +34,30 @@ public sealed unsafe class GpuImageReadbackRequest : IDisposable
             return false;
         }
 
-        image = MapImage();
-        Dispose();
-        return true;
+        try
+        {
+            WaitForFence();
+            image = MapImage();
+            return true;
+        }
+        finally
+        {
+            Dispose();
+        }
     }
 
     public GpuImageReadback Wait()
     {
         ThrowIfDisposed();
-        SDL_GPUFence* value = fence;
-        if (!SDL_WaitForGPUFences(device, wait_all: true, &value, 1))
-            throw new InvalidOperationException($"SDL GPU image fence wait failed: {SDL_GetError()}");
-        GpuImageReadback image = MapImage();
-        Dispose();
-        return image;
+        try
+        {
+            WaitForFence();
+            return MapImage();
+        }
+        finally
+        {
+            Dispose();
+        }
     }
 
     public void Dispose()
@@ -77,6 +87,13 @@ public sealed unsafe class GpuImageReadbackRequest : IDisposable
         {
             SDL_UnmapGPUTransferBuffer(device, transfer);
         }
+    }
+
+    private void WaitForFence()
+    {
+        SDL_GPUFence* value = fence;
+        if (!SDL_WaitForGPUFences(device, wait_all: true, &value, 1))
+            throw new InvalidOperationException($"SDL GPU image fence wait failed: {SDL_GetError()}");
     }
 
     private void ThrowIfDisposed()

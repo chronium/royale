@@ -27,6 +27,7 @@ tracks:
   ASSET: Model asset pipeline
   EDITOR: Game and map editor
   IMPROVE: Improvements
+  IDEA: Future ideas
 milestones:
   M0: Cross-platform technical skeleton
   M1: Gray-box physics sandbox
